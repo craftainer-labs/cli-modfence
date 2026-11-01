@@ -2,9 +2,19 @@ version = 1
 
 exclude = ["tests/fixtures/**"]
 
+# "allow": a dependency no rule decided is permitted.
+# "deny": a dependency between the repository's own modules needs an allow
+# rule (or must obey `layers`); external imports stay allowed.
+default = "deny"
+
 # Highest layer first: a layer may use itself and the layers below it, so
 # the domain (lowest) depends on nothing above it and infra may use it.
 layers = ["app", "infra", "domain"]
+
+# Traceability keys whose values add up across config, module and symbol
+# annotations; every other key takes the highest level that sets it.
+[tags]
+accumulate = ["adr", "req"]
 
 [annotations]
 require_reason = true
@@ -15,7 +25,7 @@ tags = { layer = "app", owner = "team-web" }
 
 [[node]]
 match = "src/domain/**"
-tags = { layer = "domain" }
+tags = { layer = "domain", adr = ["0028", "0029"], req = "REQ-12" }
 
 [[node]]
 match = "src/infra/**"
@@ -38,11 +48,23 @@ severity = "error"
 message = "The domain layer must not talk to the network."
 
 [[rule]]
+id = "app-uses-legacy-reader"
+from = { path = "src/app/**" }
+to = { path = "src/legacy/reader.py" }
+effect = "allow"
+
+[[rule]]
 id = "no-new-legacy"
 from = { path = "src/app/**" }
 to = { deprecated = "true" }
 kinds = ["imports", "calls"]
-confidence = "resolved"
+confidence = "any"
 effect = "forbid"
 severity = "warning"
 message = "Do not add new uses of deprecated modules."
+
+# In source: `# modfence: adr=0030 adr=0031` (Python) or
+# `// modfence: adr=0030` (TypeScript, Rust) adds ADR ids to a module or
+# symbol because `adr` accumulates; and
+# `# modfence: ignore[no-new-legacy] reason="migration in PR 123"`
+# suppresses one finding.

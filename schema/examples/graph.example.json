@@ -13,11 +13,11 @@
     "nodes": {
       "pkg:py:src/domain": {
         "label": "src/domain",
-        "metadata": { "kind": "package", "lang": "py", "path": "src/domain", "tags": { "layer": "domain" } }
+        "metadata": { "kind": "package", "lang": "py", "path": "src/domain", "tags": { "layer": ["domain"], "adr": ["0028", "0029"] } }
       },
       "mod:py:src/domain/orders.py": {
         "label": "src/domain/orders.py",
-        "metadata": { "kind": "module", "lang": "py", "path": "src/domain/orders.py", "tags": { "layer": "domain" } }
+        "metadata": { "kind": "module", "lang": "py", "path": "src/domain/orders.py", "tags": { "layer": ["domain"], "adr": ["0028", "0029"] } }
       },
       "sym:py:src/domain/orders.py#place": {
         "label": "place",
@@ -27,12 +27,12 @@
           "path": "src/domain/orders.py",
           "symbol_kind": "function",
           "span": { "start_line": 4, "start_column": 1, "end_line": 9, "end_column": 1 },
-          "tags": { "layer": "domain" }
+          "tags": { "layer": ["domain"], "adr": ["0028", "0029"] }
         }
       },
       "ext:py:requests": {
         "label": "requests",
-        "metadata": { "kind": "external", "lang": "py", "tags": { "boundary": "network" } }
+        "metadata": { "kind": "external", "lang": "py", "tags": { "boundary": ["network"] } }
       },
       "mod:rs:crates/core/src/lib.rs": {
         "label": "crates/core/src/lib.rs",
