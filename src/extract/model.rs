@@ -301,7 +301,8 @@ pub struct Annotation {
     pub span: Span,
     /// The symbol the comment sits directly above (ADR 0004: no blank line
     /// between, decorators, attributes and doc comments allowed between), or
-    /// `None` to tag the module. Always `None` for a suppression.
+    /// `None` to tag the module. [`Annotation::from_comment`] forces it to
+    /// `None` for a suppression.
     pub target: Option<NodeId>,
     /// The parsed annotation, or why it is malformed.
     pub parsed: Result<Parsed, AnnotationError>,
@@ -313,10 +314,16 @@ impl Annotation {
     /// comment is not an annotation.
     #[must_use]
     pub fn from_comment(body: &str, span: Span, target: Option<NodeId>) -> Option<Self> {
+        let parsed = parse_comment(body)?;
+        let target = if matches!(parsed, Ok(Parsed::Ignore(_))) {
+            None
+        } else {
+            target
+        };
         Some(Self {
             span,
             target,
-            parsed: parse_comment(body)?,
+            parsed,
         })
     }
 }

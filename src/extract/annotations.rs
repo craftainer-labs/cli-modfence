@@ -16,8 +16,9 @@
 //! value      = quoted | bare               (non-empty, no control characters)
 //! quoted     = '"' { any but '"' } '"'     (followed by a blank or the end)
 //! bare       = { any but blank and '"' }
-//! ignore     = "ignore[" id { "," id } "]" [ blanks "reason=" quoted ]
+//! ignore     = "ignore[" id { "," id } "]" [ blank+ "reason=" quoted ]
 //! id         = [A-Za-z0-9_./-]+            (blanks around an id are skipped)
+//!                                          (a reason that is only blanks is empty)
 //! ```
 //!
 //! A body whose text after the prefix starts with `ignore[` is only ever a
@@ -328,12 +329,16 @@ fn parse_ignore(cur: &mut Cursor<'_>) -> Result<Parsed, AnnotationError> {
             return Err(cur.error(ErrorKind::EmptyRuleId, at));
         }
         if !id.chars().all(is_rule_id_char) {
-            return Err(cur.error(ErrorKind::InvalidRuleId, at));
+            let lead = item.len() - item.trim_start_matches(is_blank).len();
+            return Err(cur.error(ErrorKind::InvalidRuleId, at + lead));
         }
         if !rules.iter().any(|known| known == id) {
             rules.push(id.to_owned());
         }
         at += item.len() + 1;
+    }
+    if !cur.at_end() && !cur.peek().is_some_and(is_blank) {
+        return Err(cur.error(ErrorKind::UnexpectedAfterIgnore, cur.pos));
     }
     cur.skip_blanks();
     let reason = if cur.at_end() {
@@ -354,6 +359,9 @@ fn parse_reason(cur: &mut Cursor<'_>) -> Result<String, AnnotationError> {
     cur.skip_blanks();
     if !cur.at_end() {
         return Err(cur.error(ErrorKind::UnexpectedAfterIgnore, cur.pos));
+    }
+    if reason.trim().is_empty() {
+        return Err(cur.error(ErrorKind::EmptyValue, start));
     }
     cur.check_text(reason, start)?;
     Ok(reason.to_owned())

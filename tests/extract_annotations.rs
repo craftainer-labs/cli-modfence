@@ -153,7 +153,7 @@ fn parses_suppressions() {
         ))
     );
     assert_eq!(
-        parse(r#"modfence: ignore[a.b_c-d/e]reason="r""#),
+        parse(r#"modfence: ignore[a.b_c-d/e] reason="r""#),
         Ok(ignore(&["a.b_c-d/e"], Some("r")))
     );
     assert_eq!(parse("modfence: ignore[a]   \t"), Ok(ignore(&["a"], None)));
@@ -188,6 +188,17 @@ fn rejects_malformed_annotations_with_the_position() {
         ("modfence: ignore[a, ]", ErrorKind::EmptyRuleId, 19),
         ("modfence: ignore[a b]", ErrorKind::InvalidRuleId, 17),
         ("modfence: ignore[ok,bä]", ErrorKind::InvalidRuleId, 20),
+        ("modfence: ignore[ a, b c ]", ErrorKind::InvalidRuleId, 21),
+        (
+            "modfence: ignore[a]reason=\"x\"",
+            ErrorKind::UnexpectedAfterIgnore,
+            19,
+        ),
+        (
+            "modfence: ignore[a] reason=\"  \"",
+            ErrorKind::EmptyValue,
+            20,
+        ),
         (
             "modfence: ignore[a] reason=x",
             ErrorKind::UnexpectedAfterIgnore,

@@ -488,6 +488,10 @@ fn annotations_come_from_comment_bodies() {
         Annotation::from_comment(" just a comment", span(1), None),
         None
     );
+
+    let target = NodeId::new(NodeKind::Symbol, Lang::Py, "a.py", Some("f")).unwrap();
+    let ignore = Annotation::from_comment("modfence: ignore[r]", span(1), Some(target));
+    assert_eq!(ignore.unwrap().target, None);
 }
 
 /// A stand-in extractor, to pin the trait's shape: object safe, `Send + Sync`,
