@@ -35,7 +35,7 @@ impl std::error::Error for GreetError {}
 /// # Examples
 ///
 /// ```
-/// assert_eq!(template_rust_cli::greet("Ada").unwrap(), "Hello, Ada!");
+/// assert_eq!(modfence::greet("Ada").unwrap(), "Hello, Ada!");
 /// ```
 pub fn greet(name: &str) -> Result<String, GreetError> {
     let name = name.trim();
@@ -46,7 +46,7 @@ pub fn greet(name: &str) -> Result<String, GreetError> {
 }
 
 /// The text `--help` prints.
-const USAGE: &str = "Usage: template-rust-cli [OPTIONS] <NAME>\n\
+const USAGE: &str = "Usage: modfence [OPTIONS] <NAME>\n\
 \n\
 Prints a greeting for NAME.\n\
 \n\
@@ -66,7 +66,7 @@ where
     let written = match args.as_slice() {
         [flag] if flag == "-h" || flag == "--help" => write!(out, "{USAGE}"),
         [flag] if flag == "-V" || flag == "--version" => {
-            writeln!(out, "template-rust-cli {}", env!("CARGO_PKG_VERSION"))
+            writeln!(out, "modfence {}", env!("CARGO_PKG_VERSION"))
         }
         [name] if !name.starts_with('-') => match greet(name) {
             Ok(greeting) => writeln!(out, "{greeting}"),
@@ -149,10 +149,7 @@ mod tests {
         for flag in ["-V", "--version"] {
             let (code, out, _) = exec(&[flag]);
             assert_eq!(code, ExitCode::SUCCESS);
-            assert_eq!(
-                out,
-                format!("template-rust-cli {}\n", env!("CARGO_PKG_VERSION"))
-            );
+            assert_eq!(out, format!("modfence {}\n", env!("CARGO_PKG_VERSION")));
         }
     }
 

@@ -11,7 +11,7 @@ edition = "2024"
 # Matches rust-toolchain.toml (major.minor is enough for MSRV semantics).
 rust-version = "1.99"
 license = "GPL-3.0-only"
-repository = "https://github.com/craftainer/template-rust-cli"
+repository = "https://github.com/craftainer-labs/cli-modfence"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
@@ -23,8 +23,8 @@ pedantic = { level = "warn", priority = -1 }
 
 [package]
 # The template carries its own name; an instance renames it (see README.md).
-name = "template-rust-cli"
-description = "Template repository for Rust command-line programs"
+name = "modfence"
+description = "Cross-language module-boundary checker for Python, TypeScript and Rust"
 readme = "README.md"
 # Stays 0.0.0 in git: the release tag is the real version. `publish` is left
 # at Cargo's default (true) and gated by the release contract's

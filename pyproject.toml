@@ -1,5 +1,5 @@
 # Python packaging of the binary: maturin with `bindings = "bin"` builds the
-# crate's executable into a wheel (`pip install template-rust-cli` puts the
+# crate's executable into a wheel (`pip install modfence` puts the
 # program on PATH, no Python code involved). The version is the one in
 # Cargo.toml, which the release workflows stamp from the tag. An instance
 # renames the distribution and fills in the metadata (README.md lists the
@@ -10,8 +10,8 @@ requires = ["maturin>=1.15,<2"]
 build-backend = "maturin"
 
 [project]
-name = "template-rust-cli"
-description = "Template repository for Rust command-line programs"
+name = "modfence"
+description = "Cross-language module-boundary checker for Python, TypeScript and Rust"
 readme = "README.md"
 requires-python = ">=3.9"
 license = "GPL-3.0-only"
@@ -23,7 +23,7 @@ classifiers = [
 dynamic = ["version"]
 
 [project.urls]
-Repository = "https://github.com/craftainer/template-rust-cli"
+Repository = "https://github.com/craftainer-labs/cli-modfence"
 
 [tool.maturin]
 bindings = "bin"
