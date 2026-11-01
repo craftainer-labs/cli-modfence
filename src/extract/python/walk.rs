@@ -16,7 +16,7 @@ use crate::extract::{
     PREFIX, SourceFile, Span, SymbolKind, column_from_byte, comment_body,
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(PartialEq)]
 enum ScopeKind {
     Module,
     Class,
@@ -25,7 +25,6 @@ enum ScopeKind {
 
 /// Where a node sits: what the names defined here are called, and which symbol
 /// a call here belongs to.
-#[derive(Debug)]
 struct Scope {
     kind: ScopeKind,
     components: Vec<String>,
@@ -207,7 +206,7 @@ impl<'a> Walker<'a> {
         let seen = self.counts.entry(base).or_insert(0);
         *seen += 1;
         let qualname = encode_qualname(&components, *seen);
-        let symbol_kind = match (is_class, scope.kind) {
+        let symbol_kind = match (is_class, &scope.kind) {
             (true, _) => SymbolKind::Class,
             (false, ScopeKind::Class) => SymbolKind::Method,
             (false, _) => SymbolKind::Function,
