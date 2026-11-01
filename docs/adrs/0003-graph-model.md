@@ -2,9 +2,9 @@
 
 ## Status
 
-Proposed. The G-api decisions in the table "Decisions (G-api)" were approved
-on 2026-11-01; the items under "Decisions for the user" below are still open.
-It becomes Accepted when its implementation merges (NC3 to NC6), per
+Proposed. The G-api decisions in the table "Decisions (G-api)", and the items
+A and B below it, were approved by the user on 2026-11-01 (C is decided in ADR
+0004). It becomes Accepted when its implementation merges (NC3 to NC6), per
 [`README.md`](README.md).
 
 ## Context
@@ -97,7 +97,10 @@ relative to the analysis root with `/` separators. Whitespace, `#` and `%`
 in a path, package or qualified name are percent-encoded (`%20`, `%23`,
 `%25`), so every id matches the schema's pattern and `#` separates only the
 qualified name. Each extractor amends this ADR with its language's
-qualified-name encoding (see Open issues).
+qualified-name encoding (see Open issues). The id construction and these
+encoding rules are implemented in `src/extract/ident.rs` (interface I3), which
+also percent-encodes control characters and U+FEFF, because some regex engines
+count them as whitespace.
 
 **Languages.** `.py`; `.ts`, `.tsx`, `.mts`, `.cts`; and `.js`, `.jsx`,
 `.mjs`, `.cjs`, which go through the TypeScript grammar and count as language
@@ -212,7 +215,8 @@ unless noted):
 | 3 | Rules apply to module-level edges only. |
 | 4 | JGF v2 specialisation with `schema_version` in `graph.metadata`; the node id scheme and four node kinds; cache in `.modfence/cache/`; `binds` matched by exported name; positions in Unicode code points; first site plus a count per edge. |
 
-Decisions for the user (this revision, GA3), with the executor's lean:
+Decisions A and B (GA3), approved by the user on 2026-11-01 as leaned
+(C is decided in ADR 0004):
 
 A. **Which edges `--run-indexers` upgrades.** Only existing tree-sitter call
    sites (as written), or also references SCIP reports that tree-sitter

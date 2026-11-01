@@ -4,6 +4,8 @@
 //! [`run`], so the whole program is testable without spawning a process;
 //! `tests/cli.rs` still spawns the real binary once, as a user would.
 
+pub mod extract;
+
 use std::ffi::OsString;
 use std::fmt;
 use std::io::Write;

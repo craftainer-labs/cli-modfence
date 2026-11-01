@@ -2,10 +2,9 @@
 
 ## Status
 
-Proposed. The G-api decisions in the table "Decisions (G-api)" were approved
-on 2026-11-01; the items A to E under "Decisions for confirmation", including
-the tag `accumulate` option (the orchestrator's proposal), are still open and
-will be folded in with the answers. It becomes
+Proposed. The G-api decisions in the table "Decisions (G-api)", and the items
+A to E below it (including the tag `accumulate` option, the orchestrator's
+proposal), were approved by the user on 2026-11-01. It becomes
 Accepted when its implementation merges (NC4 for config, annotations, rules
 and reports; NC5 for `trace` and the tag outputs), per
 [`README.md`](README.md).
@@ -61,8 +60,8 @@ string or a list of strings. An entry applies by file path to every node in
 the matching files. A node's tag values are a sorted, de-duplicated list in
 every output.
 
-**Tag precedence** (the default is the user's; the `accumulate` option is
-the orchestrator's proposal, not yet approved, see Decisions). Levels, lowest
+**Tag precedence** (the default is the user's; the `accumulate` option was
+the orchestrator's proposal, approved on 2026-11-01, Decisions A). Levels, lowest
 first: `[[node]]` entries in file order, the module's inline annotations, the
 symbol's own inline annotations. A symbol inherits its module's effective
 tags. By default the highest level that sets a key supplies that key's whole
@@ -138,7 +137,7 @@ which no explicit rule and no layers permission decided, is a violation of the
 reserved rule `default-deny` at severity `error`: "No rule allows this
 dependency." Imports of external packages stay allowed unless a rule forbids
 them. Deny mode interacts with the other features as follows (the executor's
-definitions, listed in Decisions for confirmation):
+definitions, approved on 2026-11-01, Decisions B):
 
 - *Layers:* a site counts as permitted by layers when every `layer` value of
   both nodes is listed in `layers` and no combination of the two nodes' values
@@ -287,7 +286,8 @@ Approved by the user on 2026-11-01:
 | 8 | Module scope marker: stays the blank-line rule; add an explicit `modfence: module ...` scope word only if NC3 finds the rule error-prone. |
 | 9 | Config file at the repository root, `version = 1`, unknown keys are errors, published JSON schema; tags are strings; inline overrides config per key; suppression needs a reason and an unused ignore warns; selector shape and reserved keys; `[[node]] package`; exit codes 0, 1, 2 with `--fail-on`; SARIF rule id equals config rule id, one run per invocation. |
 
-Decisions for confirmation (proposals made in this revision, with a lean):
+Decisions A to E: proposals made in this revision, approved by the user on
+2026-11-01 as leaned (each lean below is what was approved):
 
 A. **Tag accumulation.** The orchestrator proposed it: per-key override stays
    the default, `[tags] accumulate = ["adr", "req"]` makes chosen keys union
