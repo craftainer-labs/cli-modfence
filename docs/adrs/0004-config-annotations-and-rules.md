@@ -2,7 +2,10 @@
 
 ## Status
 
-Proposed. The G-api decisions were approved on 2026-11-01. It becomes
+Proposed. The G-api decisions in the table "Decisions (G-api)" were approved
+on 2026-11-01; the items A to E under "Decisions for confirmation", including
+the tag `accumulate` option (the orchestrator's proposal), are still open and
+will be folded in with the answers. It becomes
 Accepted when its implementation merges (NC4 for config, annotations, rules
 and reports; NC5 for `trace` and the tag outputs), per
 [`README.md`](README.md).
@@ -142,6 +145,14 @@ definitions, listed in Decisions for confirmation):
   violates the order, so `layers` alone can describe a whole architecture in
   deny mode. A site that violates the order for any combination is reported as
   `layers`, never also as `default-deny`.
+- *Exempt nodes:* a node with no `layer` tag, or a value not listed in
+  `layers`, is exempt from the `layers` rule, which means layers cannot
+  permit a site that touches it. In deny mode such a site needs an explicit
+  `allow` rule.
+- *Unresolved imports:* an import that looks internal but could not be placed
+  (ADR 0003, Open issues) is an `external` edge and also an
+  `unresolved-import` diagnostic; deny mode and `layers` do not see it, so
+  the diagnostic is a warning in `check` output.
 - *Confidence:* `default-deny` considers only sites an explicit rule with
   `confidence` omitted could match: `imports` and `binds` sites, and `calls`
   sites only when resolved. A heuristic call site is never reported by it
@@ -194,7 +205,8 @@ the cluster of the first value in sorted order and lists the others on hover
 and the edges incident to them, as text or JSON (`--format`); the selector
 arguments are `key=value` pairs, AND-ed, with commas for OR within a key
 (`modfence trace adr=0028 layer=domain,infra`), reusing the rule selector
-semantics. The JSON form is a graph document restricted to the matching nodes,
+semantics. A value containing a comma, `=` or a space is written in double
+quotes (`owner="team a,team b"`), and a comma inside quotes is literal. The JSON form is a graph document restricted to the matching nodes,
 their incident edges and those edges' other endpoints, so it validates against
 the graph schema.
 
@@ -213,7 +225,9 @@ the graph schema.
    import or call; a symbol-level site is judged with the module-level
    endpoints it rolls up to.
 6. A rule applies to `imports`, `binds` and `calls` unless `kinds` says
-   otherwise.
+   otherwise. A rule that can never match, which is `confidence =
+   "resolved"` with `kinds` containing only `binds` (binds edges are always
+   heuristic), is an exit-2 config error.
 7. With `confidence` omitted, a heuristic `calls` edge never matches and an
    `imports` or `binds` edge always can; with `"resolved"` no heuristic edge
    matches; with `"any"` every edge can.

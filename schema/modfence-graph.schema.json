@@ -109,7 +109,7 @@
             "required": ["path", "code", "message"],
             "properties": {
               "path": { "type": "string" },
-              "code": { "enum": ["parse-error", "unreadable", "unsupported-encoding", "too-large"] },
+              "code": { "enum": ["parse-error", "unreadable", "unsupported-encoding", "too-large", "unresolved-import"] },
               "message": { "type": "string" }
             }
           }
@@ -202,7 +202,7 @@
               "$ref": "#/$defs/site"
             },
             "count": {
-              "description": "Number of sites folded into this edge (one edge per source, target and relation).",
+              "description": "Number of sites folded into this edge (one edge per source, target, relation and confidence, so a resolved site and a heuristic site of the same pair are two edges).",
               "type": "integer",
               "minimum": 1
             }

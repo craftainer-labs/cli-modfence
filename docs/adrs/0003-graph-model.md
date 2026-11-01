@@ -2,8 +2,9 @@
 
 ## Status
 
-Proposed. The G-api decisions were approved on 2026-11-01. It becomes
-Accepted when its implementation merges (NC3 to NC6), per
+Proposed. The G-api decisions in the table "Decisions (G-api)" were approved
+on 2026-11-01; the items under "Decisions for the user" below are still open.
+It becomes Accepted when its implementation merges (NC3 to NC6), per
 [`README.md`](README.md).
 
 ## Context
@@ -104,7 +105,8 @@ qualified-name encoding (see Open issues).
 
 **Edge relations.** `contains` (package to module to symbol; never checked
 by rules), `imports` (module to module or external), `calls` (symbol to
-symbol, folded to one edge per source, target and relation with a site count)
+symbol, folded to one edge per source, target, relation and confidence with a
+site count, so sites SCIP resolved and sites it did not are separate edges)
 and `binds` (a call or import that crosses a language boundary).
 
 **Rules see module-level edges** (user decision). Symbol-level `calls` and
@@ -185,10 +187,12 @@ points, ends exclusive. SARIF output sets `columnKind` to
     loadable by the pinned tree-sitter (NC3b).
 16. Without `--run-indexers`, modfence starts no subprocess; `--scip` only
     reads files.
-17. `--run-indexers` starts only executables resolved from `PATH`, prints
-    each command line to stderr before starting it, and apart from the cache
-    directory `.modfence/cache/` writes only below `.modfence/scip/` (a
-    pre-existing `index.scip` it did not create is never overwritten).
+17. `--run-indexers` starts only executables resolved from `PATH` and prints
+    each command line to stderr before starting it. modfence's own writes are
+    confined to `.modfence/` (the cache, and the index below `.modfence/scip/`
+    that it moves there), and a pre-existing `index.scip` it did not create is
+    never overwritten. What an indexer itself writes is outside this
+    guarantee (see Consequences).
 18. A failed or missing indexer is a warning and leaves that language on
     tree-sitter; it never changes the exit status on its own.
 19. Every node's `tags` value is a non-empty array of unique strings sorted
@@ -222,6 +226,19 @@ C. **Multi-value `--group-by`.** Decided in ADR 0004 (it only affects the
 
 ## Open issues
 
+- `--run-indexers` on untrusted roots: a warning, a refusal in CI when the
+  workflow is a fork pull request, or a sandbox. Not designed here.
+- Indexer inputs: `scip-python`'s `--project-name` is taken from
+  `pyproject.toml`'s `project.name`, else the analysis root's directory name;
+  indexers run with the analysis root as working directory so SCIP document
+  paths are root-relative; documents whose path matches no known file are
+  counted and reported in one warning. NC6 verifies the exact flags and may
+  amend this.
+- An import that is relative or matches a configured alias (`tsconfig`
+  `paths`, Python relative imports) but does not resolve is recorded as an
+  `unresolved-import` diagnostic as well as an `external` edge, so it is not
+  silently outside `layers` and deny mode (ADR 0004).
+
 - Each of NC3a, NC3b and NC3c specifies its language's qualified-name encoding
   (Rust `impl<T> Foo for Bar`, TypeScript overloads, Python nested functions
   and lambdas) as an amendment to this ADR, with tests, before NC4 consumes
@@ -237,9 +254,17 @@ C. **Multi-value `--group-by`.** Decided in ADR 0004 (it only affects the
 
 - One graph and one rule engine serve all three languages and all outputs
   (DOT, Mermaid, JSON, GraphML, HTML, SARIF, `trace`).
-- Without `--precise`, call-based findings do not exist: heuristic call edges
-  are excluded from rules by default (ADR 0004). The graph still records them
-  for exploration.
+- Without `--precise`, call-based findings do not exist by default: heuristic
+  call edges are excluded from rules unless a rule opts in with
+  `confidence = "any"` (ADR 0004). The graph always records them for
+  exploration.
+- `--run-indexers` executes code from the analysed repository: `rust-analyzer`
+  runs build scripts and proc-macros, and the JavaScript and Python indexers
+  read repository-controlled configuration and environments. Running it on an
+  untrusted checkout (for example a pull request from a fork) is arbitrary code
+  execution in the CI job. The indexers also write what they write
+  (`index.scip`, an inferred `tsconfig.json`, `target/`); modfence only
+  guarantees its own writes.
 - `--run-indexers` is the one place where modfence runs other people's
   programs. Only what is already on `PATH` runs and every command is printed,
   but a malicious or compromised indexer in `PATH` runs with the user's

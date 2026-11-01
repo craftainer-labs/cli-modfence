@@ -57,7 +57,8 @@ and an npm package that downloads nothing at install time.
   asserts none was started.
 - **Indexer flag.** With the flag, the same test asserts that only those
   executables from `PATH` ran, that the command line printed on stderr equals
-  the one that ran, and that nothing was written outside `.modfence/` (`cache/` and `scip/`).
+  the one that ran, and that modfence itself wrote nothing outside `.modfence/` (`cache/` and
+  `scip/`; what a real indexer writes is out of scope, ADR 0003 invariant 17).
   With the fakes removed from `PATH` it asserts a warning and exit status 0,
   and that nothing was downloaded.
 - **HTML check.** A test parses the generated HTML and fails on any `src`,
