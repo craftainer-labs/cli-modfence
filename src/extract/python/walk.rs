@@ -259,13 +259,13 @@ impl<'a> Walker<'a> {
             }
         } else {
             let module = node.child_by_field_name("module_name");
-            let edge = module.map(|module| self.from_import(node, module, names, span));
+            let edge = module.map(|module| self.from_clause_edge(node, module, names, span));
             self.facts.imports.extend(edge);
         }
     }
 
     /// The edge of `from <module> import <names>`; `*` is a name of its own.
-    fn from_import(
+    fn from_clause_edge(
         &self,
         node: TsNode<'_>,
         module: TsNode<'_>,
