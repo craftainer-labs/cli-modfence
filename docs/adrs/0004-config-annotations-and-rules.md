@@ -44,8 +44,11 @@ from the working directory (`--config` overrides). It has `version = 1`;
 unknown keys are errors, so a typo cannot silently disable a rule. Its schema
 is `schema/modfence-config.schema.json`, for editors and CI.
 
-**Tags.** A tag is a lowercase key with a string value. `layer`, `owner`,
-`boundary` and `deprecated` are conventional; any key is allowed. A
+**Tags.** A tag is a lowercase key with a string value (no double quotes
+or control characters). `layer`, `owner`, `boundary` and `deprecated` are
+conventional; any key is allowed except the reserved selector keys `path`,
+`package`, `lang` and `kind`, which are errors as tag keys, in config and
+inline. A
 `[[node]]` entry gives `tags` to the nodes matched by a path glob (`match`)
 or by an external package name glob (`package`). Entries are applied in file
 order, tags accumulate, and a later entry wins per key. Module tags apply to
@@ -57,13 +60,17 @@ own line: `# arch: layer=domain owner=team-a` (Python), `// arch: ...`
 Space-separated `key=value` pairs; a bare key means `true`; a value with
 spaces is double-quoted. An annotation directly above a symbol (decorators,
 attributes and doc comments may sit between) tags that symbol; any other
-own-line annotation tags the whole module. Inline values override config
-values per key. Annotations are read from comment nodes of the syntax tree,
-never from strings.
+own-line annotation tags the whole module (so an annotation above an import
+is a module tag). A comment whose body starts with `ignore[` is only ever a
+suppression, never a tag annotation. Inline values override config values per
+key. Annotations are read from comment nodes of the syntax tree, never from
+strings; a shebang or encoding line is not an annotation.
 
 **Suppressions.** `arch: ignore[rule-id, ...] reason="..."` on the line of
 the import or call, or on the line above, suppresses violations of those
-rules whose site starts on that line. The reason is required unless
+rules whose site (the statement or expression) starts on that line, so for a
+multi-line import the first line counts. The ids `layers` and the built-in
+`modfence/*` ids can be ignored too. The reason is required unless
 `[annotations] require_reason = false`. An ignore that suppresses nothing is
 itself a `warning`, and a malformed annotation is an `error`, under the
 built-in rule ids `modfence/unused-ignore` and `modfence/invalid-annotation`.
@@ -80,13 +87,14 @@ AND-ed, a list of values is an OR. Keys are tag names or the reserved
 endpoints differ, rules are tried in file order and the first one whose
 selectors, `kinds` and `confidence` match decides: `forbid` reports a
 violation with that rule's severity, `allow` permits the edge and stops. An
-edge no rule matches is permitted. (The reserved layers rule comes last.)
-Each violation records the edge's confidence, so heuristic findings are
+edge no rule matches is permitted. The layers rule is evaluated before every
+explicit rule, so no `allow` can bypass it; it is the one rule that is not
+order-dependent. Each violation records the edge's confidence, so heuristic findings are
 visibly so.
 
 **Layers.** `layers = ["app", "domain", "infra"]`, highest first, is
 shorthand for a rule that forbids an edge from a lower layer to a higher one,
-with the reserved id `layers`. A layer may use itself and every layer below.
+with the reserved id `layers` and severity `error`. A layer may use itself and every layer below.
 Nodes without a listed `layer` tag are exempt.
 
 **Reports.**
@@ -97,10 +105,13 @@ Nodes without a listed `layer` tag are exempt.
   primary location is the import or call site, the target node is a related
   location, and `columnKind` is `unicodeCodePoints`. Each result has
   `properties.confidence`.
-- *Fingerprint:* `partialFingerprints.primaryLocationLineHash` is a
-  semantic hash of rule id, source node id, target node id and relation, with
-  a counter for duplicates, so an alert survives line moves (see Decision 2
-  below).
+- *Fingerprint:* `partialFingerprints.primaryLocationLineHash` is
+  `<hash>:<n>` (the form GitHub uses). For an edge violation the hash covers
+  rule id, source node id, target node id and relation; for the built-in
+  rules it covers the rule id and the path. `n` is the 1-based position of
+  the result among results with the same hash, ordered by path and position,
+  so it does not depend on iteration order. The alert survives line moves (see
+  Decision 2 below).
 - *GitHub annotations* (`--format github`): `::error`, `::warning` or
   `::notice` workflow commands, with properties and message escaped, limited
   to the per-step caps and followed by one summary line.
@@ -113,7 +124,7 @@ Nodes without a listed `layer` tag are exempt.
    `modfence/*`, and duplicate names in `layers` are exit-2 errors with the
    file and line.
 2. Rules are evaluated in file order and the first match decides; the layers
-   rule runs last.
+   rule runs before all of them and no `allow` overrides it.
 3. An edge whose endpoints are the same node is never reported, and
    `contains` edges are never checked.
 4. A rule applies to `imports` and `binds` unless `kinds` says otherwise.
@@ -124,8 +135,9 @@ Nodes without a listed `layer` tag are exempt.
 7. An annotation above a symbol tags the symbol; otherwise it tags the
    module.
 8. `arch:` text inside a string or docstring is never an annotation.
-9. An ignore matches by rule id and the line of the site (or the line above);
-   it never suppresses another rule's violation.
+9. An ignore matches by rule id and the first line of the site (or the line
+   above); it never suppresses another rule's violation. A comment starting
+   `ignore[` is never read as a tag annotation.
 10. An unused ignore is reported as `modfence/unused-ignore` at `warning`.
 11. SARIF output validates against the SARIF 2.1.0 schema, and every result
     has a location with all four region fields and a fingerprint.

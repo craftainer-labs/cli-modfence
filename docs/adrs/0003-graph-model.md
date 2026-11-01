@@ -47,7 +47,10 @@ module resolves to its file), `symbol` (function, method, class, type, impl,
 trait, constant) and `external` (a third-party or standard-library package,
 named, never analysed). Ids are strings of the form
 `pkg|mod|sym|ext:<py|ts|rs>:<path or package>[#<qualified name>]`, paths
-relative to the analysis root with `/` separators.
+relative to the analysis root with `/` separators. Whitespace, `#` and `%`
+in a path, package or qualified name are percent-encoded (`%20`, `%23`,
+`%25`), so every id matches the schema's pattern and `#` separates only the
+qualified name.
 
 **Edge relations.** `contains` (package to module to symbol; never checked
 by rules), `imports` (module to module or external), `calls` (symbol to
@@ -109,9 +112,17 @@ declared encoding; SARIF output sets `columnKind` to `unicodeCodePoints`.
     both match; a corrupt or unwritable cache is a warning, never an error.
 11. Every emitted document validates against the schema, and the schema is
     checked against its metaschema in CI.
-12. The graph core reads only files below the analysis root, the config file
-    and the SCIP files named on the command line.
-13. tree-sitter-typescript's parser ABI is asserted at test time to be
+12. The graph core parses source only below the analysis root. Besides it,
+    it reads project metadata (`pyproject.toml`, `package.json`,
+    `tsconfig.json` and what they `extend`, `Cargo.toml` including the
+    workspace root), the config file found by ADR 0004, ignore files and the
+    SCIP files named on the command line; it never parses third-party
+    source such as `node_modules`.
+13. Ids percent-encode whitespace, `#` and `%`; decoding an id yields the
+    original path.
+14. The schema pins `binds` edges and tree-sitter-origin `calls` edges to
+    `heuristic`, and `contains` edges carry no metadata.
+15. tree-sitter-typescript's parser ABI is asserted at test time to be
     loadable by the pinned tree-sitter (NC3b).
 
 ## Decisions for the user (G-api)

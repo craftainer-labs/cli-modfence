@@ -187,17 +187,29 @@
           }
         }
       },
-      "if": { "properties": { "relation": { "const": "contains" } }, "required": ["relation"] },
-      "then": {
-        "properties": {
-          "metadata": {
-            "not": { "anyOf": [{ "required": ["confidence"] }, { "required": ["site"] }] }
-          }
+      "allOf": [
+        {
+          "if": { "properties": { "relation": { "const": "contains" } }, "required": ["relation"] },
+          "then": { "properties": { "metadata": { "maxProperties": 0 } } },
+          "else": { "properties": { "metadata": { "required": ["confidence", "origin", "site"] } } }
+        },
+        {
+          "description": "Cross-language edges are name matches, never resolved.",
+          "if": { "properties": { "relation": { "const": "binds" } }, "required": ["relation"] },
+          "then": { "properties": { "metadata": { "properties": { "confidence": { "const": "heuristic" } } } } }
+        },
+        {
+          "description": "Only SCIP resolves a call.",
+          "if": {
+            "properties": {
+              "relation": { "const": "calls" },
+              "metadata": { "properties": { "origin": { "const": "tree-sitter" } }, "required": ["origin"] }
+            },
+            "required": ["relation", "metadata"]
+          },
+          "then": { "properties": { "metadata": { "properties": { "confidence": { "const": "heuristic" } } } } }
         }
-      },
-      "else": {
-        "properties": { "metadata": { "required": ["confidence", "origin", "site"] } }
-      }
+      ]
     }
   }
 }

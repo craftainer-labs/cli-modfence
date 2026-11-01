@@ -25,7 +25,9 @@ budgets. "LOC" counts non-blank source lines of the supported languages.
 Also: `modfence --version` and a run on an empty directory finish in <= 50 ms,
 and the release binary for each target is <= 30 MiB.
 
-These figures are starting budgets, not measurements. They are an estimate
+A warm run skips parsing but still resolves imports and evaluates rules over
+the cached facts (ADR 0003), which is why its budget is a fraction of the cold
+one and not near zero. These figures are starting budgets, not measurements. They are an estimate
 from the design (parallel per-file tree-sitter parsing on 4 cores, cheap
 queries, a graph of tens of thousands of nodes, file I/O dominating) with a
 large margin, because no code exists yet. They are re-baselined once, at NC4
@@ -46,14 +48,13 @@ allocator be measured against this NFR.
   repositories of 100k and 1M LOC by replicating pinned, permissively
   licensed sample projects of the three languages. NC4 owns the generator.
 - **Benchmarks.** NC4 adds a benchmark per row of the table, run in CI on the
-  4-vCPU runner and compared with the template's benchmark job. A row more
-  than 20% over budget fails the job; the numbers are reported on every PR.
+  4-vCPU runner, in the template's benchmark job if it has one, otherwise in
+  a job NC4 adds. A row more than 20% over budget fails the job; the numbers are reported on every PR.
   Peak memory comes from `/usr/bin/time -v` on the release binary.
 - **Allocator (owned by NC4).** The static musl binary and a glibc build run
   the cold 1M-LOC case. If the musl build misses a budget, or is more than
   20% slower than the glibc build, `mimalloc` is added as the global
   allocator for the musl targets and the comparison repeated. The result and
   the decision are recorded in this NFR when the status moves to Implemented.
-- **Size.** Checked per target at release in `release-binaries.yml`'s
-  output; a binary over 30 MiB fails the review of the dependency change that
-  caused it.
+- **Size.** NC7 adds a step that fails the binary build when an archive's
+  binary exceeds 30 MiB; the release workflow does not report sizes today.

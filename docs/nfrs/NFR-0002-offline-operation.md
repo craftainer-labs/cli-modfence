@@ -10,7 +10,11 @@ Security and portability (air-gapped and sandboxed use).
 
 ## Description
 
-No command of `modfence` opens a network connection, in any mode:
+No command of `modfence` opens a network connection, in any mode. The one
+exception is outside the tool's control: with the opt-in `--run-indexers`
+(if the user accepts it, ADR 0003 decision 1), the indexer processes the
+user asked for may use the network; the guarantee then covers `modfence`'s
+own process only, and the no-network test does not run that flag.
 
 - no telemetry, update check, schema or grammar download, or license check;
 - `--precise` reads SCIP index files given on the command line and never
@@ -19,8 +23,9 @@ No command of `modfence` opens a network connection, in any mode:
   decision 1), and the tool itself still makes no connection;
 - the interactive HTML output is one self-contained file with no external
   script, style, font or image reference, and loads nothing when opened;
-- the tool reads only files below the analysis root, the config file and the
-  SCIP files named on the command line, and writes only to the cache
+- the tool parses source only below the analysis root, reads only project
+  metadata, ignore files, the config file and the SCIP files named on the
+  command line besides (ADR 0003 invariant 12), and writes only to the cache
   directory and to the output files or streams the user asks for; it works
   with a read-only checkout (an unwritable cache is a warning);
 - every grammar and library it needs is compiled into the binary.

@@ -41,8 +41,17 @@
     }
   },
   "$defs": {
-    "tagKey": { "type": "string", "pattern": "^[a-z][a-z0-9_-]*$" },
-    "tagValue": { "type": "string", "pattern": "^[A-Za-z0-9._/@-]+$" },
+    "tagKey": {
+      "description": "Lowercase; `path`, `package`, `lang` and `kind` are reserved selector keys and cannot be tags.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_-]*$",
+      "not": { "enum": ["path", "package", "lang", "kind"] }
+    },
+    "tagValue": {
+      "description": "Any non-empty string without double quotes or control characters (the inline syntax quotes values that contain spaces).",
+      "type": "string",
+      "pattern": "^[^\"\\u0000-\\u001f]+$"
+    },
     "node": {
       "type": "object",
       "additionalProperties": false,
