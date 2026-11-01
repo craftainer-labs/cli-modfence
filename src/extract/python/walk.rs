@@ -78,6 +78,14 @@ fn compact(text: &str) -> String {
     text.split_whitespace().collect()
 }
 
+fn parse_error(message: &str, span: Option<Span>) -> Diagnostic {
+    Diagnostic {
+        code: DiagnosticCode::ParseError,
+        message: message.to_owned(),
+        span,
+    }
+}
+
 fn line_number(row: usize) -> u32 {
     u32::try_from(row + 1).unwrap_or(u32::MAX)
 }
@@ -112,22 +120,20 @@ impl<'a> Walker<'a> {
 
     /// Walks the tree (when there is one) and returns all facts.
     pub(super) fn run(mut self, tree: Option<&Tree>) -> FileFacts {
-        tree.map_or_else(|| self.note(NO_TREE, None), |t| self.walk(t.root_node()));
+        let root = tree.map(Tree::root_node);
+        let missing = root.is_none().then(|| parse_error(NO_TREE, None));
+        self.facts.diagnostics.extend(missing);
+        if let Some(root) = root {
+            self.walk(root);
+        }
         self.finish()
-    }
-
-    fn note(&mut self, message: &str, span: Option<Span>) {
-        self.facts.diagnostics.push(Diagnostic {
-            code: DiagnosticCode::ParseError,
-            message: message.to_owned(),
-            span,
-        });
     }
 
     fn walk(&mut self, root: TsNode<'_>) {
         if root.has_error() {
             let span = self.span(first_error(root));
-            self.note("the file has a syntax error", Some(span));
+            let error = parse_error("the file has a syntax error", Some(span));
+            self.facts.diagnostics.push(error);
         }
         let module = Rc::new(Scope {
             kind: ScopeKind::Module,
