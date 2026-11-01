@@ -60,9 +60,16 @@
       }
     },
     "tags": {
-      "description": "Effective tags after configuration and inline annotations (ADR 0004). Values are strings; a bare inline key is `true`.",
+      "description": "Effective tags after configuration and inline annotations (ADR 0004). Every value is an array, even for a single-valued key: one shape for consumers, and repeatable keys such as `adr` need no special case. Arrays are non-empty and unique, and the tool emits them sorted in byte order (sortedness and a node with no tags having no `tags` key are tool invariants the schema cannot express); a bare inline key is [\"true\"].",
       "type": "object",
-      "additionalProperties": { "type": "string" }
+      "minProperties": 1,
+      "propertyNames": { "type": "string", "pattern": "^[a-z][a-z0-9_-]*$" },
+      "additionalProperties": {
+        "type": "array",
+        "minItems": 1,
+        "uniqueItems": true,
+        "items": { "type": "string", "minLength": 1 }
+      }
     },
     "graphMetadata": {
       "type": "object",
@@ -102,7 +109,7 @@
             "required": ["path", "code", "message"],
             "properties": {
               "path": { "type": "string" },
-              "code": { "enum": ["parse-error", "unreadable", "unsupported-encoding", "too-large"] },
+              "code": { "enum": ["parse-error", "unreadable", "unsupported-encoding", "too-large", "unresolved-import"] },
               "message": { "type": "string" }
             }
           }
@@ -195,7 +202,7 @@
               "$ref": "#/$defs/site"
             },
             "count": {
-              "description": "Number of sites folded into this edge (one edge per source, target and relation).",
+              "description": "Number of sites folded into this edge (one edge per source, target, relation and confidence, so a resolved site and a heuristic site of the same pair are two edges).",
               "type": "integer",
               "minimum": 1
             }
