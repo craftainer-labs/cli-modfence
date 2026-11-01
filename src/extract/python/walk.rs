@@ -86,10 +86,11 @@ fn first_error(root: TsNode<'_>) -> TsNode<'_> {
     loop {
         let mut cursor = node.walk();
         let next = node.children(&mut cursor).find(TsNode::has_error);
-        if node.is_error() || node.is_missing() || next.is_none() {
+        let done = node.is_error() || node.is_missing() || next.is_none();
+        node = next.filter(|_| !done).unwrap_or(node);
+        if done {
             break;
         }
-        node = next.unwrap_or(node);
     }
     node
 }

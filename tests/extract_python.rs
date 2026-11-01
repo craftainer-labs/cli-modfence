@@ -450,9 +450,16 @@ fn syntax_errors_are_diagnostics() {
         "facts before the error are kept"
     );
 
-    let facts = extract("m.py", "x = (1,\n");
-    assert_eq!(facts.diagnostics.len(), 1);
-    assert_eq!(facts.diagnostics[0].code, DiagnosticCode::ParseError);
+    let broken = [
+        "x = (1,\n",
+        "x = 1\ny = $\n",
+        "class A:\n    def f(self):\n        return (1 +\n",
+    ];
+    for text in broken {
+        let facts = extract("m.py", text);
+        assert_eq!(facts.diagnostics.len(), 1, "{text:?}");
+        assert_eq!(facts.diagnostics[0].code, DiagnosticCode::ParseError);
+    }
 }
 
 #[test]
