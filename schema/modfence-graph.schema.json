@@ -33,7 +33,7 @@
     "nodeId": {
       "description": "pkg:<lang>:<dir> | mod:<lang>:<file> | sym:<lang>:<file>#<qualified name> | ext:<lang>:<package>. Paths are relative to the analysis root, with `/` separators.",
       "type": "string",
-      "pattern": "^(pkg|mod|sym|ext):(py|ts|rs):[^\\s#]+(#\\S+)?$"
+      "pattern": "^(pkg|mod|sym|ext):(py|ts|rs):([^\\s#%]|%[0-9A-Fa-f]{2})+(#([^\\s#%]|%[0-9A-Fa-f]{2})+)?$"
     },
     "lang": { "enum": ["py", "ts", "rs"] },
     "confidence": { "enum": ["resolved", "heuristic"] },
@@ -124,7 +124,19 @@
             "lang": { "$ref": "#/$defs/lang" },
             "path": { "type": "string", "minLength": 1 },
             "symbol_kind": {
-              "enum": ["function", "method", "class", "type", "impl", "trait", "constant"]
+              "enum": [
+                "function",
+                "method",
+                "class",
+                "struct",
+                "enum",
+                "interface",
+                "type",
+                "impl",
+                "trait",
+                "constant",
+                "variable"
+              ]
             },
             "span": { "$ref": "#/$defs/span" },
             "tags": { "$ref": "#/$defs/tags" },
@@ -178,7 +190,10 @@
               "description": "The import specifier or callee text as written.",
               "type": "string"
             },
-            "site": { "$ref": "#/$defs/site" },
+            "site": {
+              "description": "The first site, ordered by path, line and column. Rules and suppressions are evaluated per site, not per edge (ADR 0004); the graph keeps one site and a count.",
+              "$ref": "#/$defs/site"
+            },
             "count": {
               "description": "Number of sites folded into this edge (one edge per source, target and relation).",
               "type": "integer",

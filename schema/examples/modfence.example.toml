@@ -2,8 +2,9 @@ version = 1
 
 exclude = ["tests/fixtures/**"]
 
-# Highest layer first: a layer may use itself and the layers below it.
-layers = ["app", "domain", "infra"]
+# Highest layer first: a layer may use itself and the layers below it, so
+# the domain (lowest) depends on nothing above it and infra may use it.
+layers = ["app", "infra", "domain"]
 
 [annotations]
 require_reason = true

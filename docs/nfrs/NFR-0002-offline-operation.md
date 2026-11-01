@@ -10,11 +10,11 @@ Security and portability (air-gapped and sandboxed use).
 
 ## Description
 
-No command of `modfence` opens a network connection, in any mode. The one
-exception is outside the tool's control: with the opt-in `--run-indexers`
-(if the user accepts it, ADR 0003 decision 1), the indexer processes the
-user asked for may use the network; the guarantee then covers `modfence`'s
-own process only, and the no-network test does not run that flag.
+No command of `modfence` opens a network connection, in any mode. If the
+opt-in `--run-indexers` exists (ADR 0003 decision 1 is open), the indexer
+processes the user asks for may use the network; the guarantee then covers
+`modfence`'s own process only, and the no-network test does not run that
+flag. Without that flag there is no exception.
 
 - no telemetry, update check, schema or grammar download, or license check;
 - `--precise` reads SCIP index files given on the command line and never
@@ -41,7 +41,10 @@ and an npm package that downloads nothing at install time.
 
 - **Dependency ban.** `deny.toml` bans HTTP and socket-client crates
   (for example `reqwest`, `hyper`, `ureq`, `curl`, `attohttpc`) in the
-  dependency tree of the binary, enforced by `cargo-deny` in every CI run.
+  dependency tree of the binary, enforced by `cargo-deny` in every CI run,
+  and clippy's `disallowed-types` forbids `std::net` sockets in our own code.
+  The no-network test below is the authoritative gate; the bans catch
+  regressions early.
 - **No-network test.** An integration test runs the binary on the fixture
   repositories in a network-less sandbox (`unshare -n` on Linux) for every
   command and output format, and asserts a normal result.

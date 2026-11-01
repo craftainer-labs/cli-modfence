@@ -51,16 +51,19 @@ conventional; any key is allowed except the reserved selector keys `path`,
 inline. A
 `[[node]]` entry gives `tags` to the nodes matched by a path glob (`match`)
 or by an external package name glob (`package`). Entries are applied in file
-order, tags accumulate, and a later entry wins per key. Module tags apply to
-the module's symbols unless the symbol is annotated itself.
+order, tags accumulate, and a later entry wins per key; an entry applies by
+file path to every node in the matching files. A symbol inherits its
+module's effective tags, and its own inline tags override them per key; it
+never loses a tag it does not override.
 
 **Inline annotations.** One syntax in all three languages, in a comment on its
 own line: `# arch: layer=domain owner=team-a` (Python), `// arch: ...`
 (TypeScript, Rust; `/* arch: ... */` on one line is accepted too).
 Space-separated `key=value` pairs; a bare key means `true`; a value with
-spaces is double-quoted. An annotation directly above a symbol (decorators,
-attributes and doc comments may sit between) tags that symbol; any other
-own-line annotation tags the whole module (so an annotation above an import
+spaces is double-quoted. An annotation directly above a symbol (no blank line between;
+decorators, attributes and doc comments may sit between) tags that symbol;
+any other own-line annotation tags the whole module, so a file-header
+annotation needs a blank line after it (so an annotation above an import
 is a module tag). A comment whose body starts with `ignore[` is only ever a
 suppression, never a tag annotation. Inline values override config values per
 key. Annotations are read from comment nodes of the syntax tree, never from
@@ -83,8 +86,11 @@ built-in rule ids `modfence/unused-ignore` and `modfence/invalid-annotation`.
 AND-ed, a list of values is an OR. Keys are tag names or the reserved
 `path`, `package`, `lang` and `kind`.
 
-**Evaluation.** For each module-level edge that is not `contains` and whose
-endpoints differ, rules are tried in file order and the first one whose
+**Evaluation.** Rules are evaluated per site: each import or call site of a
+module-level edge (not `contains`, endpoints differing) is judged on its own
+and reported at its own location, so suppressions and SARIF locations are
+exact even when ADR 0003 folds many sites into one graph edge. For each site,
+rules are tried in file order and the first one whose
 selectors, `kinds` and `confidence` match decides: `forbid` reports a
 violation with that rule's severity, `allow` permits the edge and stops. An
 edge no rule matches is permitted. The layers rule is evaluated before every
@@ -127,6 +133,12 @@ Nodes without a listed `layer` tag are exempt.
    rule runs before all of them and no `allow` overrides it.
 3. An edge whose endpoints are the same node is never reported, and
    `contains` edges are never checked.
+3a. Violations are reported per site, in the file and at the position of the
+   import or call; a symbol-level site is judged with the module-level
+   endpoints it rolls up to.
+3b. Selector keys must be lowercase names; `lang` and `kind` values must come
+   from their enums; anything else is an exit-2 error.
+3c. The analysis walker always skips `.modfence/`, and rules never see it.
 4. A rule applies to `imports` and `binds` unless `kinds` says otherwise.
 5. A rule with `confidence = "resolved"` never matches a heuristic edge.
 6. Effective tags are computed as: config entries in order, then the module's
@@ -173,6 +185,21 @@ Open (sources disagree, or a matter of taste):
    with `confidence = "resolved"` implied. Opt-in avoids false positives from
    heuristic edges; the other gives more coverage with `--precise`. Lean:
    opt-in.
+
+Open, recorded by review (not designed here):
+
+13. **Module scope marker.** A file-header annotation needs a blank line
+    after it to be module-wide. An explicit scope word (`arch: module
+    layer=domain`) would remove the ambiguity at the cost of more syntax.
+    Lean: add it if NC3 finds the blank-line rule error-prone.
+14. **Cache placement.** `.modfence/cache/` in the tree (skipped by the
+    walker, needs a `.gitignore` line) or the user cache directory
+    (nothing in the repo, but shared between checkouts). Lean: in the tree.
+15. **All sites in the JSON.** The graph keeps the first site and a count;
+    a `sites` list would let consumers show every location at the cost of
+    output size. Lean: keep one site.
+16. **Endpoint typing.** The schema does not tie each relation to node
+    kinds (for example `imports` from a module); NC4 asserts it in tests.
 
 Confirmations (proposed; no real alternative with a different cost):
 
