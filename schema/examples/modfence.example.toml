@@ -1,0 +1,47 @@
+version = 1
+
+exclude = ["tests/fixtures/**"]
+
+# Highest layer first: a layer may use itself and the layers below it.
+layers = ["app", "domain", "infra"]
+
+[annotations]
+require_reason = true
+
+[[node]]
+match = "src/app/**"
+tags = { layer = "app", owner = "team-web" }
+
+[[node]]
+match = "src/domain/**"
+tags = { layer = "domain" }
+
+[[node]]
+match = "src/infra/**"
+tags = { layer = "infra" }
+
+[[node]]
+match = "src/legacy/**"
+tags = { deprecated = "true" }
+
+[[node]]
+package = "requests"
+tags = { boundary = "network" }
+
+[[rule]]
+id = "domain-no-network"
+from = { layer = "domain" }
+to = { boundary = "network" }
+effect = "forbid"
+severity = "error"
+message = "The domain layer must not talk to the network."
+
+[[rule]]
+id = "no-new-legacy"
+from = { path = "src/app/**" }
+to = { deprecated = "true" }
+kinds = ["imports", "calls"]
+confidence = "resolved"
+effect = "forbid"
+severity = "warning"
+message = "Do not add new uses of deprecated modules."

@@ -1,0 +1,6 @@
+# modfence's own paths, beyond the template's `ignore` tier (see docs/TEMPLATE.md,
+# "Template sync").
+ignore:
+  # The JSON schemas for the graph output and modfence.toml, plus examples
+  # (docs/adrs/0003-graph-model.md).
+  - schema/

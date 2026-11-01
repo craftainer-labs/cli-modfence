@@ -1,0 +1,203 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/craftainer-labs/cli-modfence/schema/modfence-graph.schema.json",
+  "title": "modfence graph (schema 1.0)",
+  "description": "Output of `modfence graph --format json`. A strict specialisation of JSON Graph Format v2 (https://jsongraphformat.info/v2.0/json-graph-schema.json): every valid document is also valid JGF v2, because all modfence data lives in the JGF `metadata` objects. See docs/adrs/0003-graph-model.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["graph"],
+  "properties": {
+    "graph": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["directed", "type", "metadata", "nodes", "edges"],
+      "properties": {
+        "id": { "type": "string" },
+        "label": { "type": "string" },
+        "directed": { "const": true },
+        "type": { "const": "modfence.dependency-graph" },
+        "metadata": { "$ref": "#/$defs/graphMetadata" },
+        "nodes": {
+          "type": "object",
+          "propertyNames": { "$ref": "#/$defs/nodeId" },
+          "additionalProperties": { "$ref": "#/$defs/node" }
+        },
+        "edges": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/edge" }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "nodeId": {
+      "description": "pkg:<lang>:<dir> | mod:<lang>:<file> | sym:<lang>:<file>#<qualified name> | ext:<lang>:<package>. Paths are relative to the analysis root, with `/` separators.",
+      "type": "string",
+      "pattern": "^(pkg|mod|sym|ext):(py|ts|rs):[^\\s#]+(#\\S+)?$"
+    },
+    "lang": { "enum": ["py", "ts", "rs"] },
+    "confidence": { "enum": ["resolved", "heuristic"] },
+    "span": {
+      "description": "1-based lines and columns; columns count Unicode code points; the end is exclusive.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["start_line", "start_column", "end_line", "end_column"],
+      "properties": {
+        "start_line": { "type": "integer", "minimum": 1 },
+        "start_column": { "type": "integer", "minimum": 1 },
+        "end_line": { "type": "integer", "minimum": 1 },
+        "end_column": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "site": {
+      "description": "Where an edge originates: the import statement or call expression.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "span"],
+      "properties": {
+        "path": { "type": "string", "minLength": 1 },
+        "span": { "$ref": "#/$defs/span" }
+      }
+    },
+    "tags": {
+      "description": "Effective tags after configuration and inline annotations (ADR 0004). Values are strings; a bare inline key is `true`.",
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    },
+    "graphMetadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "tool", "root", "backend", "languages"],
+      "properties": {
+        "schema_version": {
+          "description": "major.minor. A minor bump only adds optional fields; a major bump may break consumers.",
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+$"
+        },
+        "tool": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name", "version"],
+          "properties": {
+            "name": { "const": "modfence" },
+            "version": { "type": "string", "minLength": 1 }
+          }
+        },
+        "root": {
+          "description": "Always `.`: all paths are relative to the analysis root, so output does not depend on the checkout location.",
+          "const": "."
+        },
+        "backend": { "enum": ["tree-sitter", "tree-sitter+scip"] },
+        "languages": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/lang" },
+          "uniqueItems": true
+        },
+        "diagnostics": {
+          "description": "Files skipped or parsed with errors; analysis continues past them.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path", "code", "message"],
+            "properties": {
+              "path": { "type": "string" },
+              "code": { "enum": ["parse-error", "unreadable", "unsupported-encoding", "too-large"] },
+              "message": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "node": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["label", "metadata"],
+      "properties": {
+        "label": { "type": "string", "minLength": 1 },
+        "metadata": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "lang"],
+          "properties": {
+            "kind": { "enum": ["package", "module", "symbol", "external"] },
+            "lang": { "$ref": "#/$defs/lang" },
+            "path": { "type": "string", "minLength": 1 },
+            "symbol_kind": {
+              "enum": ["function", "method", "class", "type", "impl", "trait", "constant"]
+            },
+            "span": { "$ref": "#/$defs/span" },
+            "tags": { "$ref": "#/$defs/tags" },
+            "binding": {
+              "description": "Present on symbols exported across the language boundary.",
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["framework", "exported_name"],
+              "properties": {
+                "framework": { "enum": ["pyo3", "napi", "wasm-bindgen"] },
+                "exported_name": { "type": "string", "minLength": 1 }
+              }
+            }
+          },
+          "allOf": [
+            {
+              "if": { "properties": { "kind": { "const": "external" } }, "required": ["kind"] },
+              "then": { "not": { "required": ["path"] } },
+              "else": { "required": ["path"] }
+            },
+            {
+              "if": { "properties": { "kind": { "const": "symbol" } }, "required": ["kind"] },
+              "then": { "required": ["symbol_kind", "span"] },
+              "else": { "not": { "required": ["symbol_kind"] } }
+            }
+          ]
+        }
+      }
+    },
+    "edge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "target", "relation", "metadata"],
+      "properties": {
+        "id": { "type": "string" },
+        "source": { "$ref": "#/$defs/nodeId" },
+        "target": { "$ref": "#/$defs/nodeId" },
+        "relation": { "enum": ["contains", "imports", "calls", "binds"] },
+        "directed": { "const": true },
+        "label": { "type": "string" },
+        "metadata": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "confidence": { "$ref": "#/$defs/confidence" },
+            "origin": {
+              "description": "Which backend produced the edge's current confidence.",
+              "enum": ["tree-sitter", "scip"]
+            },
+            "specifier": {
+              "description": "The import specifier or callee text as written.",
+              "type": "string"
+            },
+            "site": { "$ref": "#/$defs/site" },
+            "count": {
+              "description": "Number of sites folded into this edge (one edge per source, target and relation).",
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        }
+      },
+      "if": { "properties": { "relation": { "const": "contains" } }, "required": ["relation"] },
+      "then": {
+        "properties": {
+          "metadata": {
+            "not": { "anyOf": [{ "required": ["confidence"] }, { "required": ["site"] }] }
+          }
+        }
+      },
+      "else": {
+        "properties": { "metadata": { "required": ["confidence", "origin", "site"] } }
+      }
+    }
+  }
+}
