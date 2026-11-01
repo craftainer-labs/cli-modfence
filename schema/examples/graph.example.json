@@ -1,0 +1,91 @@
+{
+  "graph": {
+    "directed": true,
+    "type": "modfence.dependency-graph",
+    "metadata": {
+      "schema_version": "1.0",
+      "tool": { "name": "modfence", "version": "0.1.0" },
+      "root": ".",
+      "backend": "tree-sitter",
+      "languages": ["py", "rs"],
+      "diagnostics": []
+    },
+    "nodes": {
+      "pkg:py:src/domain": {
+        "label": "src/domain",
+        "metadata": { "kind": "package", "lang": "py", "path": "src/domain", "tags": { "layer": "domain" } }
+      },
+      "mod:py:src/domain/orders.py": {
+        "label": "src/domain/orders.py",
+        "metadata": { "kind": "module", "lang": "py", "path": "src/domain/orders.py", "tags": { "layer": "domain" } }
+      },
+      "sym:py:src/domain/orders.py#place": {
+        "label": "place",
+        "metadata": {
+          "kind": "symbol",
+          "lang": "py",
+          "path": "src/domain/orders.py",
+          "symbol_kind": "function",
+          "span": { "start_line": 4, "start_column": 1, "end_line": 9, "end_column": 1 },
+          "tags": { "layer": "domain" }
+        }
+      },
+      "ext:py:requests": {
+        "label": "requests",
+        "metadata": { "kind": "external", "lang": "py", "tags": { "boundary": "network" } }
+      },
+      "mod:rs:crates/core/src/lib.rs": {
+        "label": "crates/core/src/lib.rs",
+        "metadata": { "kind": "module", "lang": "rs", "path": "crates/core/src/lib.rs" }
+      },
+      "sym:rs:crates/core/src/lib.rs#score": {
+        "label": "score",
+        "metadata": {
+          "kind": "symbol",
+          "lang": "rs",
+          "path": "crates/core/src/lib.rs",
+          "symbol_kind": "function",
+          "span": { "start_line": 10, "start_column": 1, "end_line": 14, "end_column": 2 },
+          "binding": { "framework": "pyo3", "exported_name": "score" }
+        }
+      }
+    },
+    "edges": [
+      {
+        "source": "pkg:py:src/domain",
+        "target": "mod:py:src/domain/orders.py",
+        "relation": "contains",
+        "metadata": {}
+      },
+      {
+        "source": "mod:py:src/domain/orders.py",
+        "target": "ext:py:requests",
+        "relation": "imports",
+        "metadata": {
+          "confidence": "resolved",
+          "origin": "tree-sitter",
+          "specifier": "requests",
+          "site": {
+            "path": "src/domain/orders.py",
+            "span": { "start_line": 1, "start_column": 1, "end_line": 1, "end_column": 16 }
+          }
+        }
+      },
+      {
+        "source": "sym:py:src/domain/orders.py#place",
+        "target": "sym:rs:crates/core/src/lib.rs#score",
+        "relation": "binds",
+        "metadata": {
+          "confidence": "heuristic",
+          "origin": "tree-sitter",
+          "specifier": "core.score",
+          "count": 2,
+          "site": {
+            "path": "src/domain/orders.py",
+            "span": { "start_line": 7, "start_column": 12, "end_line": 7, "end_column": 22 }
+          }
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,142 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/craftainer-labs/cli-modfence/schema/modfence-config.schema.json",
+  "title": "modfence.toml (version 1)",
+  "description": "The repository's `modfence.toml`, as JSON (TOML tables map to objects, `[[x]]` arrays of tables to arrays). Unknown keys are errors. See docs/adrs/0004-config-annotations-and-rules.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version"],
+  "properties": {
+    "version": { "const": 1 },
+    "exclude": {
+      "description": "Gitignore-style globs, relative to the config file, added to the ignore files the walker already honours.",
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "layers": {
+      "description": "Layer names from the highest layer to the lowest. A layer may depend on itself and on any layer below it; an edge from a lower layer to a higher one is an error under the reserved rule id `layers`. Nodes with no `layer` tag, or a tag not listed here, are exempt.",
+      "type": "array",
+      "minItems": 2,
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^[A-Za-z0-9._-]+$" }
+    },
+    "annotations": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "require_reason": {
+          "description": "Whether `arch: ignore[...]` must carry reason=\"...\". Defaults to true.",
+          "type": "boolean",
+          "default": true
+        }
+      }
+    },
+    "node": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/node" }
+    },
+    "rule": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/rule" }
+    }
+  },
+  "$defs": {
+    "tagKey": {
+      "description": "Lowercase; `path`, `package`, `lang` and `kind` are reserved selector keys and cannot be tags.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_-]*$",
+      "not": { "enum": ["path", "package", "lang", "kind"] }
+    },
+    "tagValue": {
+      "description": "Any non-empty string without double quotes or control characters (the inline syntax quotes values that contain spaces).",
+      "type": "string",
+      "pattern": "^[^\"\\u0000-\\u001f]+$"
+    },
+    "node": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tags"],
+      "oneOf": [{ "required": ["match"] }, { "required": ["package"] }],
+      "properties": {
+        "match": {
+          "description": "Gitignore-style glob over repository-relative paths; tags the matching package, module and symbol nodes.",
+          "type": "string",
+          "minLength": 1
+        },
+        "package": {
+          "description": "Glob over external package names; tags the matching external nodes.",
+          "type": "string",
+          "minLength": 1
+        },
+        "tags": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": { "$ref": "#/$defs/tagKey" },
+          "additionalProperties": { "$ref": "#/$defs/tagValue" }
+        }
+      }
+    },
+    "selector": {
+      "description": "AND across keys, OR within a list of values. A key is a tag name, or one of the reserved keys path (glob), package (glob), lang (py|ts|rs) and kind (package|module|symbol|external).",
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": { "type": "string", "pattern": "^[a-z][a-z0-9_-]*$" },
+      "properties": {
+        "lang": { "$ref": "#/$defs/enumOrList/lang" },
+        "kind": { "$ref": "#/$defs/enumOrList/kind" }
+      },
+      "additionalProperties": {
+        "oneOf": [
+          { "type": "string", "minLength": 1 },
+          { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } }
+        ]
+      }
+    },
+    "enumOrList": {
+      "lang": {
+        "oneOf": [
+          { "enum": ["py", "ts", "rs"] },
+          { "type": "array", "minItems": 1, "items": { "enum": ["py", "ts", "rs"] } }
+        ]
+      },
+      "kind": {
+        "oneOf": [
+          { "enum": ["package", "module", "symbol", "external"] },
+          { "type": "array", "minItems": 1, "items": { "enum": ["package", "module", "symbol", "external"] } }
+        ]
+      }
+    },
+    "rule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "from", "to", "effect"],
+      "properties": {
+        "id": {
+          "description": "Unique; `layers` and ids starting with `modfence/` are reserved.",
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "not": { "const": "layers" }
+        },
+        "from": { "$ref": "#/$defs/selector" },
+        "to": { "$ref": "#/$defs/selector" },
+        "effect": { "enum": ["forbid", "allow"] },
+        "kinds": {
+          "description": "Edge relations the rule applies to. Defaults to [\"imports\", \"binds\"]; `calls` must be asked for.",
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "enum": ["imports", "calls", "binds"] }
+        },
+        "confidence": {
+          "description": "`resolved` ignores heuristic edges. Defaults to `any`.",
+          "enum": ["any", "resolved"]
+        },
+        "severity": {
+          "description": "Defaults to `error`. Ignored by `allow` rules.",
+          "enum": ["error", "warning", "note"]
+        },
+        "message": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}
