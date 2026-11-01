@@ -31,9 +31,7 @@ pub use qualname::{LOCALS, decode_qualname, encode_qualname};
 
 use tree_sitter::{Parser, Tree};
 
-use super::{
-    Diagnostic, DiagnosticCode, ExtractCtx, Extractor, FileFacts, Lang, Node, SourceFile,
-};
+use super::{Diagnostic, DiagnosticCode, ExtractCtx, Extractor, FileFacts, Lang, Node, SourceFile};
 
 /// Identifies the extraction logic and the grammar for the per-file cache.
 /// Change it whenever the output could change.
