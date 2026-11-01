@@ -16,6 +16,9 @@ use crate::extract::{
     PREFIX, SourceFile, Span, SymbolKind, column_from_byte, comment_body,
 };
 
+/// The message when the parser returns no tree at all.
+const NO_TREE: &str = "the parser produced no syntax tree";
+
 #[derive(PartialEq)]
 enum ScopeKind {
     Module,
@@ -109,20 +112,22 @@ impl<'a> Walker<'a> {
 
     /// Walks the tree (when there is one) and returns all facts.
     pub(super) fn run(mut self, tree: Option<&Tree>) -> FileFacts {
-        if let Some(tree) = tree {
-            self.walk(tree.root_node());
-        }
+        tree.map_or_else(|| self.note(NO_TREE, None), |t| self.walk(t.root_node()));
         self.finish()
+    }
+
+    fn note(&mut self, message: &str, span: Option<Span>) {
+        self.facts.diagnostics.push(Diagnostic {
+            code: DiagnosticCode::ParseError,
+            message: message.to_owned(),
+            span,
+        });
     }
 
     fn walk(&mut self, root: TsNode<'_>) {
         if root.has_error() {
             let span = self.span(first_error(root));
-            self.facts.diagnostics.push(Diagnostic {
-                code: DiagnosticCode::ParseError,
-                message: "the file has a syntax error".to_owned(),
-                span: Some(span),
-            });
+            self.note("the file has a syntax error", Some(span));
         }
         let module = Rc::new(Scope {
             kind: ScopeKind::Module,
@@ -133,14 +138,15 @@ impl<'a> Walker<'a> {
         while let Some((node, scope)) = stack.pop() {
             let inner = self.visit(node, &scope);
             let mut cursor = node.walk();
-            let children: Vec<TsNode<'_>> = node.children(&mut cursor).collect();
-            for child in children.into_iter().rev() {
+            let first = stack.len();
+            for child in node.children(&mut cursor) {
                 let child_scope = match &inner {
                     Some((body, inside)) if *body == child.id() => Rc::clone(inside),
                     _ => Rc::clone(&scope),
                 };
                 stack.push((child, child_scope));
             }
+            stack[first..].reverse();
         }
     }
 
@@ -203,9 +209,8 @@ impl<'a> Walker<'a> {
         }
         components.push(self.text_of(name).to_owned());
         let base = encode_qualname(&components, 1);
-        let seen = self.counts.entry(base).or_insert(0);
-        *seen += 1;
-        let qualname = encode_qualname(&components, *seen);
+        let ordinal = self.counts.get(&base).map_or(1, |seen| seen + 1);
+        let qualname = encode_qualname(&components, ordinal);
         let symbol_kind = match (is_class, &scope.kind) {
             (true, _) => SymbolKind::Class,
             (false, ScopeKind::Class) => SymbolKind::Method,
@@ -220,6 +225,7 @@ impl<'a> Walker<'a> {
             self.span(node),
         )
         .ok()?;
+        self.counts.insert(base, ordinal);
         let id = symbol.id.clone();
         self.facts.nodes.push(symbol);
         let outer = node
