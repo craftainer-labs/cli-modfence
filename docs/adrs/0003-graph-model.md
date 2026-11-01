@@ -228,6 +228,62 @@ B. **Indexer failure.** A warning and fall back (as written), or an exit-2
 C. **Multi-value `--group-by`.** Decided in ADR 0004 (it only affects the
    outputs, not the graph).
 
+## Qualified names by language
+
+Each extractor adds its language's subsection here (NC3a Python, NC3b
+TypeScript, NC3c Rust), with round-trip tests in `tests/`.
+
+### Python qualified names
+
+Implemented in `src/extract/python/qualname.rs` and tested in
+`tests/extract_python.rs`. The path part of the id is the file, so the
+qualified name never repeats the module: `sym:py:pkg/core.py#Engine.run`.
+
+- **Components.** The qualified name is the chain of definition names from the
+  module down, joined with `.`, as Python's `__qualname__` writes it. A method
+  is `Class.method`; a nested class is `Outer.Inner`.
+- **Definitions inside a function body.** A `def` or `class` whose enclosing
+  scope is a function gets the component `<locals>` between the function and
+  its name: `Engine.run.<locals>.inner`, and
+  `Engine.run.<locals>.inner.<locals>.Local.deep` for a method of a class
+  inside it. A definition inside a class body does not: `Engine.Config`.
+  `if`, `try`, `with` and loop bodies are not scopes, so a definition in one is
+  named as if the block were not there.
+- **Symbols.** Every `def` (also `async def`) and `class` is a symbol, nested
+  ones too: a `def` directly in a class body is a `method`, any other `def` a
+  `function`, a `class` a `class`. A decorator belongs to the symbol it
+  decorates, but the symbol's span starts at `def` or `class`, not at the first
+  decorator. Lambdas, comprehensions and module-level or class-level variables
+  are not symbols; a call inside a lambda belongs to the enclosing symbol.
+- **Repeated names.** Python allows a name to be defined again in one scope
+  (property setters, conditional definitions, `typing.overload`). The first
+  definition keeps the plain name, and the n-th gets the suffix `@n` for n >= 2
+  (`Engine.size`, `Engine.size@2`), so that every id is unique in the file. A
+  definition nested in the second one is named after the plain chain
+  (`C.m`, then `C.m@2` when the first `C` already has an `m`), because the
+  suffix counts per full name. `@` is never part of a component (see below).
+- **Escaping.** Each component is percent-encoded as in the rest of this ADR
+  (whitespace, control characters, U+FEFF, `#` and `%`, upper-case hex), and
+  `.` and `@` are escaped too (`%2E`, `%40`), so `.` only separates components
+  and `@` only starts the ordinal. A valid Python identifier holds none of
+  these characters; the escapes only matter for text recovered from a file with
+  syntax errors. Non-ASCII identifiers are kept as written (no NFKC
+  normalisation). `<` and `>` are not escaped; the schema's pattern allows
+  them.
+- **Round trip.** `decode_qualname` splits at the first `@`, then at `.`, and
+  decodes each component; it accepts exactly what `encode_qualname` produces
+  (lower-case hex, an empty component and an ordinal of 0, 1 or with a sign or
+  leading zero are rejected), so a name has one id and an id has one name.
+- **Packages and relative imports.** `pkg/__init__.py` is an ordinary module:
+  its module node is `mod:py:pkg/__init__.py` and its symbols are named like
+  any others' (`sym:py:pkg/__init__.py#helper`). Mapping the file to the
+  package `pkg` is the core's job. An import's specifier is reported as
+  written with its leading dots and without spaces: `from .core import X` is
+  `.core`, `from . import y` is `.` with the name `y`, `from ..a.b import z` is
+  `..a.b`, `import a.b as c` is `a.b`. The core resolves a dotted specifier
+  against the importing file's package: one dot is the package of the file
+  (the file's own directory), each further dot goes one directory up.
+
 ## Open issues
 
 - `--run-indexers` on untrusted roots: a warning, a refusal in CI when the
