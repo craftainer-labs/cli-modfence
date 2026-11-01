@@ -96,7 +96,10 @@ fn span(line: u32) -> Span {
 
 #[test]
 fn the_pattern_used_here_is_the_schemas() {
-    assert!(SCHEMA.contains(SCHEMA_PATTERN), "the nodeId pattern changed");
+    assert!(
+        SCHEMA.contains(SCHEMA_PATTERN),
+        "the nodeId pattern changed"
+    );
 }
 
 #[test]
@@ -135,7 +138,13 @@ fn the_matcher_agrees_with_the_pattern_on_known_ids() {
 #[test]
 fn builds_ids_of_every_kind() {
     let cases = [
-        (NodeKind::Package, Lang::Py, "src/app", None, "pkg:py:src/app"),
+        (
+            NodeKind::Package,
+            Lang::Py,
+            "src/app",
+            None,
+            "pkg:py:src/app",
+        ),
         (
             NodeKind::Module,
             Lang::Ts,
@@ -151,7 +160,13 @@ fn builds_ids_of_every_kind() {
             Some("Foo%3A%3Abar"),
             "sym:rs:src/lib.rs#Foo%3A%3Abar",
         ),
-        (NodeKind::Symbol, Lang::Py, "é/ü.py", Some("f"), "sym:py:é/ü.py#f"),
+        (
+            NodeKind::Symbol,
+            Lang::Py,
+            "é/ü.py",
+            Some("f"),
+            "sym:py:é/ü.py#f",
+        ),
     ];
     for (kind, lang, path, qualname, expected) in cases {
         let id = NodeId::new(kind, lang, path, qualname).unwrap();
@@ -167,12 +182,25 @@ fn builds_ids_of_every_kind() {
 fn rejects_what_the_pattern_would_reject() {
     let new = |kind, path, qualname| NodeId::new(kind, Lang::Py, path, qualname);
     assert_eq!(new(NodeKind::Module, "", None), Err(NodeError::EmptyPath));
-    assert_eq!(new(NodeKind::Symbol, "a.py", None), Err(NodeError::MissingQualName));
+    assert_eq!(
+        new(NodeKind::Symbol, "a.py", None),
+        Err(NodeError::MissingQualName)
+    );
     assert_eq!(
         new(NodeKind::Module, "a.py", Some("f")),
         Err(NodeError::UnexpectedQualName)
     );
-    for bad in ["", "a b", "a#b", "a%", "a%2", "a%zz", "a\tb", "a\u{3000}b", "a\u{1}b"] {
+    for bad in [
+        "",
+        "a b",
+        "a#b",
+        "a%",
+        "a%2",
+        "a%zz",
+        "a\tb",
+        "a\u{3000}b",
+        "a\u{1}b",
+    ] {
         assert_eq!(
             new(NodeKind::Symbol, "a.py", Some(bad)),
             Err(NodeError::InvalidQualName),
@@ -180,7 +208,10 @@ fn rejects_what_the_pattern_would_reject() {
         );
     }
     for good in ["f", "A.b", "%41", "a%2Fb", "é", "<lambda>"] {
-        assert!(new(NodeKind::Symbol, "a.py", Some(good)).is_ok(), "{good:?}");
+        assert!(
+            new(NodeKind::Symbol, "a.py", Some(good)).is_ok(),
+            "{good:?}"
+        );
     }
 }
 
@@ -207,13 +238,19 @@ fn encodes_whitespace_hash_percent_and_controls_only() {
     assert_eq!(encode_component("a b#c%d"), "a%20b%23c%25d");
     assert_eq!(encode_component("a\tb\nc"), "a%09b%0Ac");
     assert_eq!(encode_component("\u{3000}"), "%E3%80%80");
-    assert_eq!(encode_component("\u{feff}\u{85}\u{1c}"), "%EF%BB%BF%C2%85%1C");
+    assert_eq!(
+        encode_component("\u{feff}\u{85}\u{1c}"),
+        "%EF%BB%BF%C2%85%1C"
+    );
     assert_eq!(encode_component("é🦀"), "é🦀");
 }
 
 #[test]
 fn decodes_and_rejects_bad_escapes() {
-    assert_eq!(decode_component("a%20b%2fc%2Fd").as_deref(), Some("a b/c/d"));
+    assert_eq!(
+        decode_component("a%20b%2fc%2Fd").as_deref(),
+        Some("a b/c/d")
+    );
     assert_eq!(decode_component("").as_deref(), Some(""));
     assert_eq!(decode_component("é").as_deref(), Some("é"));
     for bad in ["%", "a%2", "%zz", "%2z", "%ff", "%C3"] {
@@ -226,7 +263,17 @@ fn is_encoded_follows_the_segment_pattern() {
     for good in ["a", "%41", "a%2Fb", "é", "a:b", "a/b"] {
         assert!(is_encoded(good), "{good:?}");
     }
-    for bad in ["", "a b", "a#b", "%", "a%", "a%2", "%2z", "a\u{1}", "a\u{feff}"] {
+    for bad in [
+        "",
+        "a b",
+        "a#b",
+        "%",
+        "a%",
+        "a%2",
+        "%2z",
+        "a\u{1}",
+        "a\u{feff}",
+    ] {
         assert!(!is_encoded(bad), "{bad:?}");
     }
 }
@@ -273,7 +320,11 @@ fn language_codes_and_extensions() {
         assert_eq!(lang.as_str(), code);
     }
     for extension in ["ts", "tsx", "mts", "cts", "js", "jsx", "mjs", "cjs"] {
-        assert_eq!(Lang::from_extension(extension), Some(Lang::Ts), "{extension}");
+        assert_eq!(
+            Lang::from_extension(extension),
+            Some(Lang::Ts),
+            "{extension}"
+        );
     }
     assert_eq!(Lang::from_extension("py"), Some(Lang::Py));
     assert_eq!(Lang::from_extension("rs"), Some(Lang::Rs));
@@ -283,7 +334,15 @@ fn language_codes_and_extensions() {
     assert_eq!(Lang::from_path("a/b.d/c.py"), Some(Lang::Py));
     assert_eq!(Lang::from_path("c.test.tsx"), Some(Lang::Ts));
     assert_eq!(Lang::from_path("src/lib.rs"), Some(Lang::Rs));
-    for path in ["Makefile", "a.d/Makefile", ".py", "a/.rs", "a.txt", "", "dir.py/"] {
+    for path in [
+        "Makefile",
+        "a.d/Makefile",
+        ".py",
+        "a/.rs",
+        "a.txt",
+        "",
+        "dir.py/",
+    ] {
         assert_eq!(Lang::from_path(path), None, "{path:?}");
     }
 }
@@ -344,7 +403,12 @@ fn kind_names_match_the_schema() {
 fn spans_are_one_based_and_ordered() {
     let span = Span::new(2, 3, 2, 3).expect("an empty span is allowed");
     assert_eq!(
-        (span.start_line, span.start_column, span.end_line, span.end_column),
+        (
+            span.start_line,
+            span.start_column,
+            span.end_line,
+            span.end_column
+        ),
         (2, 3, 2, 3)
     );
     assert!(Span::new(1, 1, 3, 1).is_some());
@@ -400,6 +464,8 @@ fn builds_module_and_symbol_nodes() {
     assert_eq!(symbol.symbol_kind, Some(SymbolKind::Method));
     assert_eq!(symbol.span, Some(span(4)));
     assert_eq!(symbol.display_qualname().as_deref(), Some("Foo::bar"));
+    let odd = Node::symbol(Lang::Rs, "a.rs", "%C3", "f", SymbolKind::Function, span(1));
+    assert_eq!(odd.unwrap().display_qualname().as_deref(), Some("%C3"));
 
     let empty_label = Node::symbol(Lang::Rs, "a.rs", "f", "", SymbolKind::Function, span(1));
     assert_eq!(empty_label, Err(NodeError::EmptyLabel));
@@ -418,7 +484,10 @@ fn annotations_come_from_comment_bodies() {
 
     let malformed = Annotation::from_comment("modfence: path=x", span(1), None).unwrap();
     assert!(malformed.parsed.is_err());
-    assert_eq!(Annotation::from_comment(" just a comment", span(1), None), None);
+    assert_eq!(
+        Annotation::from_comment(" just a comment", span(1), None),
+        None
+    );
 }
 
 /// A stand-in extractor, to pin the trait's shape: object safe, `Send + Sync`,
@@ -463,7 +532,7 @@ fn the_extractor_contract() {
     assert_eq!(facts.nodes[0].id.as_str(), "mod:py:pkg/a.py");
     assert!(facts.imports.is_empty() && facts.calls.is_empty());
     assert!(facts.annotations.is_empty() && facts.bindings.is_empty());
-    assert!(facts.diagnostics.is_empty());
+    assert_eq!(facts.diagnostics, vec![]);
     assert_eq!(facts.clone(), facts);
     assert_eq!(file.text, "x = 1\n");
 }

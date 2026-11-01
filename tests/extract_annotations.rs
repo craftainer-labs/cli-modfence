@@ -188,15 +188,39 @@ fn rejects_malformed_annotations_with_the_position() {
         ("modfence: ignore[a, ]", ErrorKind::EmptyRuleId, 19),
         ("modfence: ignore[a b]", ErrorKind::InvalidRuleId, 17),
         ("modfence: ignore[ok,bä]", ErrorKind::InvalidRuleId, 20),
-        ("modfence: ignore[a] reason=x", ErrorKind::UnexpectedAfterIgnore, 20),
-        ("modfence: ignore[a] x", ErrorKind::UnexpectedAfterIgnore, 20),
-        ("modfence: ignore[a] reason=\"x\" more", ErrorKind::UnexpectedAfterIgnore, 31),
-        ("modfence: ignore[a] reason=\"x", ErrorKind::UnterminatedQuote, 27),
+        (
+            "modfence: ignore[a] reason=x",
+            ErrorKind::UnexpectedAfterIgnore,
+            20,
+        ),
+        (
+            "modfence: ignore[a] x",
+            ErrorKind::UnexpectedAfterIgnore,
+            20,
+        ),
+        (
+            "modfence: ignore[a] reason=\"x\" more",
+            ErrorKind::UnexpectedAfterIgnore,
+            31,
+        ),
+        (
+            "modfence: ignore[a] reason=\"x",
+            ErrorKind::UnterminatedQuote,
+            27,
+        ),
         ("modfence: ignore[a] reason=\"\"", ErrorKind::EmptyValue, 20),
-        ("modfence: ignore[a] reason=\"x\u{7}\"", ErrorKind::ControlCharacter, 20),
+        (
+            "modfence: ignore[a] reason=\"x\u{7}\"",
+            ErrorKind::ControlCharacter,
+            20,
+        ),
     ];
     for (body, kind, offset) in cases {
-        assert_eq!(parse(body), Err(AnnotationError { kind, offset }), "{body:?}");
+        assert_eq!(
+            parse(body),
+            Err(AnnotationError { kind, offset }),
+            "{body:?}"
+        );
     }
 }
 
@@ -277,7 +301,10 @@ fn doc_comments_and_shebangs_are_never_annotations() {
 #[test]
 fn merging_unions_the_values_per_key() {
     let mut into = tags(&[("adr", &["0028"]), ("layer", &["domain"])]);
-    merge_tags(&mut into, &tags(&[("adr", &["0029", "0028"]), ("owner", &["x"])]));
+    merge_tags(
+        &mut into,
+        &tags(&[("adr", &["0029", "0028"]), ("owner", &["x"])]),
+    );
     assert_eq!(
         into,
         tags(&[
@@ -307,7 +334,7 @@ fn generated_tag_comments_round_trip() {
         body.push_str(PREFIX);
         body.push_str(&rng.blanks(0));
         let mut expected = Tags::new();
-        for index in 0..1 + rng.below(6) {
+        for index in 0..=rng.below(6) {
             if index > 0 {
                 body.push_str(&rng.blanks(1));
             }
@@ -319,7 +346,9 @@ fn generated_tag_comments_round_trip() {
                 let value = *rng.pick(&VALUES);
                 body.push('=');
                 if value.contains(' ') || rng.below(2) == 0 {
-                    body.push_str(&format!("\"{value}\""));
+                    body.push('"');
+                    body.push_str(value);
+                    body.push('"');
                 } else {
                     body.push_str(value);
                 }
@@ -383,7 +412,13 @@ fn arbitrary_text_never_panics_and_results_are_well_formed() {
     let alphabet: Vec<char> = "modfence:ignore[]=,\"' \t\n\u{1}a1-_/.#é€🦀rsn"
         .chars()
         .collect();
-    let starts = ["", "modfence:", "modfence: ", "modfence: ignore[", "modfence: a="];
+    let starts = [
+        "",
+        "modfence:",
+        "modfence: ",
+        "modfence: ignore[",
+        "modfence: a=",
+    ];
     let mut rng = Rng(0xDEAD_BEEF_0BAD_F00D);
     for _ in 0..5000 {
         let mut body = (*rng.pick(&starts)).to_owned();
