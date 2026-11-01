@@ -181,8 +181,9 @@ impl Span {
 }
 
 /// The 1-based column, in code points, of byte offset `byte_offset` in `line`
-/// (tree-sitter reports byte columns). `None` when the offset is past the end
-/// of the line or inside a multi-byte character.
+/// (tree-sitter reports byte columns). The offset of the line's end is valid
+/// (the column after the last character); `None` when the offset is beyond it
+/// or inside a multi-byte character.
 #[must_use]
 pub fn column_from_byte(line: &str, byte_offset: usize) -> Option<u32> {
     let before = line.get(..byte_offset)?;

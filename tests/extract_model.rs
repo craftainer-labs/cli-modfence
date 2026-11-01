@@ -271,6 +271,7 @@ fn is_encoded_follows_the_segment_pattern() {
         "a%",
         "a%2",
         "%2z",
+        "a%2f",
         "a\u{1}",
         "a\u{feff}",
     ] {

@@ -168,6 +168,10 @@ pub fn decode_component(encoded: &str) -> Option<String> {
     String::from_utf8(out).ok()
 }
 
+fn is_upper_hex(c: char) -> bool {
+    matches!(c, '0'..='9' | 'A'..='F')
+}
+
 fn hex_value(byte: u8) -> Option<u8> {
     char::from(byte)
         .to_digit(16)
@@ -175,7 +179,8 @@ fn hex_value(byte: u8) -> Option<u8> {
 }
 
 /// True when `text` is non-empty and holds no whitespace or `#`, and every `%`
-/// starts a valid `%XX` escape: the pattern's `([^\s#%]|%[0-9A-Fa-f]{2})+`.
+/// starts a valid `%XX` escape: the pattern's `([^\s#%]|%[0-9A-Fa-f]{2})+`,
+/// narrowed to upper-case hex digits so that one name has one id.
 #[must_use]
 pub fn is_encoded(text: &str) -> bool {
     if text.is_empty() {
@@ -186,7 +191,7 @@ pub fn is_encoded(text: &str) -> bool {
         if c == '%' {
             let valid = matches!(
                 (chars.next(), chars.next()),
-                (Some(a), Some(b)) if a.is_ascii_hexdigit() && b.is_ascii_hexdigit()
+                (Some(a), Some(b)) if is_upper_hex(a) && is_upper_hex(b)
             );
             if !valid {
                 return false;
