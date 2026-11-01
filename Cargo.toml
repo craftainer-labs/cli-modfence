@@ -40,6 +40,14 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+# Parsing for the Python, TypeScript and Rust extractors (ADR 0003). The core
+# loads grammars of ABI 13 to 15 (>= 0.25); every grammar crate needs only
+# tree-sitter-language ^0.1, which the core also uses. JavaScript is parsed
+# with the TypeScript grammar, which provides TypeScript and TSX.
+tree-sitter = "0.27.1"
+tree-sitter-python = "0.25.0"
+tree-sitter-rust = "0.24.2"
+tree-sitter-typescript = "0.23.2"
 
 [lints]
 workspace = true
