@@ -183,15 +183,18 @@ points, ends exclusive. SARIF output sets `columnKind` to
     `heuristic`, and `contains` edges carry no metadata.
 15. tree-sitter-typescript's parser ABI is asserted at test time to be
     loadable by the pinned tree-sitter (NC3b).
-16. Without `--scip` and `--run-indexers`, modfence starts no subprocess.
+16. Without `--run-indexers`, modfence starts no subprocess; `--scip` only
+    reads files.
 17. `--run-indexers` starts only executables resolved from `PATH`, prints
-    each command line to stderr before starting it, and never writes outside
-    `.modfence/scip/` (a pre-existing `index.scip` it did not create is never
-    overwritten).
+    each command line to stderr before starting it, and apart from the cache
+    directory `.modfence/cache/` writes only below `.modfence/scip/` (a
+    pre-existing `index.scip` it did not create is never overwritten).
 18. A failed or missing indexer is a warning and leaves that language on
     tree-sitter; it never changes the exit status on its own.
 19. Every node's `tags` value is a non-empty array of unique strings sorted
     in byte order; a node with no tags has no `tags` key.
+20. SCIP positions are converted from each document's declared position
+    encoding to code points before a reference is matched to a call site.
 
 ## Decisions (G-api)
 

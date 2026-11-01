@@ -30,7 +30,7 @@
       "additionalProperties": false,
       "properties": {
         "accumulate": {
-          "description": "Tag keys whose values are the union across config entries, module annotations and symbol annotations. Other keys take the highest level that sets them (orchestrator's proposal, ADR 0004).",
+          "description": "Tag keys whose values are the union across config entries, module annotations and symbol annotations. Other keys take the highest level that sets them (ADR 0004).",
           "type": "array",
           "uniqueItems": true,
           "items": { "$ref": "#/$defs/tagKey" }

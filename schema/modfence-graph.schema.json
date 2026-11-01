@@ -60,8 +60,9 @@
       }
     },
     "tags": {
-      "description": "Effective tags after configuration and inline annotations (ADR 0004). Every value is an array, even for a single-valued key: one shape for consumers, and repeatable keys such as `adr` need no special case. Arrays are non-empty, unique and sorted in byte order; a bare inline key is [\"true\"].",
+      "description": "Effective tags after configuration and inline annotations (ADR 0004). Every value is an array, even for a single-valued key: one shape for consumers, and repeatable keys such as `adr` need no special case. Arrays are non-empty and unique, and the tool emits them sorted in byte order (sortedness and a node with no tags having no `tags` key are tool invariants the schema cannot express); a bare inline key is [\"true\"].",
       "type": "object",
+      "minProperties": 1,
       "propertyNames": { "type": "string", "pattern": "^[a-z][a-z0-9_-]*$" },
       "additionalProperties": {
         "type": "array",

@@ -72,7 +72,7 @@ the same level union their values for a key.
 its own line: `# modfence: layer=domain owner=team-a` (Python),
 `// modfence: ...` (TypeScript, Rust; `/* modfence: ... */` on one line is
 accepted too). Space-separated `key=value` pairs; a bare key means the value
-`true`; a value with spaces is double-quoted; a key may repeat to give several
+`true` (serialised as `["true"]`); a value with spaces is double-quoted; a key may repeat to give several
 values (`# modfence: adr=0028 adr=0029`). An annotation directly above a
 symbol (no blank line between; decorators, attributes and doc comments may
 sit between) tags that symbol; any other own-line annotation tags the whole
@@ -137,10 +137,16 @@ dependency." Imports of external packages stay allowed unless a rule forbids
 them. Deny mode interacts with the other features as follows (the executor's
 definitions, listed in Decisions for confirmation):
 
-- *Layers:* a site that obeys the layers order, between two nodes whose
-  `layer` tags are both listed in `layers`, counts as permitted by layers, so
-  `layers` alone can describe a whole architecture in deny mode. A site that
-  violates the order is reported as `layers`, never also as `default-deny`.
+- *Layers:* a site counts as permitted by layers when every `layer` value of
+  both nodes is listed in `layers` and no combination of the two nodes' values
+  violates the order, so `layers` alone can describe a whole architecture in
+  deny mode. A site that violates the order for any combination is reported as
+  `layers`, never also as `default-deny`.
+- *Confidence:* `default-deny` considers only sites an explicit rule with
+  `confidence` omitted could match: `imports` and `binds` sites, and `calls`
+  sites only when resolved. A heuristic call site is never reported by it
+  (`binds` sites are name matches, so deny mode inherits their false-positive
+  risk, noted in Consequences).
 - *Explicit rules:* `allow` rules are what deny mode is for; `forbid` rules
   still decide first-match as before and so give a specific message.
 - *Suppressions:* `modfence: ignore[default-deny] reason="..."` suppresses it
@@ -216,7 +222,9 @@ the graph schema.
    finding unless a rule says `confidence = "any"`.
 9. In deny mode, an in-repository site that no rule and no layers permission
    decided is reported once as `default-deny`; an `external` target is never
-   reported by it.
+   reported by it, and neither is a heuristic `calls` site. Layers
+   permission requires every `layer` value of both nodes to be listed and no
+   combination to violate the order.
 10. A site that violates `layers` is never also reported as `default-deny`.
 11. A node's effective tags are computed level by level (config entries in
     order, module inline, symbol inline). A non-accumulating key takes the
@@ -288,6 +296,10 @@ E. **Deny severity.** `default-deny` is always `error`, or settable
 
 ## Open issues
 
+- The graph schema's tag shape (arrays, sorted) is `schema_version` 1.0
+  before the first release. If decisions A to E change tag semantics, the
+  schema is amended in the same change; after the first release it is a
+  major bump.
 - NC4 proves tag precedence with table tests: one row per combination of
   config entries, module inline, symbol inline, `accumulate` membership and
   repeated keys, with the expected sorted list, before any rule consumes it.
@@ -312,7 +324,9 @@ E. **Deny severity.** `default-deny` is always `error`, or settable
   an edge.
 - Deny mode makes the rule file a complete allow-list of internal
   dependencies, which is strict and costs one `allow` per permitted pair
-  unless `layers` covers them; external imports are not allow-listed.
+  unless `layers` covers them; external imports are not allow-listed. A
+  heuristic `binds` edge that is a false match can fail CI in deny mode until
+  it is allowed or ignored.
 - Heuristic call edges are invisible to rules by default, so a first run
   without `--precise` checks imports only; the notice says so. A rule that
   opts in to `confidence = "any"` accepts false positives.
