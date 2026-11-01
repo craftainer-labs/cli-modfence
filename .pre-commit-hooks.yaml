@@ -1,10 +1,10 @@
 # Hooks other repositories can use through pre-commit or prek:
 #
 #   repos:
-#     - repo: https://github.com/craftainer/template-rust-cli
+#     - repo: https://github.com/craftainer-labs/cli-modfence
 #       rev: vX.Y.Z
 #       hooks:
-#         - id: template-rust-cli
+#         - id: modfence
 #
 # `language: rust` builds the tagged source with `cargo install` into the
 # hook's private environment (pre-commit and prek both install a Rust
@@ -16,10 +16,10 @@
 # passes. An instance replaces `id`, `name`, `description`, `entry` and
 # `args` with its real command line (and `files`/`types` if it takes file
 # names); README.md lists the places an instance renames.
-- id: template-rust-cli
-  name: template-rust-cli
+- id: modfence
+  name: modfence
   description: Example hook that runs the template's command-line program
-  entry: template-rust-cli
+  entry: modfence
   args: [pre-commit]
   language: rust
   pass_filenames: false

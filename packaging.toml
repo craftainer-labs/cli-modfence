@@ -6,6 +6,6 @@
 [npm]
 # The root package users install: `npm install -g <package>`. Its
 # optionalDependencies pin one platform package per target, named
-# `<scope>/<binary>-<os>-<cpu>` (e.g. `@craftainer/template-rust-cli-linux-x64`).
-package = "template-rust-cli"
-scope = "@craftainer"
+# `<scope>/<binary>-<os>-<cpu>` (e.g. `@craftainer-labs/modfence-linux-x64`).
+package = "modfence"
+scope = "@craftainer-labs"

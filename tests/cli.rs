@@ -3,7 +3,7 @@
 use std::process::{Command, Output};
 
 fn cli(args: &[&str]) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_template-rust-cli"))
+    Command::new(env!("CARGO_BIN_EXE_modfence"))
         .args(args)
         .output()
         .expect("the binary runs")
@@ -25,9 +25,9 @@ fn reports_bad_usage_with_exit_code_2() {
 
 #[test]
 fn the_library_api_is_public() {
-    assert_eq!(template_rust_cli::greet("Grace").unwrap(), "Hello, Grace!");
+    assert_eq!(modfence::greet("Grace").unwrap(), "Hello, Grace!");
     assert_eq!(
-        template_rust_cli::greet("").unwrap_err(),
-        template_rust_cli::GreetError::EmptyName
+        modfence::greet("").unwrap_err(),
+        modfence::GreetError::EmptyName
     );
 }

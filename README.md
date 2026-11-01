@@ -1,26 +1,14 @@
-# template-rust-cli
+# modfence
 
 > [!NOTE]
 > This repository is vibe coded with [Claude](https://claude.com/product/claude-code).
 
-A template for a tested, linted and publishable Rust command-line program:
-a Cargo workspace with one example program (a library plus a thin binary),
-`rustfmt`, `clippy -D warnings`, a 100% line-coverage gate
-(`cargo-llvm-cov`), `cargo-deny`, `cargo-semver-checks`, and a release that
-publishes the crate to crates.io through trusted publishing and then ships the
-binary: native archives for Linux (static), macOS and Windows on x64 and
-arm64, wheels on PyPI, npm packages, a Homebrew formula, a container image and
-a pre-commit hook, all with build provenance attestations. It is itself an
-instance of
-[`template-rust-crate`](https://github.com/craftainer/template-rust-crate) (so
-it gets the quality gates and the crates.io release from there, and through
-it the devcontainer, CI, release workflow and template sync from
-[`template-base`](https://github.com/craftainer/template-base)) and is itself a
-template: a CLI created from it receives fixes through template sync. See
+A cross-language module-boundary checker for Python, TypeScript and Rust:
+one rule set, one local CLI, violations reported as SARIF. It is an instance
+of [`template-rust-cli`](https://github.com/craftainer/template-rust-cli); see
 [`docs/TEMPLATE.md`](docs/TEMPLATE.md) for the conventions shared by every
-instance ("Rust CLI template notes" for what this template adds), and
-[`docs/adrs/0002-rust-cli-template.md`](docs/adrs/0002-rust-cli-template.md)
-for why it is built this way.
+instance. The program is still the template's example; the checker is built
+in later items.
 
 ## Creating a CLI from this template
 
@@ -53,7 +41,8 @@ for why it is built this way.
    name. Nothing else names the CLI: the workflows, `dist-workspace.toml`
    and `scripts/binaries/` read the name from `Cargo.toml` and
    `packaging.toml`, and are template-owned (the container image's
-   `/<binary>` included).
+   `/<binary>` included), as is `scripts/test_release_binaries.py`, which
+   derives every name and npm scope it expects from those two files.
 3. Point template sync at this template. `.github/template-sync-state.json`
    here records the `template-rust-crate` tag this template itself last synced
    from; the copy in a new CLI must instead name this repository and the tag
