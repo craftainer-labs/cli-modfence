@@ -257,24 +257,36 @@ impl<'a> Walker<'a> {
                     span,
                 });
             }
-        } else if let Some(module) = node.child_by_field_name("module_name") {
-            let specifier = compact(self.text_of(module));
-            let mut listed: Vec<String> = names
-                .into_iter()
-                .map(|name| compact(self.text_of(name)))
-                .collect();
-            let mut star_cursor = node.walk();
-            if node
-                .named_children(&mut star_cursor)
-                .any(|child| child.kind() == "wildcard_import")
-            {
-                listed.push("*".to_owned());
-            }
-            self.facts.imports.push(ImportEdge {
-                specifier,
-                names: listed,
-                span,
-            });
+        } else {
+            let module = node.child_by_field_name("module_name");
+            let edge = module.map(|module| self.from_import(node, module, names, span));
+            self.facts.imports.extend(edge);
+        }
+    }
+
+    /// The edge of `from <module> import <names>`; `*` is a name of its own.
+    fn from_import(
+        &self,
+        node: TsNode<'_>,
+        module: TsNode<'_>,
+        names: Vec<TsNode<'_>>,
+        span: Span,
+    ) -> ImportEdge {
+        let mut listed: Vec<String> = names
+            .into_iter()
+            .map(|name| compact(self.text_of(name)))
+            .collect();
+        let mut cursor = node.walk();
+        if node
+            .named_children(&mut cursor)
+            .any(|child| child.kind() == "wildcard_import")
+        {
+            listed.push("*".to_owned());
+        }
+        ImportEdge {
+            specifier: compact(self.text_of(module)),
+            names: listed,
+            span,
         }
     }
 
