@@ -492,8 +492,7 @@ impl<'a> Walker<'a> {
                 let exported = parsed
                     .iter()
                     .filter(|(other, _, _)| {
-                        other == path
-                            || (*other == "pyo3" && framework == BindingFramework::Pyo3)
+                        other == path || (*other == "pyo3" && framework == BindingFramework::Pyo3)
                     })
                     .find_map(|(_, arguments, _)| renamed(arguments, key))
                     .unwrap_or_else(|| name.to_owned());

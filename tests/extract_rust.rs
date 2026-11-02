@@ -144,21 +144,45 @@ fn fixture_lib_nodes() {
         [
             ("mod:rs:src/lib.rs", None, None),
             ("sym:rs:src/lib.rs#nested::helper", function, at(18, 5)),
-            ("sym:rs:src/lib.rs#Config", Some(SymbolKind::Struct), at(26, 1)),
+            (
+                "sym:rs:src/lib.rs#Config",
+                Some(SymbolKind::Struct),
+                at(26, 1)
+            ),
             ("sym:rs:src/lib.rs#Mode", Some(SymbolKind::Enum), at(30, 1)),
-            ("sym:rs:src/lib.rs#Runner", Some(SymbolKind::Trait), at(35, 1)),
+            (
+                "sym:rs:src/lib.rs#Runner",
+                Some(SymbolKind::Trait),
+                at(35, 1)
+            ),
             ("sym:rs:src/lib.rs#Runner::run", method, at(36, 5)),
             ("sym:rs:src/lib.rs#Runner::twice", method, at(38, 5)),
             ("sym:rs:src/lib.rs#<Config>", imp, at(43, 1)),
             ("sym:rs:src/lib.rs#<Config>::new", method, at(46, 5)),
-            ("sym:rs:src/lib.rs#<Config>::with_retries", method, at(50, 5)),
+            (
+                "sym:rs:src/lib.rs#<Config>::with_retries",
+                method,
+                at(50, 5)
+            ),
             (clamp, function, at(51, 9)),
             ("sym:rs:src/lib.rs#<Config%20as%20Display>", imp, at(58, 1)),
-            ("sym:rs:src/lib.rs#<Config%20as%20Display>::fmt", method, at(59, 5)),
+            (
+                "sym:rs:src/lib.rs#<Config%20as%20Display>::fmt",
+                method,
+                at(59, 5)
+            ),
             ("sym:rs:src/lib.rs#<Config>@2", imp, at(64, 1)),
             ("sym:rs:src/lib.rs#<Config>::describe", method, at(65, 5)),
-            ("sym:rs:src/lib.rs#LIMIT", Some(SymbolKind::Constant), at(71, 1)),
-            ("sym:rs:src/lib.rs#NAME", Some(SymbolKind::Variable), at(72, 1)),
+            (
+                "sym:rs:src/lib.rs#LIMIT",
+                Some(SymbolKind::Constant),
+                at(71, 1)
+            ),
+            (
+                "sym:rs:src/lib.rs#NAME",
+                Some(SymbolKind::Variable),
+                at(72, 1)
+            ),
             ("sym:rs:src/lib.rs#Pair", Some(SymbolKind::Type), at(73, 1)),
             ("sym:rs:src/lib.rs#add", function, at(77, 1)),
             ("sym:rs:src/lib.rs#sub", function, at(83, 1)),
@@ -327,7 +351,12 @@ fn fixture_broken_file() {
 
 #[test]
 fn syntax_errors_are_diagnostics() {
-    let broken = ["fn f( {\n", "use a::{;\n", "struct S { a: \n", "fn f() { 1 +\n"];
+    let broken = [
+        "fn f( {\n",
+        "use a::{;\n",
+        "struct S { a: \n",
+        "fn f() { 1 +\n",
+    ];
     for text in broken {
         let facts = extract("m.rs", text);
         assert_eq!(facts.diagnostics.len(), 1, "{text:?}");
@@ -429,6 +458,7 @@ use a::{b::{c, d}, e as f, g::*, self};
 use {h, i::j};
 use serde;
 use k as l;
+use p::{*};
 mod m {
     use super::x;
     mod n {
@@ -454,6 +484,7 @@ fn f() {
             ("i", vec!["j"]),
             ("serde", vec![]),
             ("k", vec![]),
+            ("p", vec!["*"]),
             ("self", vec!["x"]),
             ("self", vec!["y"]),
             ("super", vec!["z"]),
@@ -562,6 +593,7 @@ mod outer {
     pub fn f() {
         struct Local;
         impl Local { fn g(&self) {} }
+        mod deep { fn z() {} }
     }
     pub mod inner { pub fn h() {} }
 }
@@ -574,6 +606,7 @@ mod outer {
             "outer::f::<locals>::Local",
             "outer::f::<locals>::<Local>",
             "outer::f::<locals>::<Local>::g",
+            "outer::f::<locals>::deep::z",
             "outer::inner::h",
         ]
     );
