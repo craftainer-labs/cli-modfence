@@ -58,8 +58,19 @@ fn target_name(annotation: &Annotation) -> Option<&str> {
 #[test]
 fn extractor_identity() {
     assert_eq!(PythonExtractor.language(), Lang::Py);
-    let version = PythonExtractor.version();
-    assert!(version.contains("tree-sitter-python-0.25.0"));
+    // The cache key follows the grammar: a bump of the dependency must bump
+    // the version string too.
+    let lock = include_str!("../Cargo.lock");
+    let package = lock
+        .split("[[package]]")
+        .find(|package| package.contains("name = \"tree-sitter-python\""))
+        .unwrap();
+    let version = package
+        .lines()
+        .find_map(|line| line.strip_prefix("version = \""))
+        .and_then(|version| version.strip_suffix('"'))
+        .unwrap();
+    assert!(PythonExtractor.version().ends_with(version));
     assert!(PythonExtractor.handles("pkg/core.py"));
     assert!(!PythonExtractor.handles("pkg/core.ts"));
     assert!(!PythonExtractor.handles("pkg/core.pyi"));
@@ -257,9 +268,10 @@ fn fixture_symbol_ids_round_trip() {
     for path in ["pkg/core.py", "pkg/helpers.py"] {
         for node in extract_fixture(path).nodes.iter().skip(1) {
             let encoded = qualname(&node.id);
-            let (components, ordinal) = decode_qualname(encoded).unwrap();
-            assert_eq!(encode_qualname(&components, ordinal), encoded);
-            assert_eq!(node.label, components.join("."));
+            let components = decode_qualname(encoded).unwrap();
+            assert_eq!(encode_qualname(&components), encoded);
+            let names: Vec<&str> = components.iter().map(|(name, _)| name.as_str()).collect();
+            assert_eq!(node.label, names.join("."));
             let shown = decode_component(encoded).unwrap();
             assert_eq!(node.display_qualname(), Some(shown));
             assert_eq!(node.id.path(), path);
@@ -433,7 +445,23 @@ fn symbol_spans() {
 fn repeated_names_get_ordinals() {
     let facts = extract("m.py", "def a(): pass\ndef a(): pass\ndef a(): pass\n");
     assert_eq!(symbol_names(&facts), ["a", "a@2", "a@3"]);
-    assert_eq!(decode_qualname("a@3"), Some((vec!["a".to_owned()], 3)));
+    assert_eq!(decode_qualname("a@3"), Some(vec![("a".to_owned(), 3)]));
+}
+
+#[test]
+fn names_below_a_repeated_definition_carry_its_ordinal() {
+    let text = "\
+class C:
+    def m(self): pass
+class C:
+    def m(self): pass
+    def m(self): pass
+";
+    let facts = extract("m.py", text);
+    assert_eq!(
+        symbol_names(&facts),
+        ["C", "C.m", "C@2", "C@2.m", "C@2.m@2"]
+    );
 }
 
 #[test]
@@ -504,33 +532,41 @@ fn is_schema_segment(segment: &str) -> bool {
 
 #[test]
 fn qualified_name_round_trip() {
-    let cases: [(&[&str], u32, &str); 8] = [
-        (&["Engine"], 1, "Engine"),
-        (&["Engine", "run"], 1, "Engine.run"),
-        (&["f", LOCALS, "g"], 1, "f.<locals>.g"),
-        (&["size"], 2, "size@2"),
-        (&["size"], 12, "size@12"),
-        (&["a.b", "c@d", "e f"], 1, "a%2Eb.c%40d.e%20f"),
-        (&["g#h", "i%j", "k\tl"], 3, "g%23h.i%25j.k%09l@3"),
-        (&["é", "日本"], 1, "é.日本"),
+    let cases: [(&[(&str, u32)], &str); 9] = [
+        (&[("Engine", 1)], "Engine"),
+        (&[("Engine", 1), ("run", 1)], "Engine.run"),
+        (&[("f", 1), (LOCALS, 1), ("g", 1)], "f.<locals>.g"),
+        (&[("size", 2)], "size@2"),
+        (&[("size", 12)], "size@12"),
+        (&[("C", 2), ("m", 3)], "C@2.m@3"),
+        (&[("a.b", 1), ("c@d", 1), ("e f", 1)], "a%2Eb.c%40d.e%20f"),
+        (
+            &[("g#h", 1), ("i%j", 3), ("k\tl", 1)],
+            "g%23h.i%25j@3.k%09l",
+        ),
+        (&[("é", 1), ("日本", 1)], "é.日本"),
     ];
-    for (components, ordinal, expected) in cases {
-        let encoded = encode_qualname(components, ordinal);
+    for (components, expected) in cases {
+        let encoded = encode_qualname(components);
         assert_eq!(encoded, expected);
         assert!(is_schema_segment(&encoded), "{encoded}");
         let id = NodeId::new(NodeKind::Symbol, Lang::Py, "a b/m.py", Some(&encoded)).unwrap();
         assert_eq!(id.qualname(), Some(expected));
         assert_eq!(id.path(), "a b/m.py");
-        let (decoded, decoded_ordinal) = decode_qualname(&encoded).unwrap();
-        assert_eq!(decoded, components);
-        assert_eq!(decoded_ordinal, ordinal);
+        let decoded = decode_qualname(&encoded).unwrap();
+        let owned: Vec<(String, u32)> = components
+            .iter()
+            .map(|(name, ordinal)| ((*name).to_owned(), *ordinal))
+            .collect();
+        assert_eq!(decoded, owned);
     }
 }
 
 #[test]
 fn malformed_qualified_names_do_not_decode() {
     for bad in [
-        "", "a@1", "a@x", "a@+3", "a@03", "a@2@3", "a..b", ".a", "a.", "%zz", "a%2e", "a b",
+        "", "a@1", "a@x", "a@+3", "a@03", "a@2@3", "a..b", ".a", "a.", "%zz", "a%2e", "a b", "@2",
+        "a.@2",
     ] {
         assert_eq!(decode_qualname(bad), None, "{bad:?}");
     }

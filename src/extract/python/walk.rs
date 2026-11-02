@@ -10,7 +10,7 @@ use std::rc::Rc;
 
 use tree_sitter::{Node as TsNode, Tree};
 
-use super::qualname::{LOCALS, encode_qualname};
+use super::qualname::{Component, LOCALS, encode_qualname};
 use crate::extract::{
     Annotation, CallSite, Diagnostic, DiagnosticCode, FileFacts, ImportEdge, Lang, Node, NodeId,
     PREFIX, SourceFile, Span, SymbolKind, column_from_byte, comment_body,
@@ -30,7 +30,7 @@ enum ScopeKind {
 /// a call here belongs to.
 struct Scope {
     kind: ScopeKind,
-    components: Vec<String>,
+    components: Vec<Component>,
     caller: Option<NodeId>,
 }
 
@@ -211,12 +211,20 @@ impl<'a> Walker<'a> {
         let is_class = node.kind() == "class_definition";
         let mut components = scope.components.clone();
         if scope.kind == ScopeKind::Function {
-            components.push(LOCALS.to_owned());
+            components.push((LOCALS.to_owned(), 1));
         }
-        components.push(self.text_of(name).to_owned());
-        let base = encode_qualname(&components, 1);
+        components.push((self.text_of(name).to_owned(), 1));
+        let base = encode_qualname(&components);
         let ordinal = self.counts.get(&base).map_or(1, |seen| seen + 1);
-        let qualname = encode_qualname(&components, ordinal);
+        if let Some(last) = components.last_mut() {
+            last.1 = ordinal;
+        }
+        let qualname = encode_qualname(&components);
+        let label = components
+            .iter()
+            .map(|(name, _)| name.as_str())
+            .collect::<Vec<_>>()
+            .join(".");
         let symbol_kind = match (is_class, &scope.kind) {
             (true, _) => SymbolKind::Class,
             (false, ScopeKind::Class) => SymbolKind::Method,
@@ -226,7 +234,7 @@ impl<'a> Walker<'a> {
             Lang::Py,
             self.path,
             &qualname,
-            &components.join("."),
+            &label,
             symbol_kind,
             self.span(node),
         )

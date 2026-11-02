@@ -27,7 +27,7 @@
 mod qualname;
 mod walk;
 
-pub use qualname::{LOCALS, decode_qualname, encode_qualname};
+pub use qualname::{Component, LOCALS, decode_qualname, encode_qualname};
 
 use tree_sitter::{Parser, Tree};
 

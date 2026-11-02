@@ -257,11 +257,16 @@ qualified name never repeats the module: `sym:py:pkg/core.py#Engine.run`.
   are not symbols; a call inside a lambda belongs to the enclosing symbol.
 - **Repeated names.** Python allows a name to be defined again in one scope
   (property setters, conditional definitions, `typing.overload`). The first
-  definition keeps the plain name, and the n-th gets the suffix `@n` for n >= 2
-  (`Engine.size`, `Engine.size@2`), so that every id is unique in the file. A
-  definition nested in the second one is named after the plain chain
-  (`C.m`, then `C.m@2` when the first `C` already has an `m`), because the
-  suffix counts per full name. `@` is never part of a component (see below).
+  definition keeps the plain name, and the n-th definition of the same name in
+  the same scope gets the suffix `@n` for n >= 2 on its own component
+  (`Engine.size`, `Engine.size@2`), so that every id is unique in the file. The
+  names below a repeated definition keep its component, suffix included, and
+  count their own repeats within it: the methods of the second `C` are
+  `C@2.m`, `C@2.m@2`, so an id says which definition owns the symbol and does
+  not change when a method is added to the first `C`. `@` is never part of a
+  name (see below). An id does change when an earlier definition of the same
+  name is added or removed; the ordinal is the position among the definitions
+  of that name.
 - **Escaping.** Each component is percent-encoded as in the rest of this ADR
   (whitespace, control characters, U+FEFF, `#` and `%`, upper-case hex), and
   `.` and `@` are escaped too (`%2E`, `%40`), so `.` only separates components
@@ -270,10 +275,10 @@ qualified name never repeats the module: `sym:py:pkg/core.py#Engine.run`.
   syntax errors. Non-ASCII identifiers are kept as written (no NFKC
   normalisation). `<` and `>` are not escaped; the schema's pattern allows
   them.
-- **Round trip.** `decode_qualname` splits at the first `@`, then at `.`, and
-  decodes each component; it accepts exactly what `encode_qualname` produces
-  (lower-case hex, an empty component and an ordinal of 0, 1 or with a sign or
-  leading zero are rejected), so a name has one id and an id has one name.
+- **Round trip.** `decode_qualname` splits at `.`, then each component at its
+  `@`, and decodes the name; it accepts exactly what `encode_qualname`
+  produces (lower-case hex, an empty name and an ordinal of 0, 1 or with a sign
+  or leading zero are rejected), so a name has one id and an id has one name.
 - **Packages and relative imports.** `pkg/__init__.py` is an ordinary module:
   its module node is `mod:py:pkg/__init__.py` and its symbols are named like
   any others' (`sym:py:pkg/__init__.py#helper`). Mapping the file to the
