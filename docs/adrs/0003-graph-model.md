@@ -228,6 +228,84 @@ B. **Indexer failure.** A warning and fall back (as written), or an exit-2
 C. **Multi-value `--group-by`.** Decided in ADR 0004 (it only affects the
    outputs, not the graph).
 
+## Qualified names by language
+
+Each extractor adds its language's subsection here (NC3a Python, NC3b
+TypeScript, NC3c Rust), with round-trip tests in `tests/`.
+
+### Rust qualified names
+
+Implemented in `src/extract/rust/qualname.rs` and tested in
+`tests/extract_rust.rs`. The path part of the id is the file, so the qualified
+name never repeats the file's module: `sym:rs:src/lib.rs#Config::new` is
+`Config::new` in the module of `src/lib.rs`. The extractor reads one file and
+never opens another, so `mod name;` is reported as an import (below) and the
+core maps files to crate paths.
+
+- **Components.** The qualified name is the chain of names from the file's
+  module down, joined with `::` as a Rust path is written. Each component is
+  percent-encoded, and `:` and `@` are escaped too (`%3A`, `%40`), so `::` only
+  separates components and `@` only starts the ordinal.
+- **Inline modules.** `mod a { .. }` is not a symbol; it adds the component `a`
+  to what it holds (`a::f`). `mod a;` is reported as an import of `self::a`.
+  `#[path = ".."]` is not read.
+- **Symbols.** A `fn`, `struct`, `union` (both `struct`), `enum`, `trait`,
+  `type`, `const` (`constant`) and `static` (`variable`) is a symbol, nested
+  ones too. A `fn` directly in an `impl` or a `trait` is a `method`, any other
+  `fn` a `function`; a `fn` without a body (a trait method, a function in an
+  `extern` block) is a symbol as well. A symbol's span starts at the item
+  (`pub`, `fn`, ..), not at the attributes above it. Enum variants, fields,
+  associated types, macros and closures are not symbols, and a call inside a
+  closure belongs to the enclosing symbol. Macro invocations are not parsed, so
+  items and calls inside them are not seen.
+- **Impl blocks.** An `impl` is a symbol of kind `impl` named `<Type>` for an
+  inherent impl and `<Type as Trait>` for a trait impl, with the type and the
+  trait text as written, white space squashed to one space (and so encoded
+  `%20`) and without the block's own generics: `impl<T> From<T> for Wrapper<T>`
+  is `<Wrapper<T> as From<T>>`. Its items are named below it:
+  `<Config as Display>::fmt`. Several impls of the same type get ordinals like
+  any repeated name (`<Config>`, `<Config>@2`), while their items keep the
+  plain chain (`<Config>::describe`), so two methods of the same name in
+  different `impl Config` blocks become `<Config>::new` and `<Config>::new@2`.
+- **Items inside a body.** A symbol whose enclosing scope is a function or a
+  constant gets the component `<locals>` between the two, as in Python:
+  `<Config>::with_retries::<locals>::clamp`.
+- **Repeated names.** The first definition of a name keeps the plain name and
+  the n-th gets the suffix `@n` for n >= 2, counted per full name (this covers
+  `#[cfg]` alternatives of one function, which the extractor cannot tell apart).
+- **Round trip.** `decode_qualname` splits at the first `@`, then at `::`, and
+  decodes each component; it accepts exactly what `encode_qualname` produces
+  (lower-case hex, an empty component, an unescaped single `:` and an ordinal
+  of 0, 1 or with a sign or leading zero are rejected).
+- **Imports.** One edge per module path a `use` takes names from, with the
+  path as written and white space removed; `use a::{b::{c, d}, e as f, g::*,
+  self}` gives `a::b` with `c`, `d`; `a` with `e`; `a::g` with `*`; and `a`
+  with no names (the module itself). A renamed import reports the original
+  name. `extern crate name;` is an edge to `name`. A leading `self` or `super`
+  is rewritten to be relative to the file's module, whatever inline modules the
+  statement sits in: in `mod a { mod b { use super::x; } }` the specifier is
+  `self::a` (names `x`), and a `super` that leaves the file's module stays
+  `super`. `crate::` paths and bare paths (`std::fmt`, `serde`) are as written;
+  the core decides whether a bare path is an extern crate or a local module.
+- **Calls.** `f()` has callee `f` and no receiver; `Type::new()`,
+  `a::b::f()` and `f::<T>()` are reported with the last name as callee and the
+  path before it as receiver (`Type`, `a::b`); `x.run()` has callee `run` and
+  receiver `x` as written. Calls on other expressions (`f()()`, `(f)()`) and
+  macro invocations are skipped. All of them are heuristic edges: a
+  constructor such as `Some(x)` or `Foo(1)` is a call by syntax.
+- **Binding exports.** An item with `#[pyfunction]`, `#[pymodule]`, `#[napi]`
+  or `#[wasm_bindgen]` (the last path segment decides, so
+  `#[napi_derive::napi]` counts) is a binding export of the item's name, or
+  of the value of `name = ".."` (PyO3, also in a separate `#[pyo3(..)]`) or
+  `js_name = ".."` (napi, wasm-bindgen) in the attribute arguments. `impl`
+  blocks (`#[pymethods]`, `#[napi] impl`) are not read.
+- **Annotations.** The annotation comment is `// modfence: ..` (also a
+  single-line `/* modfence: .. */`; doc comments never count). An own-line
+  comment targets the symbol that starts on the next line that is not part of a
+  comment, attributes above a symbol counting as its lines; a blank line, or a
+  line that starts no symbol (`use`, `mod`), leaves the module as the target.
+  A comment after code on the same line has no target.
+
 ## Open issues
 
 - `--run-indexers` on untrusted roots: a warning, a refusal in CI when the
