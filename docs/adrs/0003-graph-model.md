@@ -154,6 +154,141 @@ is made before the first release, so the version is `1.0`.
 points, ends exclusive. SARIF output sets `columnKind` to
 `unicodeCodePoints`.
 
+## Invariants for NC3 to NC6
+
+1. Output is deterministic: nodes, edges and diagnostics are sorted, and the
+   same inputs produce byte-identical output on every platform.
+2. Output contains no timestamps, absolute paths or host names.
+3. Every emitted path is relative to the analysis root and uses `/`.
+4. Every node id matches the `nodeId` pattern in the schema, and every
+   edge endpoint exists as a node.
+5. A file that fails to parse or read yields a `diagnostics` entry and the
+   facts that could be recovered; analysis continues.
+6. Import edges to files inside the analysis root are `resolved`; an import
+   the core cannot place becomes an edge to an `external` node, never a
+   dropped edge.
+7. A tree-sitter call edge is never `resolved`; only a SCIP match makes one.
+8. A SCIP reference upgrades a call edge only when it lies at the span of a
+   tree-sitter call site and its definition maps to one of our symbol
+   nodes; otherwise the edge stays heuristic.
+9. `binds` edges are always `heuristic`.
+10. A cached fact is used only if the file hash and the extractor version
+    both match; a corrupt or unwritable cache is a warning, never an error.
+11. Every emitted document validates against the schema, and the schema is
+    checked against its metaschema in CI.
+12. The graph core parses source only below the analysis root. Besides it,
+    it reads project metadata (`pyproject.toml`, `package.json`,
+    `tsconfig.json` and what they `extend`, `Cargo.toml` including the
+    workspace root), the config file found by ADR 0004, ignore files and the
+    SCIP files named on the command line or produced by `--run-indexers`; it
+    never parses third-party source such as `node_modules`.
+13. Ids percent-encode whitespace, `#` and `%`; decoding an id yields the
+    original path.
+14. The schema pins `binds` edges and tree-sitter-origin `calls` edges to
+    `heuristic`, and `contains` edges carry no metadata.
+15. tree-sitter-typescript's parser ABI is asserted at test time to be
+    loadable by the pinned tree-sitter (NC3b).
+16. Without `--run-indexers`, modfence starts no subprocess; `--scip` only
+    reads files.
+17. `--run-indexers` starts only executables resolved from `PATH` and prints
+    each command line to stderr before starting it. modfence's own writes are
+    confined to `.modfence/` (the cache, and the index below `.modfence/scip/`
+    that it moves there), and a pre-existing `index.scip` it did not create is
+    never overwritten. What an indexer itself writes is outside this
+    guarantee (see Consequences).
+18. A failed or missing indexer is a warning and leaves that language on
+    tree-sitter; it never changes the exit status on its own.
+19. Every node's `tags` value is a non-empty array of unique strings sorted
+    in byte order; a node with no tags has no `tags` key.
+20. SCIP positions are converted from each document's declared position
+    encoding to code points before a reference is matched to a call site.
+
+## Decisions (G-api)
+
+Approved by the user on 2026-11-01 (the "lean" of the original proposal
+unless noted):
+
+| # | Decision |
+| --- | --- |
+| 1 | SCIP: prebuilt `.scip` files and `--run-indexers` in v1 (the user went beyond the lean, which was prebuilt only). |
+| 2 | JavaScript goes through the TypeScript grammar as language `ts`. |
+| 3 | Rules apply to module-level edges only. |
+| 4 | JGF v2 specialisation with `schema_version` in `graph.metadata`; the node id scheme and four node kinds; cache in `.modfence/cache/`; `binds` matched by exported name; positions in Unicode code points; first site plus a count per edge. |
+
+Decisions A and B (GA3), approved by the user on 2026-11-01 as leaned
+(C is decided in ADR 0004):
+
+A. **Which edges `--run-indexers` upgrades.** Only existing tree-sitter call
+   sites (as written), or also references SCIP reports that tree-sitter
+   missed. Adding edges needs SCIP to say a reference is a call, which it does
+   not. Lean: upgrade only.
+B. **Indexer failure.** A warning and fall back (as written), or an exit-2
+   error under `--run-indexers` so CI cannot silently lose precision. Lean:
+   warning, plus `--require-precise` later if asked.
+C. **Multi-value `--group-by`.** Decided in ADR 0004 (it only affects the
+   outputs, not the graph).
+
+## Qualified names by language
+
+Each extractor adds its language's subsection here (NC3a Python, NC3b
+TypeScript, NC3c Rust), with round-trip tests in `tests/`.
+
+### Python qualified names
+
+Implemented in `src/extract/python/qualname.rs` and tested in
+`tests/extract_python.rs`. The path part of the id is the file, so the
+qualified name never repeats the module: `sym:py:pkg/core.py#Engine.run`.
+
+- **Components.** The qualified name is the chain of definition names from the
+  module down, joined with `.`, as Python's `__qualname__` writes it. A method
+  is `Class.method`; a nested class is `Outer.Inner`.
+- **Definitions inside a function body.** A `def` or `class` whose enclosing
+  scope is a function gets the component `<locals>` between the function and
+  its name: `Engine.run.<locals>.inner`, and
+  `Engine.run.<locals>.inner.<locals>.Local.deep` for a method of a class
+  inside it. A definition inside a class body does not: `Engine.Config`.
+  `if`, `try`, `with` and loop bodies are not scopes, so a definition in one is
+  named as if the block were not there.
+- **Symbols.** Every `def` (also `async def`) and `class` is a symbol, nested
+  ones too: a `def` directly in a class body is a `method`, any other `def` a
+  `function`, a `class` a `class`. A decorator belongs to the symbol it
+  decorates, but the symbol's span starts at `def` or `class`, not at the first
+  decorator. Lambdas, comprehensions and module-level or class-level variables
+  are not symbols; a call inside a lambda belongs to the enclosing symbol.
+- **Repeated names.** Python allows a name to be defined again in one scope
+  (property setters, conditional definitions, `typing.overload`). The first
+  definition keeps the plain name, and the n-th definition of the same name in
+  the same scope gets the suffix `@n` for n >= 2 on its own component
+  (`Engine.size`, `Engine.size@2`), so that every id is unique in the file. The
+  names below a repeated definition keep its component, suffix included, and
+  count their own repeats within it: the methods of the second `C` are
+  `C@2.m`, `C@2.m@2`, so an id says which definition owns the symbol and does
+  not change when a method is added to the first `C`. `@` is never part of a
+  name (see below). An id does change when an earlier definition of the same
+  name is added or removed; the ordinal is the position among the definitions
+  of that name.
+- **Escaping.** Each component is percent-encoded as in the rest of this ADR
+  (whitespace, control characters, U+FEFF, `#` and `%`, upper-case hex), and
+  `.` and `@` are escaped too (`%2E`, `%40`), so `.` only separates components
+  and `@` only starts the ordinal. A valid Python identifier holds none of
+  these characters; the escapes only matter for text recovered from a file with
+  syntax errors. Non-ASCII identifiers are kept as written (no NFKC
+  normalisation). `<` and `>` are not escaped; the schema's pattern allows
+  them.
+- **Round trip.** `decode_qualname` splits at `.`, then each component at its
+  `@`, and decodes the name; it accepts exactly what `encode_qualname`
+  produces (lower-case hex, an empty name and an ordinal of 0, 1 or with a sign
+  or leading zero are rejected), so a name has one id and an id has one name.
+- **Packages and relative imports.** `pkg/__init__.py` is an ordinary module:
+  its module node is `mod:py:pkg/__init__.py` and its symbols are named like
+  any others' (`sym:py:pkg/__init__.py#helper`). Mapping the file to the
+  package `pkg` is the core's job. An import's specifier is reported as
+  written with its leading dots and without spaces: `from .core import X` is
+  `.core`, `from . import y` is `.` with the name `y`, `from ..a.b import z` is
+  `..a.b`, `import a.b as c` is `a.b`. The core resolves a dotted specifier
+  against the importing file's package: one dot is the package of the file
+  (the file's own directory), each further dot goes one directory up.
+
 ### TypeScript qualified names
 
 Added by NC3b (`src/extract/typescript/`). Applies to language `ts`, which
@@ -233,80 +368,6 @@ is kept, as ADR 0004 requires.
 **Limits.** A syntax tree deeper than 500 levels is skipped below that depth,
 with a `parse-error` diagnostic, so that a pathological file cannot exhaust the
 stack.
-
-## Invariants for NC3 to NC6
-
-1. Output is deterministic: nodes, edges and diagnostics are sorted, and the
-   same inputs produce byte-identical output on every platform.
-2. Output contains no timestamps, absolute paths or host names.
-3. Every emitted path is relative to the analysis root and uses `/`.
-4. Every node id matches the `nodeId` pattern in the schema, and every
-   edge endpoint exists as a node.
-5. A file that fails to parse or read yields a `diagnostics` entry and the
-   facts that could be recovered; analysis continues.
-6. Import edges to files inside the analysis root are `resolved`; an import
-   the core cannot place becomes an edge to an `external` node, never a
-   dropped edge.
-7. A tree-sitter call edge is never `resolved`; only a SCIP match makes one.
-8. A SCIP reference upgrades a call edge only when it lies at the span of a
-   tree-sitter call site and its definition maps to one of our symbol
-   nodes; otherwise the edge stays heuristic.
-9. `binds` edges are always `heuristic`.
-10. A cached fact is used only if the file hash and the extractor version
-    both match; a corrupt or unwritable cache is a warning, never an error.
-11. Every emitted document validates against the schema, and the schema is
-    checked against its metaschema in CI.
-12. The graph core parses source only below the analysis root. Besides it,
-    it reads project metadata (`pyproject.toml`, `package.json`,
-    `tsconfig.json` and what they `extend`, `Cargo.toml` including the
-    workspace root), the config file found by ADR 0004, ignore files and the
-    SCIP files named on the command line or produced by `--run-indexers`; it
-    never parses third-party source such as `node_modules`.
-13. Ids percent-encode whitespace, `#` and `%`; decoding an id yields the
-    original path.
-14. The schema pins `binds` edges and tree-sitter-origin `calls` edges to
-    `heuristic`, and `contains` edges carry no metadata.
-15. tree-sitter-typescript's parser ABI is asserted at test time to be
-    loadable by the pinned tree-sitter (NC3b).
-16. Without `--run-indexers`, modfence starts no subprocess; `--scip` only
-    reads files.
-17. `--run-indexers` starts only executables resolved from `PATH` and prints
-    each command line to stderr before starting it. modfence's own writes are
-    confined to `.modfence/` (the cache, and the index below `.modfence/scip/`
-    that it moves there), and a pre-existing `index.scip` it did not create is
-    never overwritten. What an indexer itself writes is outside this
-    guarantee (see Consequences).
-18. A failed or missing indexer is a warning and leaves that language on
-    tree-sitter; it never changes the exit status on its own.
-19. Every node's `tags` value is a non-empty array of unique strings sorted
-    in byte order; a node with no tags has no `tags` key.
-20. SCIP positions are converted from each document's declared position
-    encoding to code points before a reference is matched to a call site.
-
-## Decisions (G-api)
-
-Approved by the user on 2026-11-01 (the "lean" of the original proposal
-unless noted):
-
-| # | Decision |
-| --- | --- |
-| 1 | SCIP: prebuilt `.scip` files and `--run-indexers` in v1 (the user went beyond the lean, which was prebuilt only). |
-| 2 | JavaScript goes through the TypeScript grammar as language `ts`. |
-| 3 | Rules apply to module-level edges only. |
-| 4 | JGF v2 specialisation with `schema_version` in `graph.metadata`; the node id scheme and four node kinds; cache in `.modfence/cache/`; `binds` matched by exported name; positions in Unicode code points; first site plus a count per edge. |
-
-Decisions A and B (GA3), approved by the user on 2026-11-01 as leaned
-(C is decided in ADR 0004):
-
-A. **Which edges `--run-indexers` upgrades.** Only existing tree-sitter call
-   sites (as written), or also references SCIP reports that tree-sitter
-   missed. Adding edges needs SCIP to say a reference is a call, which it does
-   not. Lean: upgrade only.
-B. **Indexer failure.** A warning and fall back (as written), or an exit-2
-   error under `--run-indexers` so CI cannot silently lose precision. Lean:
-   warning, plus `--require-precise` later if asked.
-C. **Multi-value `--group-by`.** Decided in ADR 0004 (it only affects the
-   outputs, not the graph).
 
 ## Open issues
 
