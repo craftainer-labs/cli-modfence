@@ -804,3 +804,19 @@ fn error_recovery_keeps_ids_valid() {
         }
     }
 }
+
+#[test]
+fn comments_in_arguments_and_bare_expressions() {
+    let source = "\
+const a = () => import(/* webpackChunkName: \"x\" */ \"./x\");
+const b = require(/* c */ 'm');
+() => {};
+(function () {});
+import q from \"abc
+";
+    let facts = run("c.ts", source);
+    assert_eq!(names(&facts), owned(&["a", "b"]));
+    let specifiers: Vec<String> = facts.imports.iter().map(|i| i.specifier.clone()).collect();
+    assert_eq!(specifiers[..2], owned(&["./x", "m"])[..]);
+    assert_eq!(specifiers[2], "abc");
+}

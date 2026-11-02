@@ -100,9 +100,9 @@ fn text<'a>(src: &'a str, node: TsNode<'_>) -> &'a str {
 
 /// A string literal's content as written, without its quotes.
 fn unquote(literal: &str) -> &str {
-    literal
-        .get(1..literal.len().saturating_sub(1))
-        .unwrap_or_default()
+    let quote = literal.get(..1).unwrap_or_default();
+    let inner = literal.get(1..).unwrap_or_default();
+    inner.strip_suffix(quote).unwrap_or(inner)
 }
 
 /// A name as written. A string name loses its quotes, unless nothing would be
@@ -156,6 +156,12 @@ fn wraps_statement(node: &TsNode<'_>) -> bool {
         node.kind(),
         "export_statement" | "ambient_declaration" | "lexical_declaration" | "variable_declaration"
     )
+}
+
+/// Whether `node` is the value of an `export default`.
+fn is_export_value(node: TsNode<'_>) -> bool {
+    node.parent()
+        .is_some_and(|parent| parent.kind() == "export_statement")
 }
 
 fn is_decorator(node: &TsNode<'_>) -> bool {
@@ -223,7 +229,8 @@ fn member_kind(member: TsNode<'_>) -> Option<SymbolKind> {
 
 fn first_named(node: TsNode<'_>) -> Option<TsNode<'_>> {
     let mut cursor = node.walk();
-    node.named_children(&mut cursor).next()
+    node.named_children(&mut cursor)
+        .find(|child| child.kind() != "comment")
 }
 
 /// The callee name node and the receiver node of a call's function part;
@@ -250,14 +257,13 @@ fn specifier_names(src: &str, clause: TsNode<'_>) -> Vec<String> {
 }
 
 /// The first syntax error or missing token, in source order.
-fn first_error(node: TsNode<'_>) -> Option<TsNode<'_>> {
-    if node.is_error() || node.is_missing() {
-        return Some(node);
+fn first_error(root: TsNode<'_>) -> Option<TsNode<'_>> {
+    let mut node = root;
+    while !(node.is_error() || node.is_missing()) {
+        let mut cursor = node.walk();
+        node = node.children(&mut cursor).find(TsNode::has_error)?;
     }
-    let mut cursor = node.walk();
-    node.children(&mut cursor)
-        .filter(TsNode::has_error)
-        .find_map(first_error)
+    Some(node)
 }
 
 impl<'a> Walker<'a> {
@@ -365,7 +371,7 @@ impl<'a> Walker<'a> {
                 self.variables(node, scope);
             }
             "arrow_function" | "function_expression" | "generator_function" | "class"
-                if scope.declares =>
+                if scope.declares && is_export_value(node) =>
             {
                 self.default_export(node, scope);
             }

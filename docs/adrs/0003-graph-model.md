@@ -330,7 +330,7 @@ nearest enclosing symbol.
 (`"odd.name"` is `odd%2Ename`), a private name keeps its `#` (`%23secret`), and
 a computed name keeps its brackets (`[Symbol%2Eiterator]`). A nested namespace
 name `A.B` is the two segments `A` and `B`, and `module "m"` is one segment
-`m`. `export default` of a function, arrow function or class without a name is
+`m`. `export default` of a function, arrow function or class (not parenthesised) without a name is
 the symbol `default` (a reserved word, so it cannot collide with a binding);
 with a name it is that name. `export default <identifier or other expression>`
 declares nothing.
@@ -354,7 +354,7 @@ import, `require` and `import()` leave it empty. A call with a non-literal
 argument is an ordinary call (`require`) or nothing (`import(x)`).
 
 **Calls.** `name(...)` and `receiver.name(...)` are call sites, with the
-receiver as written and the span of `name`. Calls through `super`, subscripts,
+receiver as written and the span of `name`. Bare `super(...)` calls, subscripts,
 call results and parenthesised expressions, `new` expressions and the
 `import()` form have no callee name and are not reported.
 
