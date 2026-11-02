@@ -289,6 +289,86 @@ qualified name never repeats the module: `sym:py:pkg/core.py#Engine.run`.
   against the importing file's package: one dot is the package of the file
   (the file's own directory), each further dot goes one directory up.
 
+### TypeScript qualified names
+
+Added by NC3b (`src/extract/typescript/`). Applies to language `ts`, which
+includes JavaScript.
+
+**Grammar choice.** `.ts`, `.mts` and `.cts` use the TypeScript grammar;
+`.tsx`, `.jsx`, `.js`, `.mjs` and `.cjs` use the TSX grammar, which also reads
+plain JavaScript. A `<T>x` type assertion is therefore a syntax error in a
+`.js` or `.tsx` file, as it is for the TypeScript compiler.
+
+**Encoding.** A qualified name is segments joined by a separator. A segment is
+a name run through the id escapes (whitespace, control characters, U+FEFF, `#`
+and `%` as upper-case `%XX` bytes) and, in addition, `.` as `%2E` and `~` as
+`%7E`, so an unescaped `.` or `~` is always a separator. Decoding a segment and
+re-joining the pieces gives the same text (`split` and `render` in
+`src/extract/typescript/qualname.rs`; tests in `tests/extract_typescript.rs`).
+
+| Separator | Joins | Example |
+| --- | --- | --- |
+| none | a top-level symbol | `load` |
+| `.` | a namespace member, a static member | `Outer.Inner.deep`, `Repo.create` |
+| `~` | an instance member | `Repo~run` |
+
+**What is a symbol.** Declarations at module level and directly inside a
+namespace or `declare module`: functions, generators, classes, interfaces, type
+aliases, enums, and the `const`, `let` or `var` declarators whose name is a
+plain identifier (destructuring declares nothing). A declarator's kind is
+`function` when its value is an arrow function or function expression, `class`
+for a class expression, otherwise `constant` for `const` and `variable` for
+`let` and `var`. A class's methods, accessors, constructor and fields are
+symbols (`method`, or `variable` for a field; a field holding a function is a
+`method`). Not symbols: anything inside a function body, interface and enum
+members, object-literal members, and namespaces themselves (the symbol kinds
+have no namespace; the name prefixes its members and an annotation above a
+`namespace` tags the module). A call inside any of these is attributed to the
+nearest enclosing symbol.
+
+**Names.** A member name is its text as written; a string name loses its quotes
+(`"odd.name"` is `odd%2Ename`), a private name keeps its `#` (`%23secret`), and
+a computed name keeps its brackets (`[Symbol%2Eiterator]`). A nested namespace
+name `A.B` is the two segments `A` and `B`, and `module "m"` is one segment
+`m`. `export default` of a function, arrow function or class (not parenthesised) without a name is
+the symbol `default` (a reserved word, so it cannot collide with a binding);
+with a name it is that name. `export default <identifier or other expression>`
+declares nothing.
+
+**One id per name.** A node id is unique within a file. When a qualified name is
+declared again, the file has one node: its kind is the first declaration's and
+its span is widened to cover all of them. This is how function and method
+overload signatures, accessor pairs (`get` and `set`), interface merging and
+class-with-namespace merging are represented: `load(a: string)`,
+`load(a: number)` and the implementation are the single symbol `load`, spanning
+from the first signature to the end of the implementation. A static member and
+a namespace member of the same name merge (`A.m`); an instance member never
+merges with them (`A~m`).
+
+**Imports.** `import`, `export ... from`, `import x = require("m")`, and
+`import("m")` and `require("m")` calls whose argument is a string literal each
+produce one import with the specifier as written (without its quotes) and the
+statement or call as span. `names` holds the imported names, not aliases;
+a default import is `default`; a namespace import, `export *`, a side-effect
+import, `require` and `import()` leave it empty. A call with a non-literal
+argument is an ordinary call (`require`) or nothing (`import(x)`).
+
+**Calls.** `name(...)` and `receiver.name(...)` are call sites, with the
+receiver as written and the span of `name`. Bare `super(...)` calls, subscripts,
+call results and parenthesised expressions, `new` expressions and the
+`import()` form have no callee name and are not reported.
+
+**Annotations.** Comments are read from the syntax tree. A comment on its own
+line sits above a symbol when the next line, after skipping own-line comments
+(documentation and other annotations), is the first line of that symbol's
+statement, which includes `export`, `declare` and decorators. A tag comment
+after code on the same line is not an annotation; a trailing `ignore[...]`
+is kept, as ADR 0004 requires.
+
+**Limits.** A syntax tree deeper than 500 levels is skipped below that depth,
+with a `parse-error` diagnostic, so that a pathological file cannot exhaust the
+stack.
+
 ## Open issues
 
 - `--run-indexers` on untrusted roots: a warning, a refusal in CI when the
