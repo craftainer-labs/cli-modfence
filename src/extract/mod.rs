@@ -17,6 +17,7 @@ pub mod annotations;
 pub mod ident;
 pub mod model;
 pub mod python;
+pub mod rust;
 
 pub use annotations::{
     AnnotationError, ErrorKind, PREFIX, Parsed, RESERVED_KEYS, Suppression, Tags, comment_body,
