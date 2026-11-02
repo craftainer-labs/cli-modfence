@@ -347,3 +347,21 @@ impl<'a> Walker<'a> {
             .and_then(|(next, _)| self.symbol_rows.get(&next).cloned())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_missing_tree_is_a_parse_error() {
+        let file = SourceFile {
+            path: "m.py",
+            text: "x = 1\n",
+        };
+        let facts = Walker::new(&file, FileFacts::default()).run(None);
+        assert_eq!(facts.diagnostics.len(), 1);
+        assert_eq!(facts.diagnostics[0].code, DiagnosticCode::ParseError);
+        assert_eq!(facts.diagnostics[0].message, NO_TREE);
+        assert_eq!(facts.diagnostics[0].span, None);
+    }
+}
