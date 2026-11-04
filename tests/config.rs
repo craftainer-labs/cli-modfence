@@ -280,6 +280,15 @@ fn exclude_patterns_follow_gitignore() {
 }
 
 #[test]
+fn an_empty_path_glob_is_an_error() {
+    assert!(
+        fail("version = 1\n[[node]]\nmatch = \"\"\ntags = { a = \"b\" }\n")
+            .message
+            .contains("must not be empty")
+    );
+}
+
+#[test]
 fn a_bare_slash_is_not_an_exclude_pattern() {
     assert!(
         fail("version = 1\nexclude = [\"/\"]\n")
