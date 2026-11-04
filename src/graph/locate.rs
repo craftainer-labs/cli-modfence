@@ -63,12 +63,12 @@ impl Files<'_> {
         for base in &bases {
             let submodules: Vec<Option<String>> = names
                 .iter()
-                .map(|name| self.python_module(&join(base, name)))
+                .map(|name| self.python_module(&join(base, name), false))
                 .collect();
             let all_submodules = !names.is_empty() && submodules.iter().all(Option::is_some);
             let mut found: BTreeSet<String> = submodules.into_iter().flatten().collect();
             if !all_submodules {
-                found.extend(self.python_module(base));
+                found.extend(self.python_module(base, module.is_empty() && dots > 0));
             }
             if !found.is_empty() {
                 return Resolved::Files(found.into_iter().collect());
@@ -82,10 +82,12 @@ impl Files<'_> {
     }
 
     /// The file of the Python module at `base` (`a/b` is `a/b.py` or
-    /// `a/b/__init__.py`).
-    fn python_module(&self, base: &str) -> Option<String> {
+    /// `a/b/__init__.py`). With `package_only`, only `__init__.py` counts: a
+    /// bare `from . import x` names the package, not a sibling `a.py`.
+    fn python_module(&self, base: &str, package_only: bool) -> Option<String> {
         [format!("{base}.py"), join(base, "__init__.py")]
             .into_iter()
+            .skip(usize::from(package_only))
             .filter(|path| !base.is_empty() || path.as_str() == "__init__.py")
             .find(|path| self.paths.contains(path))
     }

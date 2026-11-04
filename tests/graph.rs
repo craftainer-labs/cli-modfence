@@ -333,6 +333,19 @@ fn python_imports_from_the_root_and_from_source_roots() {
 }
 
 #[test]
+fn a_bare_relative_import_names_the_package_not_a_sibling_module() {
+    let graph = build(&[
+        ("a.py", "x = 1\n"),
+        ("a/__init__.py", "helper = 1\n"),
+        ("a/b.py", "from . import helper\n"),
+    ]);
+    let from = module(Lang::Py, "a/b.py");
+    let package = module(Lang::Py, "a/__init__.py").to_string();
+    let targets = outgoing(&graph, Relation::Imports, &from);
+    assert_eq!(targets, [row(&package, Confidence::Resolved, 1)]);
+}
+
+#[test]
 fn typescript_imports_are_resolved() {
     let app = r#"import a from "./util";
 import b from "./widgets";
