@@ -1,0 +1,12 @@
+version = 1
+exclude = ["vendor/"]
+
+[[node]]
+match = "db/**"
+tags = { layer = "data" }
+
+[[rule]]
+id = "no-db-from-ui"
+from = { path = "ui/**" }
+to = { path = "db/**" }
+effect = "forbid"
