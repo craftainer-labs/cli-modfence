@@ -1,12 +1,10 @@
 //! Judging one site: the layers rule, the explicit rules and the default
 //! effect (ADR 0004, "Evaluation", "Default effect" and "Layers").
 
-use std::collections::BTreeSet;
-
 use super::{DEFAULT_DENY, Endpoint, LAYERS, LAYER_KEY};
 use crate::config::{ConfidenceReq, Config, DefaultEffect, Effect, Relation, Severity, Subject};
-use crate::extract::{NodeId, NodeKind};
-use crate::graph::{Confidence, Graph, Node, Relation as EdgeRelation};
+use crate::extract::NodeKind;
+use crate::graph::{Confidence, Node};
 
 /// What decided a site to be a violation.
 pub(super) struct Hit {
@@ -55,28 +53,20 @@ pub(super) fn endpoint(node: &Node) -> Endpoint {
 /// Judges sites against one config.
 pub(super) struct Judge<'a> {
     config: &'a Config,
-    /// External nodes made for an import that could not be placed: they are
-    /// not packages, so a `package` selector never matches them (ADR 0003,
-    /// invariant 6).
-    unplaced: BTreeSet<&'a NodeId>,
 }
 
 impl<'a> Judge<'a> {
-    pub(super) fn new(graph: &'a Graph, config: &'a Config) -> Self {
-        let unplaced = graph
-            .edges
-            .iter()
-            .filter(|edge| {
-                edge.relation == EdgeRelation::Imports
-                    && edge.confidence == Some(Confidence::Heuristic)
-            })
-            .map(|edge| &edge.target)
-            .collect();
-        Self { config, unplaced }
+    pub(super) fn new(config: &'a Config) -> Self {
+        Self { config }
     }
 
-    fn subject<'n>(&self, node: &'n Node) -> Subject<'n> {
-        let package = node.kind == NodeKind::External && !self.unplaced.contains(&node.id);
+    /// `unplaced` says the edge is a heuristic `imports` edge: its `external`
+    /// target was made for an import that could not be placed, so it is not a
+    /// package and a `package` selector never matches it (ADR 0003, invariant
+    /// 6). The exemption is per edge: a resolved edge to the same node still
+    /// matches by package.
+    fn subject<'n>(&self, node: &'n Node, unplaced: bool) -> Subject<'n> {
+        let package = node.kind == NodeKind::External && !unplaced;
         Subject {
             kind: node.kind,
             lang: node.lang,
@@ -142,7 +132,8 @@ impl<'a> Judge<'a> {
                 message,
             });
         }
-        let (source, target) = (self.subject(from), self.subject(to));
+        let unplaced = relation == Relation::Imports && confidence == Confidence::Heuristic;
+        let (source, target) = (self.subject(from, unplaced), self.subject(to, unplaced));
         for rule in &self.config.rules {
             let matched = rule.kinds.contains(&relation)
                 && counts(relation, confidence, rule.confidence)

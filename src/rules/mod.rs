@@ -195,7 +195,7 @@ fn unused_ignore(ignore: &Suppression, id: &str) -> Violation {
 
 /// The violations of every site of every checked edge.
 fn edge_violations(graph: &Graph, config: &Config, ledger: &mut Ignores<'_>) -> Vec<Violation> {
-    let judge = eval::Judge::new(graph, config);
+    let judge = eval::Judge::new(config);
     let mut violations = Vec::new();
     for edge in &graph.edges {
         let kind = (rule_relation(edge.relation), edge.confidence);

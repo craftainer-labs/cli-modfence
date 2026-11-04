@@ -265,6 +265,41 @@ fn a_site_with_an_imports_and_a_binds_edge_is_reported_once() {
     assert_eq!(found(&rules::check(&graph, &config, true)), "r@a.py:1");
 }
 
+// ADR 0003, invariant 6, decided per edge: only the heuristic `imports` edge to
+// an external node is exempt from `package` selectors.
+#[test]
+fn a_package_selector_skips_only_the_unplaced_edge_to_a_node() {
+    let a = module_node("a.py", &[]);
+    let mut external = module_node("a.py", &[]);
+    external.id = NodeId::new(NodeKind::External, Lang::Py, "requests", None).unwrap();
+    external.kind = NodeKind::External;
+    external.label = "requests".to_owned();
+    external.path = None;
+    let edges = vec![
+        edge(&a, &external, Relation::Imports, Confidence::Resolved, &[1]),
+        edge(&a, &external, Relation::Imports, Confidence::Heuristic, &[2]),
+    ];
+    let graph = graph_of(&[&a, &external], edges);
+    let to = "{ package = \"requests\" }";
+    let config = cfg(&rule("r", "{ path = \"a.py\" }", to, ""));
+    assert_eq!(found(&rules::check(&graph, &config, true)), "r@a.py:1");
+}
+
+// ADR 0004, "Suppressions": an ignore of `unused-ignore` counts as used when it
+// silenced a warning, however the comments are laid out.
+#[test]
+fn a_chain_of_unused_ignores_does_not_depend_on_order() {
+    let first = ignore(UNUSED_IGNORE);
+    let second = ignore(&format!("{UNUSED_IGNORE}, x"));
+    let ui = format!("{first}{second}");
+    assert_eq!(found(&ignored(&ui)), format!("{UNUSED}:2"));
+    let outcome = ignored(&ui);
+    assert_eq!(
+        outcome.violations[0].message,
+        "ignore[modfence/unused-ignore] suppressed nothing"
+    );
+}
+
 #[test]
 fn calls_between_symbols_of_one_module_are_not_judged() {
     let text = "def f():\n    pass\n\n\ndef g():\n    f()\n";
