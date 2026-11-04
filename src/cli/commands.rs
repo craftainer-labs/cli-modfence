@@ -61,11 +61,16 @@ fn run_trace(args: &TraceArgs, out: &mut impl Write, err: &mut impl Write) -> Re
     Ok(OK)
 }
 
+/// Turns an I/O error on `path` into a failure that names the action and path.
+fn failed<'a>(action: &'a str, path: &'a Path) -> impl Fn(std::io::Error) -> Failure + 'a {
+    move |error| Failure::io(format!("cannot {action} {}", path.display()), &error)
+}
+
 /// Writes `rendered` to `--output`, or to standard output.
 fn emit(rendered: &str, common: &Common, out: &mut impl Write) -> Result<(), Failure> {
     match &common.output {
         Some(path) => fs::write(path, rendered)
-            .map_err(|error| Failure::usage(format!("cannot write {}: {error}", path.display()))),
+            .map_err(failed("write", path)),
         None => out.write_all(rendered.as_bytes()).map_err(Failure::from),
     }
 }
@@ -101,10 +106,11 @@ fn analyse(common: &Common, err: &mut impl Write) -> Result<(Config, Graph), Fai
     };
     let extractors: [&dyn Extractor; 2] = [&PythonExtractor, &TsExtractor];
     let wanted = |path: &str| extractors.iter().any(|extractor| extractor.handles(path));
-    let files = walker::walk(&root, &config, wanted)?;
+    let files = walker::walk(&root, &config, wanted).map_err(failed("walk", &root))?;
     let mut builder = Builder::new(&config);
     for path in &files {
-        let bytes = fs::read(root.join(path))?;
+        let full = root.join(path);
+        let bytes = fs::read(&full).map_err(failed("read", &full))?;
         let decoded = String::from_utf8_lossy(&bytes);
         let file = SourceFile {
             path,

@@ -163,7 +163,7 @@ fn output_goes_to_a_file_when_asked() {
             .contains("no-db-from-ui")
     );
     let unwritable = on("app", &["check", "--output", directory.to_str().unwrap()]);
-    assert_eq!(unwritable.code, 2);
+    assert_eq!(unwritable.code, 74);
     assert!(
         unwritable.err.contains("cannot write"),
         "{}",

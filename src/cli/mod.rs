@@ -42,6 +42,16 @@ impl Failure {
     }
 }
 
+impl Failure {
+    /// A file or stream that could not be read or written, naming `what`.
+    fn io(what: impl std::fmt::Display, error: &std::io::Error) -> Self {
+        Self {
+            code: IO_ERROR,
+            message: format!("{what}: {error}"),
+        }
+    }
+}
+
 impl From<std::io::Error> for Failure {
     fn from(error: std::io::Error) -> Self {
         Self {
