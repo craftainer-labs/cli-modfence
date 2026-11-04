@@ -233,7 +233,7 @@ fn incident_keeps_the_selection_its_edges_and_their_other_ends() {
     assert_eq!(nodes, ["ext:py:requests", "mod:py:app/a.py"]);
     assert_eq!(part.edges.len(), 1);
     assert_eq!(part.languages, BTreeSet::from([Lang::Py]));
-    assert!(part.diagnostics.is_empty());
+    assert_eq!(part.diagnostics, Vec::<FileDiagnostic>::new());
     let nothing = incident(&graph, &BTreeSet::new());
     assert!(nothing.nodes.is_empty() && nothing.edges.is_empty());
 }
@@ -257,7 +257,7 @@ fn incident_keeps_only_the_languages_and_diagnostics_of_its_nodes() {
     let requests = id(NodeKind::External, "requests", None);
     let python = incident(&graph, &BTreeSet::from([requests]));
     assert_eq!(python.languages, BTreeSet::from([Lang::Py]));
-    assert!(python.diagnostics.is_empty());
+    assert_eq!(python.diagnostics, Vec::<FileDiagnostic>::new());
     let both = incident(&graph, &BTreeSet::from([module]));
     assert_eq!(both.languages, BTreeSet::from([Lang::Py, Lang::Ts]));
     let paths: Vec<&str> = both.diagnostics.iter().map(|d| d.path.as_str()).collect();
