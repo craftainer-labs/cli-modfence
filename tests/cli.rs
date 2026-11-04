@@ -461,7 +461,7 @@ mod unreadable {
     /// list it anyway (it runs as root), so the test has nothing to show.
     fn lock(path: &Path) -> bool {
         std::fs::create_dir_all(path).unwrap();
-        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0)).unwrap();
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o0)).unwrap();
         if std::fs::read_dir(path).is_ok() {
             unlock(path);
             return false;
