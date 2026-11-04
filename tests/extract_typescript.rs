@@ -240,6 +240,7 @@ fn the_fixture_index_annotations() {
             Some("load".to_owned()),
             Some("Repo".to_owned()),
             Some("Repo~run".to_owned()),
+            None,
         ]
     );
     let spans: Vec<u32> = facts
@@ -247,8 +248,8 @@ fn the_fixture_index_annotations() {
         .iter()
         .map(|annotation| annotation.span.start_line)
         .collect();
-    // The tag comment after `const trailing` (line 70) is not an annotation.
-    assert_eq!(spans, vec![1, 6, 12, 20, 31]);
+    // The tag comment after `const trailing` (line 70) has no target.
+    assert_eq!(spans, vec![1, 6, 12, 20, 31, 70]);
     assert!(matches!(facts.annotations[0].parsed, Ok(Parsed::Tags(_))));
     let Ok(Parsed::Ignore(ignore)) = &facts.annotations[1].parsed else {
         panic!("line 6 is a suppression");
@@ -817,4 +818,17 @@ const b = require(/* c */ 'm');
     assert_eq!(names(&facts), owned(&["a", "b"]));
     let specifiers: Vec<String> = facts.imports.iter().map(|i| i.specifier.clone()).collect();
     assert_eq!(specifiers[..2], owned(&["./x", "m"])[..]);
+}
+
+#[test]
+fn trailing_tags_and_malformed_annotations_are_emitted_for_ts_and_tsx() {
+    let text = "const a = 1; // modfence: layer=x\n// modfence: Bad=1\nconst b = 2;\n";
+    for path in ["src/a.ts", "src/a.tsx"] {
+        let facts = run(path, text);
+        assert_eq!(facts.annotations.len(), 2, "{path}");
+        assert!(matches!(facts.annotations[0].parsed, Ok(Parsed::Tags(_))));
+        assert_eq!(facts.annotations[0].target, None);
+        assert_eq!(facts.annotations[0].span.start_line, 1);
+        assert!(facts.annotations[1].parsed.is_err());
+    }
 }

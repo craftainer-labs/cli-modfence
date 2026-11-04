@@ -806,6 +806,32 @@ x = 1  # modfence: layer=a
     assert_eq!(graph.suppressions[2].reason, None);
 }
 
+// The same findings for TypeScript and TSX: a trailing tag warns and does not
+// tag the module, a malformed annotation is an error.
+#[test]
+fn annotation_findings_for_typescript() {
+    let text = "const x = 1; // modfence: layer=a\n// modfence: Bad=1\nexport const y = 2;\n";
+    let graph = build(&[("a.ts", text), ("b.tsx", text)]);
+    let found: Vec<(&str, u32, Severity)> = graph
+        .findings
+        .iter()
+        .map(|f| (f.path.as_str(), f.span.start_line, f.severity))
+        .collect();
+    assert_eq!(
+        found,
+        [
+            ("a.ts", 1, Severity::Warning),
+            ("a.ts", 2, Severity::Error),
+            ("b.tsx", 1, Severity::Warning),
+            ("b.tsx", 2, Severity::Error),
+        ]
+    );
+    assert!(graph.findings[0].message.contains("trailing"));
+    for path in ["a.ts", "b.tsx"] {
+        assert_eq!(graph.nodes[&module(Lang::Ts, path)].tags, Tags::new());
+    }
+}
+
 // ADR 0003, invariant 5: a file that fails to parse yields a diagnostic and
 // the facts that could be recovered.
 #[test]

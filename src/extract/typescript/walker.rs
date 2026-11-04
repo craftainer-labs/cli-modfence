@@ -291,11 +291,9 @@ impl<'a> Walker<'a> {
             end_row,
         } in std::mem::take(&mut self.pending)
         {
-            let is_tags = matches!(annotation.parsed, Ok(Parsed::Tags(_)));
-            if is_tags && !own_line {
-                continue;
-            }
-            if is_tags {
+            // A trailing tag is kept without a target, so the graph can warn
+            // that it is ignored (ADR 0004), as the Python extractor does.
+            if own_line && matches!(annotation.parsed, Ok(Parsed::Tags(_))) {
                 annotation.target = self.target_below(end_row);
             }
             self.facts.annotations.push(annotation);

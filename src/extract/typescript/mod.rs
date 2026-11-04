@@ -5,6 +5,11 @@
 //! extension (`.tsx`, `.jsx`, `.js`, `.mjs`, `.cjs`) uses the TSX grammar, which
 //! also reads plain JavaScript and JSX.
 //!
+//! Annotations: an own-line `modfence:` comment directly above a symbol
+//! (documentation comments may sit between) targets it; every other tag
+//! comment, trailing ones included, is emitted with no target so the graph
+//! can report it.
+//!
 //! - [`TsExtractor`]: the [`Extractor`] implementation.
 //! - [`encode_segment`], [`join`], [`split`] and [`render`]: the encoding of
 //!   qualified names, specified in ADR 0003.
@@ -20,7 +25,7 @@ use super::{ExtractCtx, Extractor, FileFacts, Lang, SourceFile};
 
 /// The extractor's version, part of the per-file cache key: change it whenever
 /// the output for some input could change, and with the grammar crate.
-pub const VERSION: &str = "typescript-1/tree-sitter-typescript-0.23.2";
+pub const VERSION: &str = "typescript-2/tree-sitter-typescript-0.23.2";
 
 /// Reads TypeScript and JavaScript files.
 #[derive(Debug, Clone, Copy, Default)]
