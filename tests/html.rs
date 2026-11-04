@@ -123,6 +123,7 @@ fn the_page_makes_no_network_request() {
     for line in page.lines().filter(|line| line.contains("http")) {
         assert!(
             line.starts_with("// https://d3js.org/")
+                || line.starts_with("<script>// https://d3js.org/")
                 || line.starts_with("<meta http-equiv=")
                 || line.trim() == "var NS = 'http://www.w3.org/2000/svg';",
             "{line}"
