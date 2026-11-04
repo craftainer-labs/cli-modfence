@@ -132,12 +132,18 @@ impl<'a> View<'a> {
     #[must_use]
     pub fn new(graph: &'a Graph, level: Level, group_by: Option<&str>) -> Self {
         let tree = Tree::new(graph);
+        // A node with no ancestor the level shows stays visible as itself, so
+        // no edge is dropped.
+        let anchor = |node: &'a Node| -> &'a NodeId {
+            tree.up(&node.id, |ancestor| level.shows(ancestor.kind))
+                .map_or(&node.id, |shown| &shown.id)
+        };
         let nodes: Vec<&Node> = graph
             .nodes
             .values()
-            .filter(|node| level.shows(node.kind))
+            .filter(|node| anchor(node) == &node.id)
             .collect();
-        let visible = |id: &NodeId| tree.up(id, |node| level.shows(node.kind)).map(|n| &n.id);
+        let visible = |id: &NodeId| graph.nodes.get(id).map(anchor);
         let mut folded: BTreeMap<(&NodeId, &NodeId, Relation, Option<Confidence>), usize> =
             BTreeMap::new();
         for edge in &graph.edges {
@@ -180,7 +186,8 @@ impl<'a> View<'a> {
 
 /// The part of `graph` that touches `selected`: those nodes, every edge with
 /// one of them as an endpoint, and the other endpoints of those edges. Like
-/// the graph, it validates against the graph schema.
+/// the graph, it validates against the graph schema. Its languages are those
+/// of its nodes and its diagnostics those of their files.
 #[must_use]
 pub fn incident(graph: &Graph, selected: &BTreeSet<NodeId>) -> Graph {
     let edges: Vec<_> = graph
@@ -191,16 +198,28 @@ pub fn incident(graph: &Graph, selected: &BTreeSet<NodeId>) -> Graph {
         .collect();
     let ends = edges.iter().flat_map(|edge| [&edge.source, &edge.target]);
     let keep: BTreeSet<&NodeId> = selected.iter().chain(ends).collect();
+    let nodes: BTreeMap<NodeId, Node> = graph
+        .nodes
+        .iter()
+        .filter(|(id, _)| keep.contains(id))
+        .map(|(id, node)| (id.clone(), node.clone()))
+        .collect();
+    let languages = nodes.values().map(|node| node.lang).collect();
+    let paths: BTreeSet<&str> = nodes
+        .values()
+        .filter_map(|node| node.path.as_deref())
+        .collect();
+    let diagnostics = graph
+        .diagnostics
+        .iter()
+        .filter(|diagnostic| paths.contains(diagnostic.path.as_str()))
+        .cloned()
+        .collect();
     Graph {
-        nodes: graph
-            .nodes
-            .iter()
-            .filter(|(id, _)| keep.contains(id))
-            .map(|(id, node)| (id.clone(), node.clone()))
-            .collect(),
+        nodes,
         edges,
-        languages: graph.languages.clone(),
-        diagnostics: graph.diagnostics.clone(),
+        languages,
+        diagnostics,
         ..Graph::default()
     }
 }

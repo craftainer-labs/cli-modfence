@@ -38,7 +38,9 @@ formats (DOT, Mermaid, HTML) draw the view and never the graph directly.
   starts and ends at one node is dropped, which also removes every `contains`
   edge that a level hides. Edges with the same source, target, relation and
   confidence are folded; `count` adds up their sites (0 for `contains`).
-  `contains` edges between two visible nodes are kept.
+  `contains` edges between two visible nodes are kept. A node with no
+  ancestor the level shows (a module whose package is missing, or a
+  `contains` cycle) stays visible as itself, so no edge is dropped.
 - Clusters: without `group_by`, one per package, labelled with the package's
   directory and holding its visible modules and symbols. With `group_by`, one
   per value of that tag key, holding the visible nodes that have the tag; a node
@@ -53,8 +55,9 @@ formats (DOT, Mermaid, HTML) draw the view and never the graph directly.
 - Output is deterministic and holds no timestamp or absolute path.
 - `incident(graph, selected)` is the selected nodes, every edge with a selected
   endpoint, and those edges' other endpoints (ADR 0004, invariant 23). It keeps
-  the graph's languages and diagnostics and drops its findings and
-  suppressions, so it renders as a graph document of its own.
+  only the languages of those nodes and the diagnostics of their files, and
+  drops the findings and suppressions, so it renders as a graph document of
+  its own.
 - The JSON document has `metadata.tool.version` from `CARGO_PKG_VERSION`, which
   the release stamps; tests compare with the version replaced. Contains edges
   have empty metadata; every other edge has `confidence`, `origin`

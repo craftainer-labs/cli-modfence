@@ -24,8 +24,8 @@ Rules:
 - Exit status: 0 when nothing is at or above `--fail-on` (`error` by default,
   also `warning` and `note`), 1 when something is, 2 for a usage or
   configuration error (including clap's own), 74 when a file or stream cannot
-  be read or written (a configuration file that cannot be read included; one
-  that is read but invalid is 2). The status does not depend on `--format`.
+  be read or written (a missing or unreadable configuration file included, so
+  `--config typo.toml` is 74; one that is read but invalid is 2). The status does not depend on `--format`.
 - Human text is the default. Machine formats need an explicit `--format`:
   `check` has `text|sarif|github`; `graph` and `trace` have `text|json`.
   `dot|mermaid|graphml|html` are accepted by the parser and then refused with
@@ -63,7 +63,9 @@ Rules:
   values are then parsed by the config's own `Selector`, so they are validated
   as in `modfence.toml`. A node is judged by `rules::subject`, the subject a
   rule would use, so `package=` skips the `external` node of an import that
-  could not be placed, as in a rule.
+  could not be placed, as in a rule. `trace` selects nodes, not edges: a node
+  is unplaced only when no resolved import targets it, the node-level reading
+  of the rules' per-edge exemption.
 - There is no `--precise` flag until NC6, so call edges are not checked and
   `check` prints that notice.
 - Tests are in `tests/cli.rs` (fixtures in `tests/fixtures/cli/`); do not add

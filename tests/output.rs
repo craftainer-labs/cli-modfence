@@ -12,7 +12,7 @@ use modfence::extract::{
     BindingFramework, DiagnosticCode, ExtractCtx, Extractor, Lang, NodeId, NodeKind, SourceFile,
     Span,
 };
-use modfence::graph::{Binding, Builder, FileDiagnostic, Graph};
+use modfence::graph::{Binding, Builder, FileDiagnostic, Graph, Relation};
 use modfence::output::{Json, Level, Renderer, View, incident};
 
 const CONFIG: &str = r#"
@@ -232,10 +232,74 @@ fn incident_keeps_the_selection_its_edges_and_their_other_ends() {
     let nodes: Vec<&str> = part.nodes.keys().map(NodeId::as_str).collect();
     assert_eq!(nodes, ["ext:py:requests", "mod:py:app/a.py"]);
     assert_eq!(part.edges.len(), 1);
-    assert_eq!(part.languages, graph.languages);
-    assert_eq!(part.diagnostics, graph.diagnostics);
+    assert_eq!(part.languages, BTreeSet::from([Lang::Py]));
+    assert!(part.diagnostics.is_empty());
     let nothing = incident(&graph, &BTreeSet::new());
     assert!(nothing.nodes.is_empty() && nothing.edges.is_empty());
+}
+
+// The metadata of a trace describes its own nodes: a trace of one language
+// omits the other, and a diagnostic of a file outside the trace is left out.
+#[test]
+fn incident_keeps_only_the_languages_and_diagnostics_of_its_nodes() {
+    let mut graph = graph();
+    let module = id(NodeKind::Module, "lib/c.py", None);
+    graph.nodes.get_mut(&module).unwrap().lang = Lang::Ts;
+    graph.languages.insert(Lang::Ts);
+    for path in ["lib/c.py", "app/b.py"] {
+        graph.diagnostics.push(FileDiagnostic {
+            path: path.to_owned(),
+            span: None,
+            code: DiagnosticCode::ParseError,
+            message: "syntax error".to_owned(),
+        });
+    }
+    let requests = id(NodeKind::External, "requests", None);
+    let python = incident(&graph, &BTreeSet::from([requests]));
+    assert_eq!(python.languages, BTreeSet::from([Lang::Py]));
+    assert!(python.diagnostics.is_empty());
+    let both = incident(&graph, &BTreeSet::from([module]));
+    assert_eq!(both.languages, BTreeSet::from([Lang::Py, Lang::Ts]));
+    let paths: Vec<&str> = both.diagnostics.iter().map(|d| d.path.as_str()).collect();
+    assert_eq!(paths, ["lib/c.py"]);
+}
+
+// A node with no ancestor the level shows stays visible as itself, so none of
+// its edges is dropped.
+#[test]
+fn a_module_without_a_package_keeps_its_edges_at_the_package_level() {
+    let mut graph = graph();
+    graph.nodes.remove(&id(NodeKind::Package, "lib", None));
+    let view = View::new(&graph, Level::Package, None);
+    assert!(ids(&view).contains(&"mod:py:lib/c.py"), "{:?}", ids(&view));
+    assert!(
+        edges(&view).contains(&"mod:py:lib/c.py -> pkg:py:app imports 2".to_owned()),
+        "{:?}",
+        edges(&view)
+    );
+}
+
+// A `contains` cycle ends the walk up the tree instead of hanging it.
+#[test]
+fn a_contains_cycle_does_not_hang_the_view() {
+    let mut graph = graph();
+    let template = graph
+        .edges
+        .iter()
+        .find(|edge| edge.relation == Relation::Contains)
+        .unwrap()
+        .clone();
+    let a = id(NodeKind::Module, "app/a.py", None);
+    let b = id(NodeKind::Module, "app/b.py", None);
+    for (source, target) in [(&a, &b), (&b, &a)] {
+        let mut edge = template.clone();
+        edge.source = source.clone();
+        edge.target = target.clone();
+        graph.edges.push(edge);
+    }
+    let view = View::new(&graph, Level::Package, None);
+    assert!(ids(&view).contains(&"mod:py:app/a.py"), "{:?}", ids(&view));
+    assert!(ids(&view).contains(&"mod:py:app/b.py"), "{:?}", ids(&view));
 }
 
 fn document(graph: &Graph) -> Value {
