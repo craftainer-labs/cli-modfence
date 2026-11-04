@@ -44,11 +44,13 @@ pub fn render(outcome: &Outcome) -> String {
         }
         *count += 1;
         lines.push(format!(
-            "::{} file={},line={},col={},title={}::{}",
+            "::{} file={},line={},endLine={},col={},endColumn={},title={}::{}",
             command(violation.severity),
             escape_property(&violation.path),
             violation.span.start_line,
+            violation.span.end_line,
             violation.span.start_column,
+            violation.span.end_column,
             escape_property(&violation.rule),
             escape_data(&violation.message),
         ));

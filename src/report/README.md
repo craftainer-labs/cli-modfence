@@ -11,7 +11,7 @@ status (`Outcome::fails` does).
   the hash is FNV-1a over fixed fields, defined here because the standard
   library's hashers are not specified.
 - `github.rs`: `render` writes `::error`, `::warning` and `::notice` workflow
-  commands (at most 10 per level) and one summary line.
+  commands (at most 10 per level, with line, endLine, col and endColumn) and one summary line.
 
 Rules:
 
@@ -23,6 +23,14 @@ Rules:
   `properties.modfence = { precise, callEdgesChecked }`.
 - SARIF artifact URIs are relative URI references: `\` becomes `/` and every
   byte outside `A-Za-z0-9-._~/` is percent-encoded.
+- A built-in rule may carry its own help text; configured rules use the generic
+  advice. `callEdgesChecked` is currently derived from `precise`, so the two
+  are equal. `executionSuccessful` is always true: a report is written only
+  after an analysis that ran to the end. A fingerprint hash holds the rule and
+  the endpoints of an edge, or the rule, path and message of an annotation
+  finding, never a line number.
+- SARIF holds every result; the 5000-result limit of GitHub code scanning is
+  applied by the upload, and `rules::check` adds a notice when it is exceeded.
 - Workflow-command data escapes `%`, CR and LF; properties also `:` and `,`.
 - Tests are in `tests/report.rs` (the golden file is
   `tests/golden/report.sarif.json`); do not add `#[cfg(test)]` modules here.

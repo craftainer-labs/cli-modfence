@@ -45,7 +45,7 @@
             "text": "invalid modfence annotation"
           },
           "partialFingerprints": {
-            "primaryLocationLineHash": "b14b57e489c09038:1"
+            "primaryLocationLineHash": "6a71bd2a0028984f:1"
           },
           "properties": {},
           "relatedLocations": [],
@@ -73,7 +73,7 @@
             "text": "ignore[x] suppressed nothing"
           },
           "partialFingerprints": {
-            "primaryLocationLineHash": "1a77e93fc7adbbce:1"
+            "primaryLocationLineHash": "4b5abc0020a5d157:1"
           },
           "properties": {},
           "relatedLocations": [],
@@ -239,7 +239,7 @@
                 "text": "A `modfence:` comment could not be read, or is a tag that has no effect where it is."
               },
               "help": {
-                "text": "Fix the dependency, or suppress one site with `modfence: ignore[modfence/invalid-annotation] reason=\"...\"`."
+                "text": "Fix the comment so that it reads `modfence: ignore[rule] reason=\"...\"` or `modfence: key=value`, or delete it."
               },
               "id": "modfence/invalid-annotation",
               "shortDescription": {
@@ -254,7 +254,7 @@
                 "text": "A `modfence: ignore[...]` comment names a rule that has no violation on its line or the line below, so it can be removed."
               },
               "help": {
-                "text": "Fix the dependency, or suppress one site with `modfence: ignore[modfence/unused-ignore] reason=\"...\"`."
+                "text": "Delete the ignore comment, or remove the rule id it names that suppressed nothing."
               },
               "id": "modfence/unused-ignore",
               "shortDescription": {

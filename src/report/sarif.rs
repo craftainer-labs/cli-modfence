@@ -14,8 +14,14 @@ use crate::extract::Span;
 use crate::graph::INVALID_ANNOTATION;
 use crate::rules::{DEFAULT_DENY, Endpoint, LAYERS, Notice, Outcome, UNUSED_IGNORE, Violation};
 
-/// A built-in rule: id, level, short description, full description.
-type Builtin = (&'static str, Severity, &'static str, &'static str);
+/// A built-in rule: id, level, short description, full description, help.
+type Builtin = (
+    &'static str,
+    Severity,
+    &'static str,
+    &'static str,
+    Option<&'static str>,
+);
 
 const BUILTINS: [Builtin; 4] = [
     (
@@ -24,6 +30,7 @@ const BUILTINS: [Builtin; 4] = [
         "A module depends on a higher layer",
         "A module must not depend on a module in a higher layer of `layers` in modfence.toml; \
          a layer may use itself and the layers below it.",
+        None,
     ),
     (
         DEFAULT_DENY,
@@ -31,12 +38,17 @@ const BUILTINS: [Builtin; 4] = [
         "No rule allows this dependency",
         "With `default = \"deny\"` in modfence.toml, a dependency between two modules of the \
          repository needs an `allow` rule, or layers that permit it.",
+        None,
     ),
     (
         INVALID_ANNOTATION,
         Severity::Error,
         "A modfence annotation is malformed",
         "A `modfence:` comment could not be read, or is a tag that has no effect where it is.",
+        Some(
+            "Fix the comment so that it reads `modfence: ignore[rule] reason=\"...\"` or \
+             `modfence: key=value`, or delete it.",
+        ),
     ),
     (
         UNUSED_IGNORE,
@@ -44,6 +56,7 @@ const BUILTINS: [Builtin; 4] = [
         "An ignore suppressed nothing",
         "A `modfence: ignore[...]` comment names a rule that has no violation on its line or \
          the line below, so it can be removed.",
+        Some("Delete the ignore comment, or remove the rule id it names that suppressed nothing."),
     ),
 ];
 
@@ -71,7 +84,8 @@ fn fnv(parts: &[&str]) -> u64 {
 }
 
 /// The fingerprint hash of a violation: the rule, source, target and relation
-/// of an edge violation; the rule and the path of an annotation finding.
+/// of an edge violation; the rule, the path and the message of an annotation
+/// finding. No line number goes in, so edits elsewhere keep the fingerprint.
 fn fingerprint_hash(violation: &Violation) -> String {
     let hash = match &violation.dependency {
         Some(dependency) => fnv(&[
@@ -80,7 +94,7 @@ fn fingerprint_hash(violation: &Violation) -> String {
             dependency.to.id.as_str(),
             dependency.relation.as_str(),
         ]),
-        None => fnv(&[&violation.rule, &violation.path]),
+        None => fnv(&[&violation.rule, &violation.path, &violation.message]),
     };
     format!("{hash:016x}")
 }
@@ -185,17 +199,23 @@ fn result(violation: &Violation, fingerprint: &str) -> Value {
     })
 }
 
-fn descriptor(id: &str, severity: Severity, short: &str, full: &str) -> Value {
-    json!({
-        "id": id,
-        "shortDescription": { "text": short },
-        "fullDescription": { "text": full },
-        "help": {
-            "text": format!(
+/// A rule descriptor. `help` is the rule's own advice; without it the advice
+/// is to fix the dependency or suppress one site.
+fn descriptor(id: &str, severity: Severity, texts: (&str, &str), help: Option<&str>) -> Value {
+    let help = help.map_or_else(
+        || {
+            format!(
                 "Fix the dependency, or suppress one site with \
                  `modfence: ignore[{id}] reason=\"...\"`."
-            ),
+            )
         },
+        str::to_owned,
+    );
+    json!({
+        "id": id,
+        "shortDescription": { "text": texts.0 },
+        "fullDescription": { "text": texts.1 },
+        "help": { "text": help },
         "defaultConfiguration": { "level": level(severity) },
     })
 }
@@ -204,7 +224,7 @@ fn descriptor(id: &str, severity: Severity, short: &str, full: &str) -> Value {
 fn rules(config: &Config) -> Vec<Value> {
     let builtins = BUILTINS
         .iter()
-        .map(|&(id, severity, short, full)| descriptor(id, severity, short, full));
+        .map(|&(id, severity, short, full, help)| descriptor(id, severity, (short, full), help));
     let configured = config.rules.iter().map(|rule| {
         let verb = match rule.effect {
             Effect::Forbid => "Forbids",
@@ -215,7 +235,7 @@ fn rules(config: &Config) -> Vec<Value> {
             .message
             .clone()
             .unwrap_or_else(|| format!("{verb} the dependencies that rule `{}` selects.", rule.id));
-        descriptor(&rule.id, rule.severity, &short, &full)
+        descriptor(&rule.id, rule.severity, (&short, &full), None)
     });
     builtins.chain(configured).collect()
 }
@@ -250,6 +270,9 @@ pub fn render(outcome: &Outcome, config: &Config) -> String {
             },
             "columnKind": "unicodeCodePoints",
             "invocations": [{
+                // A report is written only for an analysis that ran to the end:
+                // unparseable files and bad annotations are results, not
+                // failures of the run.
                 "executionSuccessful": true,
                 "toolExecutionNotifications": notifications,
             }],

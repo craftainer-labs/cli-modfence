@@ -286,9 +286,9 @@ fn annotations_are_workflow_commands() {
     ];
     let text = github::render(&outcome(violations));
     let expected = [
-        "::error file=a.py,line=1,col=2,title=r::m",
-        "::warning file=a.py,line=2,col=2,title=r::m",
-        "::notice file=a.py,line=3,col=2,title=r::m",
+        "::error file=a.py,line=1,endLine=1,col=2,endColumn=9,title=r::m",
+        "::warning file=a.py,line=2,endLine=2,col=2,endColumn=9,title=r::m",
+        "::notice file=a.py,line=3,endLine=3,col=2,endColumn=9,title=r::m",
         "modfence: errors: 1, warnings: 1, notes: 1",
         "",
     ];
@@ -305,7 +305,8 @@ fn annotations_escape_messages_and_properties() {
     let tricky = violation(Severity::Error, rule, path, span(1, 1, 2), message);
     let text = github::render(&outcome(vec![tricky]));
     let first = text.lines().next().unwrap();
-    let head = "::error file=a%3Ab%2Cc%25.py,line=1,col=1,title=r%3A1%2C2";
+    let head =
+        "::error file=a%3Ab%2Cc%25.py,line=1,endLine=1,col=1,endColumn=2,title=r%3A1%2C2";
     assert_eq!(first, format!("{head}::50%25 done%0D%0Anext"));
 }
 
@@ -322,8 +323,10 @@ fn annotations_are_capped_per_level() {
     let text = github::render(&outcome(violations));
     let lines: Vec<&str> = text.lines().collect();
     assert_eq!(lines.len(), 10 + 3 + 1);
-    assert_eq!(lines[9], "::error file=a.py,line=10,col=2,title=r::m");
-    assert_eq!(lines[10], "::warning file=a.py,line=1,col=2,title=r::m");
+    let tenth = "::error file=a.py,line=10,endLine=10,col=2,endColumn=9,title=r::m";
+    assert_eq!(lines[9], tenth);
+    let first = "::warning file=a.py,line=1,endLine=1,col=2,endColumn=9,title=r::m";
+    assert_eq!(lines[10], first);
     let summary = "modfence: errors: 12, warnings: 3, notes: 0";
     assert_eq!(
         lines[13],
