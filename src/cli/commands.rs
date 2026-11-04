@@ -69,8 +69,7 @@ fn failed<'a>(action: &'a str, path: &'a Path) -> impl Fn(std::io::Error) -> Fai
 /// Writes `rendered` to `--output`, or to standard output.
 fn emit(rendered: &str, common: &Common, out: &mut impl Write) -> Result<(), Failure> {
     match &common.output {
-        Some(path) => fs::write(path, rendered)
-            .map_err(failed("write", path)),
+        Some(path) => fs::write(path, rendered).map_err(failed("write", path)),
         None => out.write_all(rendered.as_bytes()).map_err(Failure::from),
     }
 }
