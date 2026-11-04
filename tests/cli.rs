@@ -386,7 +386,7 @@ fn unversioned(text: &str) -> serde_json::Value {
 }
 
 // ADR 0003, "Output format": the graph document. The golden file is
-// validated against schema/modfence-graph.schema.json by the `graph-json`
+// validated against schema/modfence-graph.schema.json by the `graph-json-schema`
 // hook, so equality with it is schema validity.
 #[test]
 fn graph_json_matches_the_golden_file_and_ignores_the_view_flags() {
@@ -446,7 +446,7 @@ fn trace_judges_a_node_like_a_rule_does() {
     assert!(both.out.contains("missing"), "{}", both.out);
     let packages = on("trace", &["trace", "kind=external", "package=**"]);
     assert!(packages.out.starts_with("nodes: 1\n"), "{}", packages.out);
-    assert!(packages.out.contains("node"), "{}", packages.out);
+    assert!(packages.out.contains("fs"), "{}", packages.out);
     assert!(!packages.out.contains("missing"), "{}", packages.out);
 }
 

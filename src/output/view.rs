@@ -102,11 +102,16 @@ impl<'a> Tree<'a> {
 
     /// The node `id` or its nearest ancestor that `accept` takes.
     fn up(&self, id: &NodeId, accept: impl Fn(&Node) -> bool) -> Option<&'a Node> {
-        let mut node = self.graph.nodes.get(id)?;
-        while !accept(node) {
-            node = self.graph.nodes.get(*self.parents.get(&node.id)?)?;
-        }
-        Some(node)
+        let start = self.graph.nodes.get(id)?;
+        // At most one step per node: a longer walk has looped on a `contains`
+        // cycle.
+        std::iter::successors(Some(start), |node| {
+            self.parents
+                .get(&node.id)
+                .and_then(|parent| self.graph.nodes.get(*parent))
+        })
+        .take(self.graph.nodes.len() + 1)
+        .find(|node| accept(node))
     }
 
     /// The label of the cluster `node` belongs to.
