@@ -195,6 +195,18 @@ fn a_precise_run_records_that_call_edges_were_checked() {
     assert_eq!(run["results"], json!([]));
 }
 
+// SARIF locations are URI references: odd characters are percent-encoded.
+#[test]
+fn artifact_paths_are_uri_references() {
+    let odd = "app\\my module/\u{fc}~.py";
+    let found = violation(Severity::Error, "r", odd, span(1, 1, 2), "m");
+    let text = sarif::render(&outcome(vec![found]), &Config::default());
+    let document = parse(&text);
+    let location = &run_of(&document)["results"][0]["locations"][0];
+    let uri = &location["physicalLocation"]["artifactLocation"]["uri"];
+    assert_eq!(uri, "app/my%20module/%C3%BC~.py");
+}
+
 // ADR 0004: the target is a related location, which has no file for an
 // external package.
 #[test]

@@ -110,8 +110,29 @@ fn fingerprints(violations: &[Violation]) -> Vec<String> {
         .collect()
 }
 
+/// `path` as a relative URI reference (RFC 3986): separators are `/`, and every
+/// byte outside the unreserved set is percent-encoded.
+fn uri(path: &str) -> String {
+    const HEX: &[u8; 16] = b"0123456789ABCDEF";
+    let mut out = String::with_capacity(path.len());
+    for byte in path.bytes() {
+        match byte {
+            b'\\' => out.push('/'),
+            _ if byte.is_ascii_alphanumeric() || b"/-._~".contains(&byte) => {
+                out.push(char::from(byte));
+            }
+            _ => {
+                out.push('%');
+                out.push(char::from(HEX[usize::from(byte >> 4)]));
+                out.push(char::from(HEX[usize::from(byte & 15)]));
+            }
+        }
+    }
+    out
+}
+
 fn artifact(path: &str) -> Value {
-    json!({ "uri": path, "uriBaseId": "%SRCROOT%" })
+    json!({ "uri": uri(path), "uriBaseId": "%SRCROOT%" })
 }
 
 fn region(span: Span) -> Value {

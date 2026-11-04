@@ -21,6 +21,8 @@ Rules:
   target as a related location and the confidence and both endpoints' tags.
   The run records the notices as tool-execution notifications and
   `properties.modfence = { precise, callEdgesChecked }`.
+- SARIF artifact URIs are relative URI references: `\` becomes `/` and every
+  byte outside `A-Za-z0-9-._~/` is percent-encoded.
 - Workflow-command data escapes `%`, CR and LF; properties also `:` and `,`.
 - Tests are in `tests/report.rs` (the golden file is
   `tests/golden/report.sarif.json`); do not add `#[cfg(test)]` modules here.
