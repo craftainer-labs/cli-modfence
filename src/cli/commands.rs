@@ -100,9 +100,8 @@ fn analyse(common: &Common, err: &mut impl Write) -> Result<(Config, Graph), Fai
         None => (Config::default(), PathBuf::from(".")),
     };
     let extractors: [&dyn Extractor; 2] = [&PythonExtractor, &TsExtractor];
-    let files = walker::walk(&root, &config, |path| {
-        extractors.iter().any(|extractor| extractor.handles(path))
-    })?;
+    let wanted = |path: &str| extractors.iter().any(|extractor| extractor.handles(path));
+    let files = walker::walk(&root, &config, wanted)?;
     let mut builder = Builder::new(&config);
     for path in &files {
         let bytes = fs::read(root.join(path))?;
