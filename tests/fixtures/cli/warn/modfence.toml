@@ -1,0 +1,8 @@
+version = 1
+
+[[rule]]
+id = "no-b"
+from = { path = "a/**" }
+to = { path = "b/**" }
+effect = "forbid"
+severity = "warning"
