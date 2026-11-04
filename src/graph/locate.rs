@@ -74,10 +74,15 @@ impl Files<'_> {
                 return Resolved::Files(found.into_iter().collect());
             }
         }
-        if dots > 0 {
+        let head = module.split('/').next().unwrap_or_default();
+        let analysed = self
+            .python_roots
+            .iter()
+            .any(|root| self.python_module(&join(root, head), false).is_some());
+        if dots > 0 || analysed {
             Resolved::Unplaced
         } else {
-            Resolved::External(module.split('/').next().unwrap_or_default().to_owned())
+            Resolved::External(head.to_owned())
         }
     }
 

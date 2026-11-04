@@ -181,6 +181,7 @@ impl<'c> Builder<'c> {
                             message: format!("cannot place the import of `{}`", import.specifier),
                         });
                         let external = acc.external(file.lang, &import.specifier);
+                        acc.unplaced.insert(external.clone());
                         (vec![external], Confidence::Heuristic)
                     }
                 };
@@ -200,7 +201,7 @@ impl<'c> Builder<'c> {
         let exports = collect_exports(&files, &acc);
         for file in &files {
             let module = module_id(file.lang, &file.path);
-            let mut scope = vec![file.path.as_str()];
+            let mut scope = BTreeSet::from([file.path.as_str()]);
             if let Some(others) = imported.get(&file.path) {
                 scope.extend(others.iter().map(String::as_str));
             }
@@ -295,7 +296,8 @@ fn site_of(file: &FileEntry, span: Span) -> Site {
     }
 }
 
-/// Whether the comment at `span` is the first thing on its line.
+/// Whether the comment at `span` is the first thing on its line. Columns are
+/// code points, as in [`Span`]; a line the text does not have is not.
 fn own_line(text: &str, span: Span) -> bool {
     let row = usize::try_from(span.start_line)
         .unwrap_or(0)
@@ -305,7 +307,7 @@ fn own_line(text: &str, span: Span) -> bool {
         .saturating_sub(1);
     text.lines()
         .nth(row)
-        .is_none_or(|line| line.chars().take(column).all(char::is_whitespace))
+        .is_some_and(|line| line.chars().take(column).all(char::is_whitespace))
 }
 
 /// Whether an import names the export: the exported name is one of the
@@ -323,6 +325,9 @@ type EdgeKey = (NodeId, NodeId, Relation, Option<Confidence>);
 struct Assembly {
     nodes: BTreeMap<NodeId, Node>,
     edges: BTreeMap<EdgeKey, Vec<(Site, String)>>,
+    /// External nodes made for an import that could not be placed: not
+    /// packages, so a `package` selector never matches them.
+    unplaced: BTreeSet<NodeId>,
 }
 
 impl Assembly {
@@ -462,6 +467,7 @@ impl Assembly {
             .collect();
         let none = Tags::new();
         for node in self.nodes.values_mut() {
+            let is_package = node.kind == NodeKind::External && !self.unplaced.contains(&node.id);
             let inline: Vec<&Tags> = match node.kind {
                 NodeKind::Module | NodeKind::Symbol => node
                     .path
@@ -477,7 +483,7 @@ impl Assembly {
                 kind: node.kind,
                 lang: node.lang,
                 path: node.path.as_deref(),
-                package: (node.kind == NodeKind::External).then_some(node.label.as_str()),
+                package: is_package.then_some(node.label.as_str()),
                 tags: &none,
             };
             let tags = config.effective_tags(&subject, &inline);

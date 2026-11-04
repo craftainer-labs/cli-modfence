@@ -6,8 +6,8 @@ use modfence::config::{self, Config, Severity};
 use modfence::extract::python::PythonExtractor;
 use modfence::extract::typescript::TsExtractor;
 use modfence::extract::{
-    BindingExport, BindingFramework, DiagnosticCode, ExtractCtx, Extractor, FileFacts, ImportEdge,
-    Lang, Node, NodeId, NodeKind, SourceFile, Span, SymbolKind, Tags,
+    Annotation, BindingExport, BindingFramework, DiagnosticCode, ExtractCtx, Extractor, FileFacts,
+    ImportEdge, Lang, Node, NodeId, NodeKind, SourceFile, Span, SymbolKind, Tags,
 };
 use modfence::graph::{Binding, Builder, Confidence, Edge, Graph, INVALID_ANNOTATION, Relation};
 
@@ -343,6 +343,73 @@ fn a_bare_relative_import_names_the_package_not_a_sibling_module() {
     let package = module(Lang::Py, "a/__init__.py").to_string();
     let targets = outgoing(&graph, Relation::Imports, &from);
     assert_eq!(targets, [row(&package, Confidence::Resolved, 1)]);
+}
+
+// An import of an analysed package that does not resolve is unplaced, not an
+// external package; unplaced targets are not matched by `package` selectors.
+#[test]
+fn unplaced_imports_are_not_packages() {
+    let config = config::parse(
+        "version = 1\n[[node]]\npackage = \"**\"\ntags = { boundary = \"net\" }\n",
+    )
+    .unwrap();
+    let user = "import requests\nimport app.missing\nfrom app.sub import x\nfrom .gone import y\n";
+    let graph = build_with(&config, &[("app/__init__.py", ""), ("user.py", user)]);
+    assert_well_formed(&graph);
+    let imports = outgoing(&graph, Relation::Imports, &module(Lang::Py, "user.py"));
+    assert_eq!(
+        imports,
+        [
+            row("ext:py:.gone", Confidence::Heuristic, 1),
+            row("ext:py:app.missing", Confidence::Heuristic, 1),
+            row("ext:py:app.sub", Confidence::Heuristic, 1),
+            row("ext:py:requests", Confidence::Resolved, 1),
+        ]
+    );
+    let lines: Vec<u32> = graph
+        .diagnostics
+        .iter()
+        .map(|d| d.span.unwrap().start_line)
+        .collect();
+    assert_eq!(lines, [2, 3, 4]);
+    let boundary = |name: &str| graph.nodes[&external(Lang::Py, name)].tags.len();
+    assert_eq!(boundary("requests"), 1);
+    for name in [".gone", "app.missing", "app.sub"] {
+        assert_eq!(boundary(name), 0, "{name}");
+    }
+}
+
+// A call is linked once per file in scope, even when a file imports itself.
+#[test]
+fn a_self_import_does_not_double_a_call() {
+    let init = "from . import gone\n\n\ndef f():\n    pass\n\n\nf()\n";
+    let graph = build(&[("a/__init__.py", init)]);
+    let at = module(Lang::Py, "a/__init__.py");
+    let calls = outgoing(&graph, Relation::Calls, &at);
+    assert_eq!(calls, [row("sym:py:a/__init__.py#f", Confidence::Heuristic, 1)]);
+}
+
+// A trailing-tag check needs the comment's line; a line the text lacks is not
+// an own-line comment.
+#[test]
+fn an_annotation_on_a_missing_line_is_not_own_line() {
+    let mut facts = extract("a.py", "x = 1\n");
+    let at = Span::new(9, 1, 9, 20).unwrap();
+    facts
+        .annotations
+        .push(Annotation::from_comment("modfence: layer=a", at, None).unwrap());
+    let config = Config::default();
+    let mut builder = Builder::new(&config);
+    builder.add(
+        &SourceFile {
+            path: "a.py",
+            text: "x = 1\n",
+        },
+        facts,
+    );
+    let graph = builder.build();
+    assert_eq!(graph.findings.len(), 1);
+    assert_eq!(graph.findings[0].severity, Severity::Warning);
 }
 
 #[test]
