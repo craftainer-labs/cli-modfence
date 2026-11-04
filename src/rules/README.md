@@ -10,6 +10,9 @@ The rules engine (ADR 0004, "Evaluation"). It reads a `graph::Graph` and a
   violations.
 - `eval.rs`: `Judge`, which judges one site: layers, then the explicit rules in
   file order (first match decides), then the `default` effect.
+- `subject` (in `eval.rs`, `pub(crate)`): the facts a selector looks at for a
+  node, used by the judge and by `modfence trace`, so a selector means the same
+  in both.
 - `lint.rs`: notices about the configuration (a rule that can never match,
   `layers` with no `layer` tag).
 

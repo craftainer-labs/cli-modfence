@@ -24,7 +24,10 @@ Rules:
 - `exclude` patterns follow gitignore: without a `/` (other than a trailing
   one) a pattern matches at any depth; with one it is anchored at the analysis
   root, as is a leading `/`; a trailing `/` matches directories and everything
-  below; `*` does not cross `/`, `**` does. Negation (`!`) is not supported.
+  below; `*` does not cross `/`, `**` does. `ExcludeGlob::is_match` is for a
+  file (everything below an excluded directory matches); `is_dir_match` is for
+  a directory, and is also true for a directory named by a `dir/` pattern, so a
+  walker can prune it without reading it. Negation (`!`) is not supported.
 - `package = "*"` does not match scoped npm names such as `@babel/core`
   (`*` does not cross `/`); use `@*/*` for those, or `**` for all packages.
 - Selector tag values go through the same `TagValue` parser as node tags.

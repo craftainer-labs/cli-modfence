@@ -5,7 +5,9 @@ use std::path::PathBuf;
 use clap::{Args, Parser, Subcommand, ValueEnum};
 
 use super::Failure;
-use crate::config::Severity;
+use crate::config::{Severity, validate_tag_key};
+use crate::graph::Graph;
+use crate::output::{self, Json, Renderer, View};
 
 /// A cross-language module-boundary checker for Python, TypeScript and Rust.
 #[derive(Debug, Parser)]
@@ -91,15 +93,15 @@ pub(super) struct CheckArgs {
 pub(super) enum ViewFormat {
     /// Human-readable text.
     Text,
-    /// The graph document (NC5).
+    /// The graph document.
     Json,
-    /// Graphviz DOT (NC5).
+    /// Graphviz DOT (NC5b).
     Dot,
-    /// Mermaid (NC5).
+    /// Mermaid (NC5b).
     Mermaid,
-    /// `GraphML` (NC5).
+    /// `GraphML` (NC5b).
     Graphml,
-    /// Interactive HTML (NC5).
+    /// Interactive HTML (NC5c).
     Html,
 }
 
@@ -114,39 +116,62 @@ pub(super) enum Level {
     Symbol,
 }
 
+impl From<Level> for output::Level {
+    fn from(level: Level) -> Self {
+        match level {
+            Level::Package => Self::Package,
+            Level::Module => Self::Module,
+            Level::Symbol => Self::Symbol,
+        }
+    }
+}
+
+/// Reads the value of `--group-by`: a tag key, as in a selector.
+fn tag_key(raw: &str) -> Result<String, String> {
+    validate_tag_key(raw).map(|()| raw.to_owned())
+}
+
 /// The arguments of `graph`, and the flags `trace` shares with it.
 #[derive(Debug, Args)]
 pub(super) struct ViewArgs {
     /// The common flags.
     #[command(flatten)]
     pub(super) common: Common,
-    /// The output format. Only `text` exists until NC5.
+    /// The output format. Machine formats need an explicit `--format`.
     #[arg(long, value_enum, default_value = "text")]
     pub(super) format: ViewFormat,
-    /// Cluster nodes by the values of this tag key (NC5).
-    #[arg(long, value_name = "KEY")]
+    /// Cluster the nodes of a diagram by the values of this tag key, instead
+    /// of by package.
+    #[arg(long, value_name = "KEY", value_parser = tag_key)]
     pub(super) group_by: Option<String>,
-    /// How much a diagram shows (NC5).
-    #[arg(long, value_enum)]
-    pub(super) level: Option<Level>,
+    /// How much a diagram shows. JSON always has everything.
+    #[arg(long, value_enum, default_value = "module")]
+    pub(super) level: Level,
 }
 
 impl ViewArgs {
-    /// Refuses what the output layer (NC5) does not provide yet.
-    pub(super) fn require_text(&self) -> Result<(), Failure> {
-        if self.format != ViewFormat::Text {
-            let name = format!("{:?}", self.format).to_lowercase();
-            return Err(Failure::usage(format!(
-                "--format {name} is not implemented yet (NC5)"
-            )));
+    /// The renderer of `--format`, or `None` for the human text. A format that
+    /// the output layer does not provide yet is a usage error. A format adds
+    /// one arm here.
+    pub(super) fn renderer(&self) -> Result<Option<&'static dyn Renderer>, Failure> {
+        match self.format {
+            ViewFormat::Text => Ok(None),
+            ViewFormat::Json => Ok(Some(&Json)),
+            ViewFormat::Dot => Err(Self::pending("dot")),
+            ViewFormat::Mermaid => Err(Self::pending("mermaid")),
+            ViewFormat::Graphml => Err(Self::pending("graphml")),
+            ViewFormat::Html => Err(Self::pending("html")),
         }
-        if self.group_by.is_some() {
-            return Err(Failure::usage("--group-by is not implemented yet (NC5)"));
-        }
-        if self.level.is_some() {
-            return Err(Failure::usage("--level is not implemented yet (NC5)"));
-        }
-        Ok(())
+    }
+
+    /// The refusal of a format that is not implemented yet.
+    fn pending(name: &str) -> Failure {
+        Failure::usage(format!("--format {name} is not implemented yet (NC5)"))
+    }
+
+    /// The view of `graph` that `--level` and `--group-by` ask for.
+    pub(super) fn view<'a>(&self, graph: &'a Graph) -> View<'a> {
+        View::new(graph, self.level.into(), self.group_by.as_deref())
     }
 }
 

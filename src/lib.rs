@@ -9,6 +9,7 @@ mod cli;
 pub mod config;
 pub mod extract;
 pub mod graph;
+pub mod output;
 pub mod report;
 pub mod rules;
 

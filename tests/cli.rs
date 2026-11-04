@@ -180,34 +180,45 @@ fn graph_prints_a_text_summary() {
     assert!(run.out.contains("nodes: "));
     assert!(run.out.contains("edges: "));
     assert!(run.out.contains("diagnostics: "), "{}", run.out);
-    assert_eq!(on("missing", &["graph"]).code, 2);
+    assert_eq!(on("missing", &["graph"]).code, 74);
 }
 
 #[test]
-fn what_the_output_layer_lacks_is_a_usage_error() {
-    for format in ["json", "dot", "mermaid", "graphml", "html"] {
+fn the_formats_of_later_items_are_a_usage_error() {
+    for format in ["dot", "mermaid", "graphml", "html"] {
         for command in [&["graph"][..], &["trace", "layer=ui"]] {
             let mut args = command.to_vec();
             args.extend(["--format", format]);
             let run = on("app", &args);
             assert_eq!(run.code, 2, "{format}");
+            assert_eq!(run.out, "");
             assert_eq!(
                 run.err,
                 format!("error: --format {format} is not implemented yet (NC5)\n")
             );
         }
     }
-    let group = on("app", &["graph", "--group-by", "layer"]);
-    assert_eq!(group.code, 2);
-    assert!(
-        group
-            .err
-            .contains("--group-by is not implemented yet (NC5)")
-    );
+}
+
+#[test]
+fn level_and_group_by_are_validated_and_leave_the_text_alone() {
+    let plain = on("app", &["graph"]);
     for level in ["package", "module", "symbol"] {
-        let run = on("app", &["trace", "layer=ui", "--level", level]);
-        assert_eq!(run.code, 2);
-        assert!(run.err.contains("--level is not implemented yet (NC5)"));
+        let run = on("app", &["graph", "--level", level, "--group-by", "layer"]);
+        assert_eq!(run.code, 0, "{level}");
+        assert_eq!(run.out, plain.out);
+    }
+    let traced = on("app", &["trace", "layer=ui", "--level", "package"]);
+    assert_eq!(traced.out, on("app", &["trace", "layer=ui"]).out);
+    for args in [
+        &["graph", "--level", "file"][..],
+        &["graph", "--group-by", "Layer"],
+        &["graph", "--group-by", "path"],
+        &["trace", "layer=ui", "--group-by", ""],
+    ] {
+        let run = on("app", args);
+        assert_eq!(run.code, 2, "{args:?}");
+        assert!(run.err.starts_with("error:"), "{}", run.err);
     }
 }
 
@@ -243,7 +254,15 @@ fn trace_rejects_malformed_selectors() {
         (&["layer=a", "layer=b"], "`layer` is given twice"),
         (&["Layer=a"], "selector key"),
         (&["lang=java"], "unknown language"),
-        (&["layer="], "must not be empty"),
+        (&["layer="], "`layer=` has an empty value"),
+        (&["layer=\"\""], "has an empty value"),
+        (&["layer=a,"], "has an empty value"),
+        (&["layer=,a"], "has an empty value"),
+        (&["layer=a,,b"], "has an empty value"),
+        (&["path="], "has an empty value"),
+        (&["layer=a\"b\""], "does not wrap a whole value"),
+        (&["layer=\"a\"b"], "does not wrap a whole value"),
+        (&["layer=a,b\"c"], "does not wrap a whole value"),
     ] {
         let run = on("app", &[&["trace"][..], selector].concat());
         assert_eq!(run.code, 2, "{selector:?}");
@@ -252,13 +271,15 @@ fn trace_rejects_malformed_selectors() {
 }
 
 #[test]
-fn configuration_errors_are_exit_2() {
+fn an_unreadable_configuration_is_exit_74_and_an_invalid_one_exit_2() {
     let missing = exec(&["check", "--config", "/nonexistent/modfence.toml"]);
-    assert_eq!(missing.code, 2);
+    assert_eq!(missing.code, 74);
     assert!(
         missing
             .err
-            .contains("cannot read /nonexistent/modfence.toml")
+            .contains("error: cannot read /nonexistent/modfence.toml: "),
+        "{}",
+        missing.err
     );
     let directory = scratch("bad-config");
     let file = directory.join("modfence.toml");
@@ -266,6 +287,15 @@ fn configuration_errors_are_exit_2() {
     let bad = exec(&["check", "--config", file.to_str().unwrap()]);
     assert_eq!(bad.code, 2);
     assert!(bad.err.contains("modfence.toml:2:1"), "{}", bad.err);
+    // Not UTF-8: the file cannot be read as text, which is an I/O error.
+    std::fs::write(&file, [0xff, 0xfe, 0x00]).unwrap();
+    let unreadable = exec(&["check", "--config", file.to_str().unwrap()]);
+    assert_eq!(unreadable.code, 74);
+    assert!(unreadable.err.contains("cannot read"), "{}", unreadable.err);
+    // The same for a configuration found by walking up.
+    let found = binary(&["check"], &directory);
+    assert_eq!(found.status.code(), Some(74));
+    assert!(String::from_utf8_lossy(&found.stderr).contains("cannot read"));
     std::fs::remove_dir_all(&directory).unwrap();
 }
 
@@ -293,6 +323,16 @@ fn broken_streams_exit_74() {
         run(&["graph", "--config", config], &mut Broken, &mut Broken),
         broken
     );
+    // A failed write to standard output names what failed.
+    let mut stderr = Vec::new();
+    let code = modfence::run(
+        ["graph", "--config", config].map(OsString::from),
+        &mut Broken,
+        &mut stderr,
+    );
+    assert_eq!(code, broken);
+    let shown = String::from_utf8(stderr).unwrap();
+    assert!(shown.contains("error: cannot write output: "), "{shown}");
     let mut sink = Vec::new();
     let mut err = Broken;
     let code = modfence::run(
@@ -331,4 +371,127 @@ fn without_a_modfence_toml_the_working_directory_is_analysed() {
     assert_eq!(run.status.code(), Some(0));
     assert!(String::from_utf8_lossy(&run.stdout).contains("languages: py\n"));
     std::fs::remove_dir_all(&directory).unwrap();
+}
+
+/// The JSON of `text` with the version, which is stamped at release time,
+/// replaced.
+fn unversioned(text: &str) -> serde_json::Value {
+    let mut document: serde_json::Value = serde_json::from_str(text).unwrap();
+    assert_eq!(
+        document["graph"]["metadata"]["tool"]["version"],
+        env!("CARGO_PKG_VERSION")
+    );
+    document["graph"]["metadata"]["tool"]["version"] = "0.0.0".into();
+    document
+}
+
+// ADR 0003, "Output format": the graph document. The golden file is
+// validated against schema/modfence-graph.schema.json by the `graph-json`
+// hook, so equality with it is schema validity.
+#[test]
+fn graph_json_matches_the_golden_file_and_ignores_the_view_flags() {
+    let golden = unversioned(include_str!("golden/json.graph.json"));
+    let run = on("json", &["graph", "--format", "json"]);
+    assert_eq!(run.code, 0, "{}", run.err);
+    assert!(run.out.ends_with("}\n"));
+    assert_eq!(unversioned(&run.out), golden, "{}", run.out);
+    let flags = ["--level", "package", "--group-by", "layer"];
+    let narrowed = on("json", &[&["graph", "--format", "json"][..], &flags].concat());
+    assert_eq!(narrowed.out, run.out);
+    assert_eq!(run.err, "");
+}
+
+// ADR 0004, invariant 23: the same document, restricted to the matching nodes,
+// their edges and the edges' other ends.
+#[test]
+fn trace_json_is_the_graph_document_of_the_selection() {
+    let golden = unversioned(include_str!("golden/json-trace.graph.json"));
+    let run = on("json", &["trace", "package=requests", "--format", "json"]);
+    assert_eq!(run.code, 0, "{}", run.err);
+    assert_eq!(unversioned(&run.out), golden, "{}", run.out);
+    let none = on("json", &["trace", "layer=nope", "--format", "json"]);
+    let empty = unversioned(&none.out);
+    assert_eq!(empty["graph"]["nodes"], serde_json::json!({}));
+    assert_eq!(empty["graph"]["edges"], serde_json::json!([]));
+}
+
+#[test]
+fn json_goes_to_a_file_when_asked() {
+    let directory = scratch("json-output");
+    let file = directory.join("graph.json");
+    let target = file.to_str().unwrap();
+    let run = on("json", &["graph", "--format", "json", "--output", target]);
+    assert_eq!(run.code, 0);
+    assert_eq!(run.out, "");
+    let written = std::fs::read_to_string(&file).unwrap();
+    assert_eq!(
+        unversioned(&written),
+        unversioned(include_str!("golden/json.graph.json"))
+    );
+    std::fs::remove_dir_all(&directory).unwrap();
+}
+
+// ADR 0003, invariant 6, and ADR 0004: `package` means the same in `trace` as
+// in a rule of modfence.toml, so it never matches an import that could not be
+// placed.
+#[test]
+fn trace_judges_a_node_like_a_rule_does() {
+    let both = on("trace", &["trace", "kind=external"]);
+    assert!(both.out.starts_with("nodes: 2\n"), "{}", both.out);
+    assert!(both.out.contains("missing"), "{}", both.out);
+    let packages = on("trace", &["trace", "kind=external", "package=**"]);
+    assert!(packages.out.starts_with("nodes: 1\n"), "{}", packages.out);
+    assert!(packages.out.contains("node"), "{}", packages.out);
+    assert!(!packages.out.contains("missing"), "{}", packages.out);
+}
+
+#[cfg(unix)]
+mod unreadable {
+    use std::os::unix::fs::PermissionsExt;
+    use std::path::Path;
+
+    use super::{binary, scratch};
+
+    /// Makes `path` a directory nobody can list; `false` when the process can
+    /// list it anyway (it runs as root), so the test has nothing to show.
+    fn lock(path: &Path) -> bool {
+        std::fs::create_dir_all(path).unwrap();
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0)).unwrap();
+        if std::fs::read_dir(path).is_ok() {
+            unlock(path);
+            return false;
+        }
+        true
+    }
+
+    fn unlock(path: &Path) {
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755)).unwrap();
+    }
+
+    // The walker does not read an excluded directory, and names the nested
+    // directory it fails on.
+    #[test]
+    fn the_walker_prunes_excluded_directories_and_names_the_failing_one() {
+        let root = scratch("walk");
+        std::fs::write(root.join("modfence.toml"), "version = 1\nexclude = [\"vendor/\"]\n")
+            .unwrap();
+        std::fs::write(root.join("a.py"), "x = 1\n").unwrap();
+        let vendor = root.join("deep/vendor");
+        if !lock(&vendor) {
+            std::fs::remove_dir_all(&root).unwrap();
+            return;
+        }
+        let pruned = binary(&["graph"], &root);
+        assert_eq!(pruned.status.code(), Some(0), "{pruned:?}");
+        unlock(&vendor);
+        let hidden = root.join("deep/hidden");
+        assert!(lock(&hidden));
+        let failed = binary(&["graph"], &root);
+        assert_eq!(failed.status.code(), Some(74));
+        let message = String::from_utf8_lossy(&failed.stderr).into_owned();
+        assert!(message.contains("cannot walk "), "{message}");
+        assert!(message.contains("deep/hidden"), "{message}");
+        unlock(&hidden);
+        std::fs::remove_dir_all(&root).unwrap();
+    }
 }

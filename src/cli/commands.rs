@@ -12,7 +12,7 @@ use crate::extract::python::PythonExtractor;
 use crate::extract::typescript::TsExtractor;
 use crate::extract::{ExtractCtx, Extractor, SourceFile};
 use crate::graph::{Builder, Graph};
-use crate::{report, rules};
+use crate::{output, report, rules};
 
 /// The name of the configuration file.
 const CONFIG_FILE: &str = "modfence.toml";
@@ -47,22 +47,35 @@ fn run_check(args: &CheckArgs, out: &mut impl Write, err: &mut impl Write) -> Re
 }
 
 fn run_graph(args: &ViewArgs, out: &mut impl Write, err: &mut impl Write) -> Result<u8, Failure> {
-    args.require_text()?;
+    let renderer = args.renderer()?;
     let (_, graph) = analyse(&args.common, err)?;
-    emit(&text::summary(&graph), &args.common, out)?;
+    let rendered = match renderer {
+        Some(renderer) => renderer.render(&graph, &args.view(&graph)),
+        None => text::summary(&graph),
+    };
+    emit(&rendered, &args.common, out)?;
     Ok(OK)
 }
 
 fn run_trace(args: &TraceArgs, out: &mut impl Write, err: &mut impl Write) -> Result<u8, Failure> {
-    args.view.require_text()?;
+    let renderer = args.view.renderer()?;
     let selector = trace::parse(&args.selectors)?;
     let (_, graph) = analyse(&args.view.common, err)?;
-    emit(&trace::render(&graph, &selector), &args.view.common, out)?;
+    let selected = trace::select(&graph, &selector);
+    let part = output::incident(&graph, &selected);
+    let rendered = match renderer {
+        Some(renderer) => renderer.render(&part, &args.view.view(&part)),
+        None => trace::render(&part, &selected),
+    };
+    emit(&rendered, &args.view.common, out)?;
     Ok(OK)
 }
 
 /// Turns an I/O error on `path` into a failure that names the action and path.
-fn failed<'a>(action: &'a str, path: &'a Path) -> impl Fn(std::io::Error) -> Failure + 'a {
+pub(super) fn failed<'a>(
+    action: &'a str,
+    path: &'a Path,
+) -> impl Fn(std::io::Error) -> Failure + 'a {
     move |error| Failure::io(format!("cannot {action} {}", path.display()), &error)
 }
 
@@ -82,10 +95,10 @@ fn discover(start: &Path) -> Option<PathBuf> {
         .find(|candidate| candidate.is_file())
 }
 
-/// Reads and parses a configuration file.
+/// Reads and parses a configuration file: a file that cannot be read is an
+/// I/O error (74), content that is not a valid configuration a usage error.
 fn load(path: &Path) -> Result<Config, Failure> {
-    let source = fs::read_to_string(path)
-        .map_err(|error| Failure::usage(format!("cannot read {}: {error}", path.display())))?;
+    let source = fs::read_to_string(path).map_err(failed("read", path))?;
     config::parse(&source).map_err(|error| Failure::usage(format!("{}:{error}", path.display())))
 }
 
@@ -105,7 +118,7 @@ fn analyse(common: &Common, err: &mut impl Write) -> Result<(Config, Graph), Fai
     };
     let extractors: [&dyn Extractor; 2] = [&PythonExtractor, &TsExtractor];
     let wanted = |path: &str| extractors.iter().any(|extractor| extractor.handles(path));
-    let files = walker::walk(&root, &config, wanted).map_err(failed("walk", &root))?;
+    let files = walker::walk(&root, &config, wanted)?;
     let mut builder = Builder::new(&config);
     for path in &files {
         let full = root.join(path);

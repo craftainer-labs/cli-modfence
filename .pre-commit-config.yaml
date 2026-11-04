@@ -225,6 +225,22 @@ repos:
         files: ^(scripts/(binaries/|test_release_binaries\.py)|dist-workspace\.toml|pyproject\.toml|packaging\.toml|\.pre-commit-hooks\.yaml|Cargo\.toml|\.github/workflows/(build|release)-binaries\.yml)
         stages: [pre-commit, manual]
 
+  # The graph document (ADR 0003, I3): the committed graph JSON validates
+  # against schema/modfence-graph.schema.json. ajv runs in Node, not as a Rust
+  # crate; its versions are exact so the check cannot drift. The files go in as
+  # one glob because ajv-cli takes a single --data argument. --strict=false
+  # only silences ajv's strictTypes notes about the schema's if/then branches.
+  - repo: local
+    hooks:
+      - id: graph-json-schema
+        name: graph JSON validates against schema/modfence-graph.schema.json (ajv)
+        entry: ajv validate --spec=draft2020 --strict=false -s schema/modfence-graph.schema.json -d "{schema/examples/graph.example.json,tests/golden/*.graph.json}"
+        language: node
+        additional_dependencies: ["ajv-cli@5.0.0", "ajv@8.17.1"]
+        pass_filenames: false
+        files: ^(schema/modfence-graph\.schema\.json|schema/examples/graph\.example\.json|tests/golden/[^/]+\.graph\.json)$
+        stages: [pre-commit, manual]
+
   # Supply-chain/secret scanners (OWASP A01/A03/A04/A08 -- see
   # docs/TEMPLATE.md's "Checks"). Revs are tags, not SHAs: Renovate's
   # pre-commit manager bumps tags directly, and a SHA + "# frozen: vX"

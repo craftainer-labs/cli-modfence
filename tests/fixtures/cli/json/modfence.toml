@@ -1,0 +1,9 @@
+version = 1
+
+[[node]]
+match = "pkg/**"
+tags = { layer = "domain" }
+
+[[node]]
+package = "requests"
+tags = { boundary = "network" }

@@ -40,9 +40,7 @@ impl Failure {
             message: message.into(),
         }
     }
-}
 
-impl Failure {
     /// A file or stream that could not be read or written, naming `what`.
     fn io(what: impl std::fmt::Display, error: &std::io::Error) -> Self {
         Self {
@@ -52,12 +50,10 @@ impl Failure {
     }
 }
 
+/// A write to standard output (or error) that failed.
 impl From<std::io::Error> for Failure {
     fn from(error: std::io::Error) -> Self {
-        Self {
-            code: IO_ERROR,
-            message: error.to_string(),
-        }
+        Self::io("cannot write output", &error)
     }
 }
 

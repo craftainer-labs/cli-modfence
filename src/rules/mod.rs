@@ -20,6 +20,8 @@
 mod eval;
 mod lint;
 
+pub(crate) use self::eval::subject;
+
 use std::collections::BTreeSet;
 
 use crate::config::{Config, Severity};

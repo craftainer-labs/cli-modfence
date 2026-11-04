@@ -1,0 +1,41 @@
+{
+  "graph": {
+    "directed": true,
+    "type": "modfence.dependency-graph",
+    "metadata": {
+      "schema_version": "1.0",
+      "tool": { "name": "modfence", "version": "0.0.0" },
+      "root": ".",
+      "backend": "tree-sitter",
+      "languages": ["py"],
+      "diagnostics": []
+    },
+    "nodes": {
+      "ext:py:requests": {
+        "label": "requests",
+        "metadata": { "kind": "external", "lang": "py", "tags": { "boundary": ["network"] } }
+      },
+      "mod:py:pkg/orders.py": {
+        "label": "pkg/orders.py",
+        "metadata": { "kind": "module", "lang": "py", "path": "pkg/orders.py", "tags": { "layer": ["domain"] } }
+      }
+    },
+    "edges": [
+      {
+        "source": "mod:py:pkg/orders.py",
+        "target": "ext:py:requests",
+        "relation": "imports",
+        "metadata": {
+          "confidence": "resolved",
+          "origin": "tree-sitter",
+          "specifier": "requests",
+          "count": 1,
+          "site": {
+            "path": "pkg/orders.py",
+            "span": { "start_line": 1, "start_column": 1, "end_line": 1, "end_column": 16 }
+          }
+        }
+      }
+    ]
+  }
+}

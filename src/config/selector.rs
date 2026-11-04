@@ -78,7 +78,12 @@ impl Parse for PathGlob {
 /// below it.
 #[derive(Debug, Clone)]
 pub struct ExcludeGlob {
+    /// The pattern itself, for a pattern without a trailing `/`.
     itself: Option<GlobMatcher>,
+    /// The pattern itself, for a pattern with a trailing `/`: it matches a
+    /// directory but not a file of that name.
+    directory: Option<GlobMatcher>,
+    /// Everything below a match.
     below: GlobMatcher,
 }
 
@@ -90,6 +95,16 @@ impl ExcludeGlob {
             Some(glob) if glob.is_match(path) => true,
             _ => self.below.is_match(path),
         }
+    }
+
+    /// Whether the root-relative, `/`-separated directory `path` is excluded,
+    /// so a walker can skip it without reading it. Unlike [`is_match`], this is
+    /// also true for a directory named by a pattern with a trailing `/`.
+    ///
+    /// [`is_match`]: Self::is_match
+    #[must_use]
+    pub fn is_dir_match(&self, path: &str) -> bool {
+        self.is_match(path) || self.directory.as_ref().is_some_and(|glob| glob.is_match(path))
     }
 }
 
@@ -104,7 +119,7 @@ impl Parse for ExcludePattern {
             return Err("a glob must not be empty".to_owned());
         }
         let invalid = |error: String| format!("invalid glob `{text}`: {error}");
-        let (body, directory) = match text.strip_suffix('/') {
+        let (body, directory_only) = match text.strip_suffix('/') {
             Some(body) => (body, true),
             None => (text, false),
         };
@@ -121,12 +136,17 @@ impl Parse for ExcludePattern {
             format!("**/{body}")
         };
         let below = compile_glob(&format!("{base}/**")).map_err(invalid)?;
-        let itself = if directory {
-            None
+        let whole = compile_glob(&base).map_err(invalid)?;
+        let (itself, directory) = if directory_only {
+            (None, Some(whole))
         } else {
-            Some(compile_glob(&base).map_err(invalid)?)
+            (Some(whole), None)
         };
-        Ok(ExcludeGlob { itself, below })
+        Ok(ExcludeGlob {
+            itself,
+            directory,
+            below,
+        })
     }
 }
 
