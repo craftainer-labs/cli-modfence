@@ -33,7 +33,7 @@ const fn command(severity: Severity) -> &'static str {
 /// [`ANNOTATIONS_PER_LEVEL`] of each level, then one summary line.
 #[must_use]
 pub fn render(outcome: &Outcome) -> String {
-    let mut out = String::new();
+    let mut lines: Vec<String> = Vec::new();
     let mut totals: BTreeMap<Severity, usize> = BTreeMap::new();
     let mut shown: BTreeMap<Severity, usize> = BTreeMap::new();
     for violation in &outcome.violations {
@@ -43,8 +43,8 @@ pub fn render(outcome: &Outcome) -> String {
             continue;
         }
         *count += 1;
-        out.push_str(&format!(
-            "::{} file={},line={},col={},title={}::{}\n",
+        lines.push(format!(
+            "::{} file={},line={},col={},title={}::{}",
             command(violation.severity),
             escape_property(&violation.path),
             violation.span.start_line,
@@ -54,15 +54,18 @@ pub fn render(outcome: &Outcome) -> String {
         ));
     }
     let total = |severity: Severity| totals.get(&severity).copied().unwrap_or_default();
-    out.push_str(&format!(
+    let mut summary = format!(
         "modfence: errors: {}, warnings: {}, notes: {}",
         total(Severity::Error),
         total(Severity::Warning),
         total(Severity::Note),
-    ));
+    );
     if outcome.violations.len() > shown.values().sum::<usize>() {
-        out.push_str(&format!("; annotated the first {ANNOTATIONS_PER_LEVEL} of each level"));
+        summary = format!(
+            "{summary}; annotated the first {ANNOTATIONS_PER_LEVEL} of each level"
+        );
     }
-    out.push('\n');
-    out
+    lines.push(summary);
+    lines.push(String::new());
+    lines.join("\n")
 }

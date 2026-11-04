@@ -87,7 +87,9 @@ fn run_of(document: &Value) -> &Value {
 
 /// Drops the version, which is stamped at release time.
 fn without_version(mut document: Value) -> Value {
-    let driver = document["runs"][0]["tool"]["driver"].as_object_mut().unwrap();
+    let driver = document["runs"][0]["tool"]["driver"]
+        .as_object_mut()
+        .unwrap();
     driver.remove("version");
     document
 }
@@ -138,7 +140,9 @@ fn the_sarif_document_matches_the_golden_file() {
 fn every_result_and_rule_has_what_github_requires() {
     let head = "[[rule]]\nid = \"ok\"\nfrom = { path = \"a\" }\nto = { path = \"b\" }\n";
     let allow = format!("{head}effect = \"allow\"\n");
-    let forbid = allow.replace("allow", "forbid").replace("\"ok\"", "\"bad\"");
+    let forbid = allow
+        .replace("allow", "forbid")
+        .replace("\"ok\"", "\"bad\"");
     let config = cfg(&format!("{allow}{forbid}{NO_B}"));
     let text = sarif::render(&outcome(vec![edge_violation(span(1, 1, 5))]), &config);
     let document = parse(&text);
@@ -171,7 +175,10 @@ fn every_result_and_rule_has_what_github_requires() {
     }
     let fingerprint = &result["partialFingerprints"]["primaryLocationLineHash"];
     assert!(fingerprint.as_str().unwrap().ends_with(":1"));
-    assert_eq!(result["properties"]["from"]["tags"]["owner"], json!(["web"]));
+    assert_eq!(
+        result["properties"]["from"]["tags"]["owner"],
+        json!(["web"])
+    );
 }
 
 #[test]
@@ -181,7 +188,10 @@ fn a_precise_run_records_that_call_edges_were_checked() {
     let run = run_of(&document);
     let modfence = json!({ "precise": true, "callEdgesChecked": true });
     assert_eq!(run["properties"]["modfence"], modfence);
-    assert_eq!(run["invocations"][0]["toolExecutionNotifications"], json!([]));
+    assert_eq!(
+        run["invocations"][0]["toolExecutionNotifications"],
+        json!([])
+    );
     assert_eq!(run["results"], json!([]));
 }
 
@@ -196,15 +206,25 @@ fn an_external_target_has_no_file_location() {
         let mut builder = Builder::new(&config);
         for (path, text) in files {
             let file = SourceFile { path, text };
-            builder.add(&file, PythonExtractor.extract(&file, &ExtractCtx::default()));
+            builder.add(
+                &file,
+                PythonExtractor.extract(&file, &ExtractCtx::default()),
+            );
         }
         builder.build()
     };
     let checked = rules::check(&graph, &config, true);
     let document = parse(&sarif::render(&checked, &config));
     let result = &run_of(&document)["results"][0];
-    assert_eq!(result["relatedLocations"][0]["message"]["text"], "ext:py:requests");
-    assert!(result["relatedLocations"][0].get("physicalLocation").is_none());
+    assert_eq!(
+        result["relatedLocations"][0]["message"]["text"],
+        "ext:py:requests"
+    );
+    assert!(
+        result["relatedLocations"][0]
+            .get("physicalLocation")
+            .is_none()
+    );
     assert_eq!(result["properties"]["to"]["node"], "ext:py:requests");
 }
 
@@ -225,7 +245,10 @@ fn the_output_does_not_depend_on_the_order_of_the_files() {
         for &index in order {
             let (path, text) = files[index];
             let file = SourceFile { path, text };
-            builder.add(&file, PythonExtractor.extract(&file, &ExtractCtx::default()));
+            builder.add(
+                &file,
+                PythonExtractor.extract(&file, &ExtractCtx::default()),
+            );
         }
         let checked = rules::check(&builder.build(), &config, true);
         (sarif::render(&checked, &config), github::render(&checked))
@@ -290,6 +313,9 @@ fn annotations_are_capped_per_level() {
     assert_eq!(lines[9], "::error file=a.py,line=10,col=2,title=r::m");
     assert_eq!(lines[10], "::warning file=a.py,line=1,col=2,title=r::m");
     let summary = "modfence: errors: 12, warnings: 3, notes: 0";
-    assert_eq!(lines[13], format!("{summary}; annotated the first 10 of each level"));
+    assert_eq!(
+        lines[13],
+        format!("{summary}; annotated the first 10 of each level")
+    );
     assert_eq!(github::ANNOTATIONS_PER_LEVEL, 10);
 }
