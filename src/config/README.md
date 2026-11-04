@@ -27,6 +27,10 @@ Rules:
   below; `*` does not cross `/`, `**` does. Negation (`!`) is not supported.
 - `package = "*"` does not match scoped npm names such as `@babel/core`
   (`*` does not cross `/`); use `@*/*` for those, or `**` for all packages.
+- Selector tag values go through the same `TagValue` parser as node tags.
+  Selector keys are lowercase names (`SelectorKey`, the pattern of
+  `validate_tag_key`); ADR 0004 allows any tag key, so unknown keys are not
+  errors.
 - Tag value sets are never empty (the TOML and annotation parsers reject
   them); `resolve_tags` still treats an empty set as no contribution.
 - Tests are in `tests/config.rs`; do not add `#[cfg(test)]` modules here.

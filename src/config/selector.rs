@@ -39,20 +39,9 @@ pub(crate) trait Parse {
     fn parse(text: &str) -> Result<Self::Out, String>;
 }
 
-/// A non-empty string.
-pub(crate) struct Plain;
-
-impl Parse for Plain {
-    type Out = String;
-
-    fn parse(text: &str) -> Result<String, String> {
-        if text.is_empty() {
-            Err("a value must not be empty".to_owned())
-        } else {
-            Ok(text.to_owned())
-        }
-    }
-}
+/// What is wrong with a tag value.
+const BAD_TAG_VALUE: &str =
+    "a tag value must not be empty, and a non-empty one may not hold double quotes or control characters";
 
 /// A tag value: non-empty, no double quote, no control character.
 pub(crate) struct TagValue;
@@ -62,10 +51,7 @@ impl Parse for TagValue {
 
     fn parse(text: &str) -> Result<String, String> {
         if text.is_empty() || text.contains('"') || text.chars().any(char::is_control) {
-            Err(
-                "a tag value must be non-empty, without double quotes or control characters"
-                    .to_owned(),
-            )
+            Err(BAD_TAG_VALUE.to_owned())
         } else {
             Ok(text.to_owned())
         }
@@ -326,7 +312,7 @@ impl<'de> Deserialize<'de> for Selector {
                         "lang" => selector.langs = map.next_value::<Many<LangName>>()?.0,
                         "kind" => selector.kinds = map.next_value::<Many<KindName>>()?.0,
                         _ => {
-                            let values = map.next_value::<Many<Plain>>()?.0;
+                            let values = map.next_value::<Many<TagValue>>()?.0;
                             selector.tags.insert(key, values);
                         }
                     }
