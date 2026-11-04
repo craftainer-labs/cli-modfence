@@ -28,7 +28,7 @@ Rules:
   `--config typo.toml` is 74; one that is read but invalid is 2). The status does not depend on `--format`.
 - Human text is the default. Machine formats need an explicit `--format`:
   `check` has `text|sarif|github`; `graph` and `trace` have `text|json`.
-  `dot|mermaid|graphml|html` are accepted by the parser and then refused with
+  `dot|mermaid|graphml` are accepted by the parser and then refused with
   "not implemented yet (NC5)" (exit 2), so scripts fail loudly instead of
   getting text.
 - `--level package|module|symbol` (default `module`) and `--group-by <tag key>`

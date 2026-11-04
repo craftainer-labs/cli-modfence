@@ -429,3 +429,55 @@ fn base64(bytes: &[u8]) -> String {
     }
     out
 }
+
+#[cfg(test)]
+mod tests {
+    use std::fmt::Write as _;
+
+    use super::{base64, sha256};
+
+    /// Lower-case hex of a digest.
+    fn hex(bytes: &[u8]) -> String {
+        bytes.iter().fold(String::new(), |mut out, byte| {
+            let _ = write!(out, "{byte:02x}");
+            out
+        })
+    }
+
+    #[test]
+    fn sha256_matches_the_nist_short_message_vectors() {
+        let cases: [(&str, &str); 3] = [
+            (
+                "",
+                "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            ),
+            (
+                "abc",
+                "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+            ),
+            (
+                "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq",
+                "248d6a61d20638b8e5c026930c3e6039a33ce45964ff2167f6ecedd419db06c1",
+            ),
+        ];
+        for (message, digest) in cases {
+            assert_eq!(hex(&sha256(message.as_bytes())), digest, "{message:?}");
+        }
+    }
+
+    #[test]
+    fn base64_matches_the_rfc_4648_section_10_vectors() {
+        let cases = [
+            ("", ""),
+            ("f", "Zg=="),
+            ("fo", "Zm8="),
+            ("foo", "Zm9v"),
+            ("foob", "Zm9vYg=="),
+            ("fooba", "Zm9vYmE="),
+            ("foobar", "Zm9vYmFy"),
+        ];
+        for (message, encoded) in cases {
+            assert_eq!(base64(message.as_bytes()), encoded, "{message:?}");
+        }
+    }
+}
