@@ -40,8 +40,7 @@ pub(crate) trait Parse {
 }
 
 /// What is wrong with a tag value.
-const BAD_TAG_VALUE: &str =
-    "a tag value must not be empty, and a non-empty one may not hold double quotes or control characters";
+const BAD_TAG_VALUE: &str = "a tag value must not be empty, and a non-empty one may not hold double quotes or control characters";
 
 /// A tag value: non-empty, no double quote, no control character.
 pub(crate) struct TagValue;

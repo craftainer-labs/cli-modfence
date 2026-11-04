@@ -171,10 +171,8 @@ impl<'a> Judge<'a> {
             };
         }
         let internal = from.kind != NodeKind::External && to.kind != NodeKind::External;
-        let denied = self.config.default == DefaultEffect::Deny
-            && by_default
-            && internal
-            && !permits;
+        let denied =
+            self.config.default == DefaultEffect::Deny && by_default && internal && !permits;
         denied.then(|| Hit {
             rule: DEFAULT_DENY.to_owned(),
             severity: Severity::Error,
