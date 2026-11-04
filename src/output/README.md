@@ -104,5 +104,9 @@ formats (DOT, Mermaid, HTML) draw the view and never the graph directly.
 - Golden files are `tests/golden/*.graph.json`; the `graph-json-schema` hook in
   `.pre-commit-config.yaml` validates them, and `schema/examples/`, against the
   schema with ajv (Node), not with a Rust crate.
-- Tests are in `tests/output.rs` and `tests/cli.rs`; do not add `#[cfg(test)]`
-  modules here.
+- Tests are in `tests/output.rs`, `tests/html.rs` and `tests/cli.rs`; do not
+  add `#[cfg(test)]` modules here, with one exception: `html.rs` has a single
+  `tests` module with the known-answer vectors (NIST SHA-256, RFC 4648 base64)
+  for its private `sha256` and `base64`. They are private, and no public
+  surface should be added just to test them. `cargo llvm-cov` leaves
+  `#[cfg(test)]` code out of the measured lines, so the 100% gate is unaffected.
