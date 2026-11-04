@@ -31,11 +31,7 @@ pub(super) fn execute(
     }
 }
 
-fn run_check(
-    args: &CheckArgs,
-    out: &mut impl Write,
-    err: &mut impl Write,
-) -> Result<u8, Failure> {
+fn run_check(args: &CheckArgs, out: &mut impl Write, err: &mut impl Write) -> Result<u8, Failure> {
     let (config, graph) = analyse(&args.common, err)?;
     let outcome = rules::check(&graph, &config, false);
     for notice in &outcome.notices {
@@ -50,22 +46,14 @@ fn run_check(
     Ok(u8::from(outcome.fails(args.fail_on.severity())))
 }
 
-fn run_graph(
-    args: &ViewArgs,
-    out: &mut impl Write,
-    err: &mut impl Write,
-) -> Result<u8, Failure> {
+fn run_graph(args: &ViewArgs, out: &mut impl Write, err: &mut impl Write) -> Result<u8, Failure> {
     args.require_text()?;
     let (_, graph) = analyse(&args.common, err)?;
     emit(&text::summary(&graph), &args.common, out)?;
     Ok(OK)
 }
 
-fn run_trace(
-    args: &TraceArgs,
-    out: &mut impl Write,
-    err: &mut impl Write,
-) -> Result<u8, Failure> {
+fn run_trace(args: &TraceArgs, out: &mut impl Write, err: &mut impl Write) -> Result<u8, Failure> {
     args.view.require_text()?;
     let selector = trace::parse(&args.selectors)?;
     let (_, graph) = analyse(&args.view.common, err)?;
@@ -76,9 +64,8 @@ fn run_trace(
 /// Writes `rendered` to `--output`, or to standard output.
 fn emit(rendered: &str, common: &Common, out: &mut impl Write) -> Result<(), Failure> {
     match &common.output {
-        Some(path) => fs::write(path, rendered).map_err(|error| {
-            Failure::usage(format!("cannot write {}: {error}", path.display()))
-        }),
+        Some(path) => fs::write(path, rendered)
+            .map_err(|error| Failure::usage(format!("cannot write {}: {error}", path.display()))),
         None => out.write_all(rendered.as_bytes()).map_err(Failure::from),
     }
 }
@@ -95,8 +82,7 @@ fn discover(start: &Path) -> Option<PathBuf> {
 fn load(path: &Path) -> Result<Config, Failure> {
     let source = fs::read_to_string(path)
         .map_err(|error| Failure::usage(format!("cannot read {}: {error}", path.display())))?;
-    config::parse(&source)
-        .map_err(|error| Failure::usage(format!("{}:{error}", path.display())))
+    config::parse(&source).map_err(|error| Failure::usage(format!("{}:{error}", path.display())))
 }
 
 /// The directory of a configuration file, which is the analysis root.
@@ -127,7 +113,10 @@ fn analyse(common: &Common, err: &mut impl Write) -> Result<(Config, Graph), Fai
             path,
             text: &decoded,
         };
-        for extractor in extractors.iter().filter(|extractor| extractor.handles(path)) {
+        for extractor in extractors
+            .iter()
+            .filter(|extractor| extractor.handles(path))
+        {
             builder.add(&file, extractor.extract(&file, &ExtractCtx::default()));
         }
     }

@@ -97,7 +97,7 @@ pub(super) enum ViewFormat {
     Dot,
     /// Mermaid (NC5).
     Mermaid,
-    /// GraphML (NC5).
+    /// `GraphML` (NC5).
     Graphml,
     /// Interactive HTML (NC5).
     Html,

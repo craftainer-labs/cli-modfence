@@ -92,9 +92,9 @@ pub(super) fn render(graph: &Graph, selector: &Selector) -> String {
     }
     lines.push(format!("edges: {}", edges.len()));
     for edge in &edges {
-        let confidence = edge
-            .confidence
-            .map_or(String::new(), |confidence| format!(" {}", confidence.as_str()));
+        let confidence = edge.confidence.map_or(String::new(), |confidence| {
+            format!(" {}", confidence.as_str())
+        });
         lines.push(format!(
             "  {} -> {}  {}{confidence}",
             edge.source,

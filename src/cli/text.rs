@@ -49,10 +49,7 @@ pub(super) fn diagnostic(diagnostic: &FileDiagnostic) -> String {
     let line = diagnostic
         .span
         .map_or(String::new(), |span| format!(":{}", span.start_line));
-    format!(
-        "warning: {}{line}: {}",
-        diagnostic.path, diagnostic.message
-    )
+    format!("warning: {}{line}: {}", diagnostic.path, diagnostic.message)
 }
 
 /// The counts of a graph.
@@ -65,7 +62,11 @@ pub(super) fn summary(graph: &Graph) -> String {
         NodeKind::External,
     ]
     .map(|kind| {
-        let count = graph.nodes.values().filter(|node| node.kind == kind).count();
+        let count = graph
+            .nodes
+            .values()
+            .filter(|node| node.kind == kind)
+            .count();
         format!("{} {count}", kind.as_str())
     });
     let relations = [

@@ -92,7 +92,7 @@ fn bad_usage_is_exit_2_on_stderr() {
         let run = exec(args);
         assert_eq!(run.code, 2, "{args:?}");
         assert_eq!(run.out, "");
-        assert!(run.err.contains("Usage:"), "{args:?}");
+        assert!(run.err.starts_with("error:"), "{args:?}: {}", run.err);
     }
 }
 
@@ -102,7 +102,10 @@ fn check_reports_violations_and_exits_1() {
     assert_eq!(run.code, 1);
     assert!(run.out.contains("ui/view.py:2:"), "{}", run.out);
     assert!(run.out.contains("[no-db-from-ui]"));
-    assert!(run.out.contains("modfence: 1 error(s), 0 warning(s), 0 note(s)"));
+    assert!(
+        run.out
+            .contains("modfence: 1 error(s), 0 warning(s), 0 note(s)")
+    );
     assert!(run.err.contains("note: call edges were not checked"));
     assert!(run.err.contains("warning: web/broken.ts"), "{}", run.err);
 }
@@ -110,8 +113,8 @@ fn check_reports_violations_and_exits_1() {
 #[test]
 fn the_walker_honours_exclude_and_skips_modfence() {
     let run = on("app", &["check"]);
-    assert!(!run.err.contains("vendor"), "{}", run.err);
-    assert!(!run.err.contains(".modfence"), "{}", run.err);
+    // ui/vendor and ui/.modfence would each add a violation if they were read.
+    assert!(run.out.contains("1 error(s)"), "{}", run.out);
     // Python, TypeScript and nothing else: the Rust file is not read.
     let graph = on("app", &["graph"]);
     assert!(graph.out.contains("languages: py, ts\n"), "{}", graph.out);
@@ -161,7 +164,11 @@ fn output_goes_to_a_file_when_asked() {
     );
     let unwritable = on("app", &["check", "--output", directory.to_str().unwrap()]);
     assert_eq!(unwritable.code, 2);
-    assert!(unwritable.err.contains("cannot write"), "{}", unwritable.err);
+    assert!(
+        unwritable.err.contains("cannot write"),
+        "{}",
+        unwritable.err
+    );
     std::fs::remove_dir_all(&directory).unwrap();
 }
 
@@ -192,7 +199,11 @@ fn what_the_output_layer_lacks_is_a_usage_error() {
     }
     let group = on("app", &["graph", "--group-by", "layer"]);
     assert_eq!(group.code, 2);
-    assert!(group.err.contains("--group-by is not implemented yet (NC5)"));
+    assert!(
+        group
+            .err
+            .contains("--group-by is not implemented yet (NC5)")
+    );
     for level in ["package", "module", "symbol"] {
         let run = on("app", &["trace", "layer=ui", "--level", level]);
         assert_eq!(run.code, 2);
@@ -206,9 +217,17 @@ fn trace_prints_matching_nodes_and_their_edges() {
     assert_eq!(run.code, 0);
     assert!(run.out.starts_with("nodes: 1\n  mod:py:"), "{}", run.out);
     assert!(run.out.contains("view.py  layer=ui\n"), "{}", run.out);
-    assert!(run.out.contains("store.py  imports resolved"), "{}", run.out);
+    assert!(
+        run.out.contains("store.py  imports resolved"),
+        "{}",
+        run.out
+    );
     let either = on("app", &["trace", "layer=ui,data", "lang=py"]);
-    assert!(either.out.contains("store.py  layer=data\n"), "{}", either.out);
+    assert!(
+        either.out.contains("store.py  layer=data\n"),
+        "{}",
+        either.out
+    );
     let none = on("app", &["trace", "owner=\"x,y\""]);
     assert_eq!(none.code, 0);
     assert!(none.out.starts_with("nodes: 0\nedges: 0\n"), "{}", none.out);
@@ -236,7 +255,11 @@ fn trace_rejects_malformed_selectors() {
 fn configuration_errors_are_exit_2() {
     let missing = exec(&["check", "--config", "/nonexistent/modfence.toml"]);
     assert_eq!(missing.code, 2);
-    assert!(missing.err.contains("cannot read /nonexistent/modfence.toml"));
+    assert!(
+        missing
+            .err
+            .contains("cannot read /nonexistent/modfence.toml")
+    );
     let directory = scratch("bad-config");
     let file = directory.join("modfence.toml");
     std::fs::write(&file, "version = 1\nunknown = true\n").unwrap();
@@ -257,9 +280,19 @@ fn broken_streams_exit_74() {
     // Help on stdout, a usage error and a failure on stderr.
     assert_eq!(run(&["--help"], &mut Broken, &mut Broken), broken);
     assert_eq!(run(&[], &mut Broken, &mut Broken), broken);
-    assert_eq!(run(&["check", "--config", "/nonexistent"], &mut Broken, &mut Broken), broken);
+    assert_eq!(
+        run(
+            &["check", "--config", "/nonexistent"],
+            &mut Broken,
+            &mut Broken
+        ),
+        broken
+    );
     // The report, and the notices and diagnostics before it.
-    assert_eq!(run(&["graph", "--config", config], &mut Broken, &mut Broken), broken);
+    assert_eq!(
+        run(&["graph", "--config", config], &mut Broken, &mut Broken),
+        broken
+    );
     let mut sink = Vec::new();
     let mut err = Broken;
     let code = modfence::run(
@@ -283,7 +316,10 @@ fn the_binary_finds_modfence_toml_from_the_working_directory() {
     assert_eq!(found.status.code(), Some(1));
     assert!(String::from_utf8_lossy(&found.stdout).contains("[no-db-from-ui]"));
     // A relative --config: the analysis root is its directory.
-    let relative = binary(&["check", "--config", "modfence.toml"], &fixtures().join("warn"));
+    let relative = binary(
+        &["check", "--config", "modfence.toml"],
+        &fixtures().join("warn"),
+    );
     assert_eq!(relative.status.code(), Some(0));
 }
 
