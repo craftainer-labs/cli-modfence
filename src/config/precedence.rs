@@ -53,6 +53,10 @@ pub fn resolve_tags<'a>(
     let mut effective = Tags::new();
     for level in levels {
         for (key, values) in level {
+            if values.is_empty() {
+                // No contribution; the parsers never produce this.
+                continue;
+            }
             if accumulate.contains(key) {
                 effective
                     .entry(key.clone())

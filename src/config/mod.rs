@@ -27,10 +27,10 @@ use toml::Spanned;
 use crate::extract::Tags;
 
 use self::precedence::TagKey;
-use self::selector::{Many, One, PathGlob, TagValue};
+use self::selector::{ExcludePattern, Many, One, PathGlob, TagValue};
 
 pub use self::precedence::{resolve_tags, validate_tag_key};
-pub use self::selector::{Selector, Subject};
+pub use self::selector::{ExcludeGlob, Selector, Subject};
 
 /// A configuration problem, located in the file when the parser knows where.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -196,8 +196,9 @@ pub struct Rule {
 /// The parsed `modfence.toml`.
 #[derive(Debug, Clone)]
 pub struct Config {
-    /// `exclude` globs, added to the ignore files the walker honours.
-    pub exclude: Vec<GlobMatcher>,
+    /// `exclude` patterns (gitignore semantics), added to the ignore files the
+    /// walker honours.
+    pub exclude: Vec<ExcludeGlob>,
     /// Layer names, highest first; empty when `layers` is not set.
     pub layers: Vec<String>,
     /// The default effect.
@@ -280,7 +281,7 @@ struct VersionProbe {
 struct Raw {
     version: Spanned<u32>,
     #[serde(default)]
-    exclude: Vec<One<PathGlob>>,
+    exclude: Vec<One<ExcludePattern>>,
     layers: Option<Spanned<Vec<Spanned<String>>>>,
     #[serde(default)]
     default: DefaultEffect,
