@@ -534,11 +534,11 @@ fn python_and_typescript_bind_to_rust_exports_by_name() {
         },
         native(),
     );
-    let used = "from native import add\nimport nativelib._core\n\n\ndef calc():\n    add(1, 2)\n    ping()\n\n\nadd(3, 4)\n";
+    let source = "from native import add\nimport nativelib._core\n\n\ndef calc():\n    add(1, 2)\n    ping()\n\n\nadd(3, 4)\n";
     add_all(
         &mut builder,
         &[
-            ("app/use.py", used),
+            ("app/use.py", source),
             ("other/x.py", "from elsewhere import add\nadd()\n"),
             ("lonely.py", "def lonely():\n    add()\n"),
             (
