@@ -22,7 +22,10 @@ pub(super) fn notices(graph: &Graph, config: &Config) -> Vec<Notice> {
     // Edges join modules; only an `imports` edge ends at an external package.
     for rule in &config.rules {
         let reaches_external = rule.kinds.contains(&Relation::Imports);
-        let ends = [("from", &rule.from, false), ("to", &rule.to, reaches_external)];
+        let ends = [
+            ("from", &rule.from, false),
+            ("to", &rule.to, reaches_external),
+        ];
         for (end, selector, external) in ends {
             if dead(selector, true, external) {
                 notices.push(Notice {
@@ -36,7 +39,10 @@ pub(super) fn notices(graph: &Graph, config: &Config) -> Vec<Notice> {
             }
         }
     }
-    let layered = graph.nodes.values().any(|node| node.tags.contains_key("layer"));
+    let layered = graph
+        .nodes
+        .values()
+        .any(|node| node.tags.contains_key("layer"));
     if !config.layers.is_empty() && !layered {
         notices.push(Notice {
             level: Severity::Warning,

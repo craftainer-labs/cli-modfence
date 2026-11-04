@@ -45,7 +45,11 @@ fn rule(id: &str, from: &str, to: &str, extra: &str) -> String {
 
 /// The files of the `app` fixture, with `ui` as `app/ui.py`.
 fn app(ui: &str) -> Vec<(&str, &str)> {
-    vec![("app/__init__.py", ""), ("app/db.py", ""), ("app/ui.py", ui)]
+    vec![
+        ("app/__init__.py", ""),
+        ("app/db.py", ""),
+        ("app/ui.py", ui),
+    ]
 }
 
 const WHY: &str = "reason=\"r\"";
@@ -76,7 +80,10 @@ fn a_forbid_rule_reports_each_site() {
     assert_eq!(found(&outcome), "no-db@app/ui.py:1 no-db@app/ui.py:3");
     let first = &outcome.violations[0];
     assert_eq!(first.severity, Severity::Error);
-    assert_eq!(first.message, "app/ui.py must not depend on app/db.py (rule `no-db`)");
+    assert_eq!(
+        first.message,
+        "app/ui.py must not depend on app/db.py (rule `no-db`)"
+    );
     assert_eq!((first.span.start_line, first.span.start_column), (1, 1));
     let edge = first.dependency.as_ref().expect("an edge violation");
     assert_eq!(edge.from.id.as_str(), "mod:py:app/ui.py");
@@ -298,7 +305,10 @@ tags = { layer = "other" }
 fn layered_files<'a>(extra: &[(&'a str, &'a str)]) -> Vec<(&'a str, &'a str)> {
     let mut files = vec![
         ("app/__init__.py", ""),
-        ("app/ui.py", "import infra.db\nimport domain.model\nimport app.view\n"),
+        (
+            "app/ui.py",
+            "import infra.db\nimport domain.model\nimport app.view\n",
+        ),
         ("app/view.py", ""),
         ("infra/__init__.py", ""),
         ("infra/db.py", "import domain.model\nimport app.ui\n"),
@@ -312,9 +322,15 @@ fn layered_files<'a>(extra: &[(&'a str, &'a str)]) -> Vec<(&'a str, &'a str)> {
 #[test]
 fn layers_forbid_dependencies_on_a_higher_layer() {
     let outcome = run(&cfg(LAYERED), &layered_files(&[]));
-    assert_eq!(found(&outcome), "layers@domain/model.py:1 layers@infra/db.py:2");
+    assert_eq!(
+        found(&outcome),
+        "layers@domain/model.py:1 layers@infra/db.py:2"
+    );
     let first = &outcome.violations[0];
-    assert_eq!((first.severity, first.rule.as_str()), (Severity::Error, LAYERS));
+    assert_eq!(
+        (first.severity, first.rule.as_str()),
+        (Severity::Error, LAYERS)
+    );
     assert_eq!(
         first.message,
         "layer `domain` (domain/model.py) must not depend on layer `app` (app/ui.py)"
@@ -326,7 +342,10 @@ fn layers_cannot_be_overridden_and_see_every_layer_value() {
     let (from, to) = ("{ layer = \"domain\" }", "{ layer = \"app\" }");
     let allow = rule("a", from, to, "").replace("forbid", "allow");
     let allowed = run(&cfg(&format!("{LAYERED}{allow}")), &layered_files(&[]));
-    assert_eq!(found(&allowed), "layers@domain/model.py:1 layers@infra/db.py:2");
+    assert_eq!(
+        found(&allowed),
+        "layers@domain/model.py:1 layers@infra/db.py:2"
+    );
     // A node with the layers app and domain, and nodes outside the list.
     let extra = [
         ("mixed/__init__.py", ""),
@@ -343,11 +362,18 @@ fn layers_cannot_be_overridden_and_see_every_layer_value() {
 
 #[test]
 fn layers_count_calls_only_when_resolved() {
-    let (high, low) = (module_node("hi.py", &["app"]), module_node("lo.py", &["domain"]));
+    let (high, low) = (
+        module_node("hi.py", &["app"]),
+        module_node("lo.py", &["domain"]),
+    );
     let config = cfg("layers = [\"app\", \"domain\"]\n");
     let judge = |confidence| {
         let edges = vec![edge(&low, &high, Relation::Calls, confidence, &[7])];
-        found(&rules::check(&graph_of(&[&high, &low], edges), &config, true))
+        found(&rules::check(
+            &graph_of(&[&high, &low], edges),
+            &config,
+            true,
+        ))
     };
     assert_eq!(judge(Confidence::Resolved), "layers@lo.py:7");
     assert_eq!(judge(Confidence::Heuristic), "");
@@ -358,7 +384,10 @@ const DENY: &str = "default = \"deny\"\n";
 
 #[test]
 fn deny_mode_reports_undecided_internal_sites() {
-    let outcome = run(&cfg(DENY), &app("import app.db\nimport requests\nfrom .gone import y\n"));
+    let outcome = run(
+        &cfg(DENY),
+        &app("import app.db\nimport requests\nfrom .gone import y\n"),
+    );
     assert_eq!(found(&outcome), "default-deny@app/ui.py:1");
     let violation = &outcome.violations[0];
     assert_eq!(violation.rule, DEFAULT_DENY);
@@ -372,7 +401,10 @@ fn deny_mode_reports_undecided_internal_sites() {
 
 #[test]
 fn layers_permit_sites_in_deny_mode_but_never_add_default_deny() {
-    let extra = [("util.py", "import infra.db\n"), ("odd/o.py", "import app.ui\n")];
+    let extra = [
+        ("util.py", "import infra.db\n"),
+        ("odd/o.py", "import app.ui\n"),
+    ];
     let text = format!("{DENY}{LAYERED}");
     let outcome = run(&cfg(&text), &layered_files(&extra));
     let layers = "layers@domain/model.py:1 layers@infra/db.py:2";
@@ -418,15 +450,27 @@ fn an_ignore_on_the_line_or_the_line_above_suppresses_a_site() {
 #[test]
 fn an_ignore_is_exact_about_rule_and_line() {
     let far = "# modfence: ignore[no-db] reason=\"r\"\nx = 1\nimport app.db\n";
-    assert_eq!(found(&ignored(far)), "no-db@app/ui.py:3 modfence/unused-ignore@app/ui.py:1");
+    assert_eq!(
+        found(&ignored(far)),
+        "no-db@app/ui.py:3 modfence/unused-ignore@app/ui.py:1"
+    );
     let other = "# modfence: ignore[other] reason=\"r\"\nimport app.db\n";
-    assert_eq!(found(&ignored(other)), "no-db@app/ui.py:2 modfence/unused-ignore@app/ui.py:1");
+    assert_eq!(
+        found(&ignored(other)),
+        "no-db@app/ui.py:2 modfence/unused-ignore@app/ui.py:1"
+    );
     let below = "import app.db\n# modfence: ignore[no-db] reason=\"r\"\n";
-    assert_eq!(found(&ignored(below)), "no-db@app/ui.py:1 modfence/unused-ignore@app/ui.py:2");
+    assert_eq!(
+        found(&ignored(below)),
+        "no-db@app/ui.py:1 modfence/unused-ignore@app/ui.py:2"
+    );
     let mut files = app("import app.db\n");
     files.push(("app/other.py", "# modfence: ignore[no-db] reason=\"r\"\n"));
     let outcome = run(&cfg(NO_DB), &files);
-    assert_eq!(found(&outcome), "no-db@app/ui.py:1 modfence/unused-ignore@app/other.py:1");
+    assert_eq!(
+        found(&outcome),
+        "no-db@app/ui.py:1 modfence/unused-ignore@app/other.py:1"
+    );
 }
 
 #[test]
@@ -456,7 +500,10 @@ fn built_in_rules_can_be_ignored_too() {
     let layered = format!("import app.ui{}", trailing("layers"));
     let files = layered_files(&[("domain/z.py", layered.as_str())]);
     let outcome = run(&cfg(LAYERED), &files);
-    assert_eq!(found(&outcome), "layers@domain/model.py:1 layers@infra/db.py:2");
+    assert_eq!(
+        found(&outcome),
+        "layers@domain/model.py:1 layers@infra/db.py:2"
+    );
 }
 
 #[test]
@@ -467,8 +514,14 @@ fn an_unused_ignore_of_unused_ignore_is_reported_last() {
     let itself = "# modfence: ignore[modfence/unused-ignore, x] reason=\"r\"\n";
     let outcome = ignored(itself);
     assert_eq!(found(&outcome), format!("{UNUSED}:1 {UNUSED}:1"));
-    assert_eq!(outcome.violations[0].message, "ignore[modfence/unused-ignore] suppressed nothing");
-    assert_eq!(outcome.violations[1].message, "ignore[x] suppressed nothing");
+    assert_eq!(
+        outcome.violations[0].message,
+        "ignore[modfence/unused-ignore] suppressed nothing"
+    );
+    assert_eq!(
+        outcome.violations[1].message,
+        "ignore[x] suppressed nothing"
+    );
 }
 
 // ADR 0004, "Suppressions": a malformed annotation is an error and a trailing
@@ -479,7 +532,10 @@ fn annotation_findings_become_violations() {
     let outcome = ignored(ui);
     assert_eq!(found(&outcome), format!("{INVALID}:2 {INVALID}:1"));
     let (error, warning) = (&outcome.violations[0], &outcome.violations[1]);
-    assert_eq!((error.severity, warning.severity), (Severity::Error, Severity::Warning));
+    assert_eq!(
+        (error.severity, warning.severity),
+        (Severity::Error, Severity::Warning)
+    );
     assert_eq!(error.rule, INVALID_ANNOTATION);
     assert_eq!(error.dependency, None);
     assert!(warning.message.contains("trailing"));
@@ -500,13 +556,21 @@ fn violations_are_sorted_by_severity_rule_path_and_line() {
     let all = "{ path = \"**\" }";
     let text = [
         rule("aa", "{ path = \"a.py\" }", "{ path = \"c.py\" }", ""),
-        rule("zz", "{ path = \"a.py\" }", "{ path = \"b.py\" }", "severity = \"note\"\n"),
+        rule(
+            "zz",
+            "{ path = \"a.py\" }",
+            "{ path = \"b.py\" }",
+            "severity = \"note\"\n",
+        ),
         rule("mm", all, all, "severity = \"warning\"\n"),
     ]
     .concat();
     let config = cfg(&text);
     let outcome = rules::check(&graph, &config, true);
-    assert_eq!(found(&outcome), "aa@a.py:5 mm@b.py:1 mm@c.py:2 mm@c.py:9 zz@a.py:5");
+    assert_eq!(
+        found(&outcome),
+        "aa@a.py:5 mm@b.py:1 mm@c.py:2 mm@c.py:9 zz@a.py:5"
+    );
 }
 
 // Notices.
@@ -538,7 +602,12 @@ fn rules_that_can_never_match_are_noticed() {
         rule("calls-pkg", any, "{ package = \"x\" }", calls),
         rule("path-ext", any, "{ path = \"a\", kind = \"external\" }", ""),
         rule("ok-pkg", any, "{ package = \"x\" }", ""),
-        rule("ok-ext", any, "{ kind = [\"external\", \"module\"] }", calls),
+        rule(
+            "ok-ext",
+            any,
+            "{ kind = [\"external\", \"module\"] }",
+            calls,
+        ),
         rule("ok-tag", "{ owner = \"a\" }", "{ owner = \"b\" }", ""),
     ]
     .concat();
@@ -568,15 +637,24 @@ fn layers_without_a_layer_tag_are_noticed() {
     assert_eq!(found[0].level, Severity::Warning);
     assert!(found[0].message.contains("no node has a `layer` tag"));
     let tagged = format!("{layers}[[node]]\nmatch = \"x.py\"\ntags = {{ layer = \"a\" }}\n");
-    assert!(notices(&tagged, &[("x.py", "")], true).is_empty());
-    assert!(notices("", &[("x.py", "")], true).is_empty());
+    assert_eq!(
+        notices(&tagged, &[("x.py", "")], true),
+        Vec::<Notice>::new()
+    );
+    assert_eq!(notices("", &[("x.py", "")], true), Vec::<Notice>::new());
 }
 
 #[test]
 fn more_results_than_github_keeps_are_noticed() {
     let (a, b) = (module_node("a.py", &[]), module_node("b.py", &[]));
     let lines: Vec<u32> = (1..=5001).collect();
-    let edges = vec![edge(&a, &b, Relation::Imports, Confidence::Resolved, &lines)];
+    let edges = vec![edge(
+        &a,
+        &b,
+        Relation::Imports,
+        Confidence::Resolved,
+        &lines,
+    )];
     let graph = graph_of(&[&a, &b], edges);
     let config = cfg(&format!("{A_TO_B}effect = \"forbid\"\n"));
     let outcome = rules::check(&graph, &config, true);
@@ -595,7 +673,10 @@ fn selector_tag_values_are_validated_like_node_tag_values() {
         let tail = "to = { path = \"x\" }\neffect = \"forbid\"\n";
         let text = format!("{head}from = {{ owner = {bad} }}\n{tail}");
         let error = config::parse(&text).expect_err("a bad tag value");
-        assert!(error.message.contains("a tag value must not be empty"), "{error}");
+        assert!(
+            error.message.contains("a tag value must not be empty"),
+            "{error}"
+        );
         assert_eq!(error.line, Some(4));
     }
 }
