@@ -93,7 +93,7 @@ fn a_minimal_config_has_the_defaults() {
     let default = Config::default();
     for config in [&parsed, &default] {
         assert!(config.exclude.is_empty());
-        assert!(config.layers.is_empty());
+        assert_eq!(config.layers, Vec::<String>::new());
         assert_eq!(config.default, DefaultEffect::Allow);
         assert!(config.accumulate.is_empty());
         assert!(config.require_reason);
