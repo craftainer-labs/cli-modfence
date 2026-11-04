@@ -279,6 +279,25 @@ fn exclude_patterns_follow_gitignore() {
     assert!(format!("{:?}", config.clone()).contains("ExcludeGlob"));
 }
 
+// A walker skips a directory it need not read: `dist/` names directories, so
+// the directory itself is excluded, which `is_match` (for files) does not say.
+#[test]
+fn a_directory_pattern_excludes_the_directory_itself() {
+    let text = "version = 1\nexclude = [\"dist/\", \"node_modules\", \"src/gen\"]\n";
+    let config = config::parse(text).unwrap();
+    let directory = |path: &str| config.exclude.iter().any(|glob| glob.is_dir_match(path));
+    let file = |path: &str| config.exclude.iter().any(|glob| glob.is_match(path));
+    assert!(directory("dist"));
+    assert!(directory("a/dist"));
+    assert!(!file("dist"));
+    assert!(!file("a/dist"));
+    assert!(directory("node_modules") && file("node_modules"));
+    assert!(directory("src/gen") && file("src/gen"));
+    assert!(directory("dist/x"));
+    assert!(!directory("distance"));
+    assert!(!directory("src"));
+}
+
 #[test]
 fn an_empty_path_glob_is_an_error() {
     assert!(

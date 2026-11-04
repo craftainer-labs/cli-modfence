@@ -50,6 +50,22 @@ pub(super) fn endpoint(node: &Node) -> Endpoint {
     }
 }
 
+/// The facts a selector looks at for `node`. `unplaced` says the node is the
+/// target of a heuristic `imports` edge: its `external` node was made for an
+/// import that could not be placed, so it is not a package and a `package`
+/// selector never matches it (ADR 0003, invariant 6). The exemption is per
+/// edge: a resolved edge to the same node still matches by package.
+pub(crate) fn subject(node: &Node, unplaced: bool) -> Subject<'_> {
+    let package = node.kind == NodeKind::External && !unplaced;
+    Subject {
+        kind: node.kind,
+        lang: node.lang,
+        path: node.path.as_deref(),
+        package: package.then_some(node.label.as_str()),
+        tags: &node.tags,
+    }
+}
+
 /// Judges sites against one config.
 pub(super) struct Judge<'a> {
     config: &'a Config,
@@ -58,22 +74,6 @@ pub(super) struct Judge<'a> {
 impl<'a> Judge<'a> {
     pub(super) fn new(config: &'a Config) -> Self {
         Self { config }
-    }
-
-    /// `unplaced` says the edge is a heuristic `imports` edge: its `external`
-    /// target was made for an import that could not be placed, so it is not a
-    /// package and a `package` selector never matches it (ADR 0003, invariant
-    /// 6). The exemption is per edge: a resolved edge to the same node still
-    /// matches by package.
-    fn subject(node: &Node, unplaced: bool) -> Subject<'_> {
-        let package = node.kind == NodeKind::External && !unplaced;
-        Subject {
-            kind: node.kind,
-            lang: node.lang,
-            path: node.path.as_deref(),
-            package: package.then_some(node.label.as_str()),
-            tags: &node.tags,
-        }
     }
 
     /// What `layers` says about an edge from `from` to `to`. Every pair of
@@ -133,7 +133,7 @@ impl<'a> Judge<'a> {
             });
         }
         let unplaced = relation == Relation::Imports && confidence == Confidence::Heuristic;
-        let (source, target) = (Self::subject(from, unplaced), Self::subject(to, unplaced));
+        let (source, target) = (subject(from, unplaced), subject(to, unplaced));
         for rule in &self.config.rules {
             let matched = rule.kinds.contains(&relation)
                 && counts(relation, confidence, rule.confidence)

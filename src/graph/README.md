@@ -23,5 +23,5 @@ Rules:
 - Every edge endpoint is a node, and `contains` is the only relation without a
   confidence or a site.
 - Not here yet: `tsconfig` `paths` aliases, reading `pyproject.toml` and
-  `package.json` roots, Rust `crate::` resolution, SCIP, the JSON output.
+  `package.json` roots, Rust `crate::` resolution, SCIP. The JSON output is `src/output/`.
 - Tests are in `tests/graph.rs`; do not add `#[cfg(test)]` modules here.
