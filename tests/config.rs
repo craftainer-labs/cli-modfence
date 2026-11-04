@@ -276,6 +276,7 @@ fn exclude_patterns_follow_gitignore() {
     assert!(excluded("build/x"));
     assert!(!excluded("a/build/x"));
     assert!(!excluded("src/a.py"));
+    assert!(format!("{:?}", config.clone()).contains("ExcludeGlob"));
 }
 
 #[test]

@@ -279,7 +279,9 @@ struct VersionProbe {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Raw {
-    version: Spanned<u32>,
+    // Checked by `parse`, ahead of the strict parse; required here.
+    #[serde(rename = "version")]
+    _version: Spanned<u32>,
     #[serde(default)]
     exclude: Vec<One<ExcludePattern>>,
     layers: Option<Spanned<Vec<Spanned<String>>>>,
@@ -332,13 +334,6 @@ struct RawRule {
 
 impl Raw {
     fn build(self) -> Result<Config, Problem> {
-        let version = self.version;
-        if *version.get_ref() != 1 {
-            return Err((
-                format!("unsupported version {}, expected 1", version.get_ref()),
-                version.span(),
-            ));
-        }
         Ok(Config {
             exclude: self.exclude.into_iter().map(|glob| glob.0).collect(),
             layers: layers(self.layers)?,
