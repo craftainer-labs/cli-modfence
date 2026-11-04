@@ -85,12 +85,10 @@ fn load(path: &Path) -> Result<Config, Failure> {
     config::parse(&source).map_err(|error| Failure::usage(format!("{}:{error}", path.display())))
 }
 
-/// The directory of a configuration file, which is the analysis root.
+/// The directory of a configuration file, which is the analysis root. A bare
+/// file name has the working directory (`.`) as its root.
 fn root_of(config: &Path) -> PathBuf {
-    match config.parent() {
-        Some(parent) if !parent.as_os_str().is_empty() => parent.to_path_buf(),
-        _ => PathBuf::from("."),
-    }
+    Path::new(".").join(config.parent().unwrap_or(Path::new("")))
 }
 
 /// Loads the configuration, walks the analysis root, extracts every Python and
