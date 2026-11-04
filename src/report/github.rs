@@ -61,9 +61,7 @@ pub fn render(outcome: &Outcome) -> String {
         total(Severity::Note),
     );
     if outcome.violations.len() > shown.values().sum::<usize>() {
-        summary = format!(
-            "{summary}; annotated the first {ANNOTATIONS_PER_LEVEL} of each level"
-        );
+        summary = format!("{summary}; annotated the first {ANNOTATIONS_PER_LEVEL} of each level");
     }
     lines.push(summary);
     lines.push(String::new());
