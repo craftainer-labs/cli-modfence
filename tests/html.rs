@@ -46,7 +46,10 @@ fn graph() -> Graph {
     let mut builder = Builder::new(&config);
     let files = [
         ("app/__init__.py", ""),
-        ("app/a.py", "import app.b\nimport requests\n\n\ndef run():\n    go()\n"),
+        (
+            "app/a.py",
+            "import app.b\nimport requests\n\n\ndef run():\n    go()\n",
+        ),
         ("app/b.py", "def go():\n    pass\n"),
         ("app/q\"uote<b>.py", ""),
         ("lib/c.py", "import app.a\nimport app.a\n"),
@@ -110,7 +113,9 @@ fn the_page_is_a_complete_accessible_document() {
 fn the_page_makes_no_network_request() {
     let graph = Graph::default();
     let page = Html.render(&graph, &View::new(&graph, Level::Module, None));
-    for needle in ["<link", "<img", "<iframe", "src=", "href=", "@import", "url(http"] {
+    for needle in [
+        "<link", "<img", "<iframe", "src=", "href=", "@import", "url(http",
+    ] {
         assert!(!page.contains(needle), "{needle}");
     }
     // The vendored libraries' banner comments and the SVG namespace are the
@@ -135,7 +140,11 @@ fn the_page_makes_no_network_request() {
 #[test]
 fn the_policy_allows_exactly_the_inline_script_and_style() {
     let page = page(Level::Module, None);
-    let csp = between(&page, "http-equiv=\"Content-Security-Policy\" content=\"", "\"");
+    let csp = between(
+        &page,
+        "http-equiv=\"Content-Security-Policy\" content=\"",
+        "\"",
+    );
     assert!(
         csp.contains(&format!("script-src 'sha256-{SCRIPT_HASH}'")),
         "{csp}"
@@ -180,20 +189,14 @@ fn the_embedded_data_is_the_view() {
     let ids: Vec<&str> = nodes.iter().map(|n| n["id"].as_str().unwrap()).collect();
     let expected: Vec<&str> = view.nodes.iter().map(|n| n.id.as_str()).collect();
     assert_eq!(ids, expected);
-    let a = nodes
-        .iter()
-        .find(|n| n["id"] == "mod:py:app/a.py")
-        .unwrap();
+    let a = nodes.iter().find(|n| n["id"] == "mod:py:app/a.py").unwrap();
     assert_eq!(a["kind"], "module");
     assert_eq!(a["lang"], "py");
     assert_eq!(a["path"], "app/a.py");
     assert_eq!(a["cluster"], "app");
     assert_eq!(a["tags"]["layer"][0], EVIL, "round-trips unchanged");
     assert_eq!(a["tags"]["note"][0], PLACEHOLDER);
-    let external = nodes
-        .iter()
-        .find(|n| n["id"] == "ext:py:requests")
-        .unwrap();
+    let external = nodes.iter().find(|n| n["id"] == "ext:py:requests").unwrap();
     assert_eq!(external["kind"], "external");
     assert_eq!(external["path"], Value::Null);
     assert_eq!(external["cluster"], Value::Null);
@@ -206,10 +209,7 @@ fn the_embedded_data_is_the_view() {
     assert_eq!(import["relation"], "imports");
     assert_eq!(import["confidence"], "resolved");
     assert_eq!(import["count"], 2);
-    let contains = edges
-        .iter()
-        .find(|e| e["relation"] == "contains")
-        .unwrap();
+    let contains = edges.iter().find(|e| e["relation"] == "contains").unwrap();
     assert_eq!(contains["confidence"], Value::Null);
     assert_eq!(contains["count"], 0);
     let clusters = data["clusters"].as_array().unwrap();
@@ -286,7 +286,10 @@ fn the_tables_list_every_node_and_edge() {
          <td>none</td><td class=\"path\">none</td><td class=\"tags\">none</td></tr>"
     ));
     assert!(page.contains("<td class=\"tags\">layer: lib</td>"));
-    assert!(page.contains("; note: @@script@@</td>"), "tags are joined with `; `");
+    assert!(
+        page.contains("; note: @@script@@</td>"),
+        "tags are joined with `; `"
+    );
 }
 
 #[test]

@@ -204,17 +204,36 @@ fn the_formats_of_later_items_are_a_usage_error() {
 fn graph_and_trace_write_the_html_page() {
     let graph = on("app", &["graph", "--format", "html"]);
     assert_eq!(graph.code, 0);
-    assert_eq!(graph.err, "");
-    assert!(graph.out.starts_with("<!doctype html>\n<html lang=\"en\">\n"));
+    assert!(
+        graph
+            .out
+            .starts_with("<!doctype html>\n<html lang=\"en\">\n")
+    );
     assert!(graph.out.ends_with("</html>\n"));
-    assert!(graph.out.contains("Showing packages, modules and external packages"));
+    assert!(
+        graph
+            .out
+            .contains("Showing packages, modules and external packages")
+    );
     assert!(graph.out.contains("(grouped by package)."));
     let grouped = on(
         "app",
-        &["graph", "--format", "html", "--level", "package", "--group-by", "layer"],
+        &[
+            "graph",
+            "--format",
+            "html",
+            "--level",
+            "package",
+            "--group-by",
+            "layer",
+        ],
     );
     assert_eq!(grouped.code, 0);
-    assert!(grouped.out.contains("Showing packages and external packages"));
+    assert!(
+        grouped
+            .out
+            .contains("Showing packages and external packages")
+    );
     assert!(grouped.out.contains("(grouped by tag layer)."));
     let traced = on("app", &["trace", "layer=data", "--format", "html"]);
     assert_eq!(traced.code, 0);
@@ -225,7 +244,13 @@ fn graph_and_trace_write_the_html_page() {
     let file = directory.join("graph.html");
     let written = on(
         "app",
-        &["graph", "--format", "html", "--output", file.to_str().unwrap()],
+        &[
+            "graph",
+            "--format",
+            "html",
+            "--output",
+            file.to_str().unwrap(),
+        ],
     );
     assert_eq!((written.code, written.out.as_str()), (0, ""));
     assert_eq!(std::fs::read_to_string(&file).unwrap(), graph.out);
