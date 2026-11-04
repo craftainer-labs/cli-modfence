@@ -116,7 +116,11 @@ impl Files<'_> {
         let candidates = std::iter::once(base.to_owned())
             .chain(TS_EXTENSIONS.iter().map(|ext| format!("{base}.{ext}")))
             .chain(swapped.iter().map(|ext| format!("{stem}.{ext}")))
-            .chain(TS_EXTENSIONS.iter().map(|ext| join(base, &format!("index.{ext}"))));
+            .chain(
+                TS_EXTENSIONS
+                    .iter()
+                    .map(|ext| join(base, &format!("index.{ext}"))),
+            );
         candidates
             .filter(|path| Lang::from_path(path) == Some(Lang::Ts))
             .find(|path| self.paths.contains(path))

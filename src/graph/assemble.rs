@@ -159,9 +159,9 @@ impl<'c> Builder<'c> {
             acc.add_nodes(file);
             let module = module_id(file.lang, &file.path);
             for import in &file.facts.imports {
-                let resolved =
+                let placed =
                     resolver.resolve(file.lang, &file.path, &import.specifier, &import.names);
-                let (targets, confidence) = match resolved {
+                let (targets, confidence) = match placed {
                     Resolved::Files(found) => {
                         imported
                             .entry(file.path.clone())
@@ -279,9 +279,7 @@ fn symbol_names(files: &[FileEntry]) -> BTreeMap<&str, BTreeMap<String, Vec<Node
 }
 
 fn short_name(node: &extract::Node) -> String {
-    let qualified = node
-        .display_qualname()
-        .unwrap_or_else(|| node.label.clone());
+    let qualified = node.display_qualname().unwrap_or_default();
     let last = qualified.rsplit(['.', '~']).next().unwrap_or_default();
     last.split('@').next().unwrap_or_default().to_owned()
 }
@@ -299,8 +297,12 @@ fn site_of(file: &FileEntry, span: Span) -> Site {
 
 /// Whether the comment at `span` is the first thing on its line.
 fn own_line(text: &str, span: Span) -> bool {
-    let row = usize::try_from(span.start_line).unwrap_or(0).saturating_sub(1);
-    let column = usize::try_from(span.start_column).unwrap_or(0).saturating_sub(1);
+    let row = usize::try_from(span.start_line)
+        .unwrap_or(0)
+        .saturating_sub(1);
+    let column = usize::try_from(span.start_column)
+        .unwrap_or(0)
+        .saturating_sub(1);
     text.lines()
         .nth(row)
         .is_none_or(|line| line.chars().take(column).all(char::is_whitespace))
@@ -346,7 +348,13 @@ impl Assembly {
         relation: Relation,
         site: (Site, String),
     ) {
-        self.link(source, target, relation, Some(Confidence::Heuristic), Some(site));
+        self.link(
+            source,
+            target,
+            relation,
+            Some(Confidence::Heuristic),
+            Some(site),
+        );
     }
 
     /// The file's nodes, its package and the `contains` edges.
@@ -359,7 +367,13 @@ impl Assembly {
             self.nodes
                 .insert(node.id.clone(), Node::from_extracted(node));
             if node.kind == NodeKind::Symbol {
-                self.link(module.clone(), node.id.clone(), Relation::Contains, None, None);
+                self.link(
+                    module.clone(),
+                    node.id.clone(),
+                    Relation::Contains,
+                    None,
+                    None,
+                );
             }
         }
         let dir = match dir_of(&file.path) {

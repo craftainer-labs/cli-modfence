@@ -9,9 +9,7 @@ use modfence::extract::{
     BindingExport, BindingFramework, DiagnosticCode, ExtractCtx, Extractor, FileFacts, ImportEdge,
     Lang, Node, NodeId, NodeKind, SourceFile, Span, SymbolKind, Tags,
 };
-use modfence::graph::{
-    Binding, Builder, Confidence, Edge, Graph, INVALID_ANNOTATION, Relation,
-};
+use modfence::graph::{Binding, Builder, Confidence, Edge, Graph, INVALID_ANNOTATION, Relation};
 
 fn extract(path: &str, text: &str) -> FileFacts {
     let file = SourceFile { path, text };
@@ -99,13 +97,22 @@ fn assert_well_formed(graph: &Graph) {
                 (NodeKind::Package, NodeKind::Module) | (NodeKind::Module, NodeKind::Symbol)
             ),
             Relation::Imports => {
-                matches!(kinds, (NodeKind::Module, NodeKind::Module | NodeKind::External))
+                matches!(
+                    kinds,
+                    (NodeKind::Module, NodeKind::Module | NodeKind::External)
+                )
             }
             Relation::Calls => {
-                matches!(kinds, (NodeKind::Symbol | NodeKind::Module, NodeKind::Symbol))
+                matches!(
+                    kinds,
+                    (NodeKind::Symbol | NodeKind::Module, NodeKind::Symbol)
+                )
             }
             Relation::Binds => {
-                matches!(kinds, (NodeKind::Symbol | NodeKind::Module, NodeKind::Symbol))
+                matches!(
+                    kinds,
+                    (NodeKind::Symbol | NodeKind::Module, NodeKind::Symbol)
+                )
             }
         };
         assert!(fits, "{:?} {} -> {}", e.relation, e.source, e.target);
@@ -113,7 +120,10 @@ fn assert_well_formed(graph: &Graph) {
             assert!(e.confidence.is_none() && e.sites.is_empty() && e.specifier.is_none());
         } else {
             assert!(e.confidence.is_some() && e.count() >= 1 && e.specifier.is_some());
-            assert!(e.sites.windows(2).all(|pair| pair[0] <= pair[1]), "sorted sites");
+            assert!(
+                e.sites.windows(2).all(|pair| pair[0] <= pair[1]),
+                "sorted sites"
+            );
             assert_eq!(e.site(), e.sites.first());
         }
         if matches!(e.relation, Relation::Calls | Relation::Binds) {
@@ -125,7 +135,10 @@ fn assert_well_formed(graph: &Graph) {
         .iter()
         .map(|e| (&e.source, &e.target, e.relation, e.confidence))
         .collect();
-    assert!(keys.windows(2).all(|pair| pair[0] < pair[1]), "edges are ordered and unique");
+    assert!(
+        keys.windows(2).all(|pair| pair[0] < pair[1]),
+        "edges are ordered and unique"
+    );
 }
 
 #[test]
@@ -145,7 +158,10 @@ fn the_names_in_the_json_output() {
 fn nodes_packages_and_contains_edges() {
     let graph = build(&[
         ("top.py", "def top():\n    pass\n"),
-        ("pkg/core.py", "class Engine:\n    def run(self):\n        pass\n"),
+        (
+            "pkg/core.py",
+            "class Engine:\n    def run(self):\n        pass\n",
+        ),
         ("web/app.ts", "export function boot() {}\n"),
         ("notes.txt", "not source"),
     ]);
@@ -171,9 +187,19 @@ fn nodes_packages_and_contains_edges() {
             "sym:ts:web/app.ts#boot",
         ]
     );
-    edge(&graph, Relation::Contains, &root, &module(Lang::Py, "top.py"));
+    edge(
+        &graph,
+        Relation::Contains,
+        &root,
+        &module(Lang::Py, "top.py"),
+    );
     edge(&graph, Relation::Contains, &pkg, &core);
-    edge(&graph, Relation::Contains, &web, &module(Lang::Ts, "web/app.ts"));
+    edge(
+        &graph,
+        Relation::Contains,
+        &web,
+        &module(Lang::Ts, "web/app.ts"),
+    );
     edge(&graph, Relation::Contains, &core, &run);
     assert_eq!(graph.nodes[&pkg].path.as_deref(), Some("pkg"));
     assert_eq!(graph.nodes[&run].symbol_kind, Some(SymbolKind::Method));
@@ -238,7 +264,12 @@ from ... import deep
         row("mod:py:app/util.py", Confidence::Resolved, 3),
     ];
     assert_eq!(imports, expected);
-    let util = edge(&graph, Relation::Imports, &from, &module(Lang::Py, "app/util.py"));
+    let util = edge(
+        &graph,
+        Relation::Imports,
+        &from,
+        &module(Lang::Py, "app/util.py"),
+    );
     let lines: Vec<u32> = util.sites.iter().map(|s| s.span.start_line).collect();
     assert_eq!(lines, [2, 4, 5]);
     assert_eq!(util.site().unwrap().path, "app/main.py");
@@ -250,7 +281,10 @@ from ... import deep
         .collect();
     let code = DiagnosticCode::UnresolvedImport;
     let path = "app/main.py";
-    assert_eq!(diagnostics, [(path, code, 6), (path, code, 7), (path, code, 9)]);
+    assert_eq!(
+        diagnostics,
+        [(path, code, 6), (path, code, 7), (path, code, 9)]
+    );
     assert!(graph.diagnostics[0].message.contains(".missing"));
 }
 
@@ -380,7 +414,13 @@ fn rust_imports_are_external_unless_relative() {
         ..FileFacts::default()
     };
     facts.imports = vec![import("std::fmt", 1), import("crate::inner", 2)];
-    builder.add(&SourceFile { path: "src/lib.rs", text: "" }, facts);
+    builder.add(
+        &SourceFile {
+            path: "src/lib.rs",
+            text: "",
+        },
+        facts,
+    );
     let graph = builder.build();
     assert_well_formed(&graph);
     let imports = outgoing(&graph, Relation::Imports, &module(Lang::Rs, "src/lib.rs"));
@@ -445,7 +485,10 @@ helper()
     assert_eq!(twice.sites[1].span.start_line, 11);
     let at_module_level = module(Lang::Py, "pkg/a.py");
     let calls = outgoing(&graph, Relation::Calls, &at_module_level);
-    assert_eq!(calls, [row("sym:py:pkg/a.py#helper", Confidence::Heuristic, 1)]);
+    assert_eq!(
+        calls,
+        [row("sym:py:pkg/a.py#helper", Confidence::Heuristic, 1)]
+    );
 }
 
 // ADR 0003, "Cross-language edges" and invariant 9.
@@ -484,7 +527,13 @@ fn native() -> FileFacts {
 fn python_and_typescript_bind_to_rust_exports_by_name() {
     let config = Config::default();
     let mut builder = Builder::new(&config);
-    builder.add(&SourceFile { path: "native/lib.rs", text: "" }, native());
+    builder.add(
+        &SourceFile {
+            path: "native/lib.rs",
+            text: "",
+        },
+        native(),
+    );
     let used = "from native import add\nimport nativelib._core\n\n\ndef calc():\n    add(1, 2)\n    ping()\n\n\nadd(3, 4)\n";
     add_all(
         &mut builder,
@@ -492,7 +541,10 @@ fn python_and_typescript_bind_to_rust_exports_by_name() {
             ("app/use.py", used),
             ("other/x.py", "from elsewhere import add\nadd()\n"),
             ("lonely.py", "def lonely():\n    add()\n"),
-            ("web/x.ts", "import { Counter } from \"./native\";\nCounter();\n"),
+            (
+                "web/x.ts",
+                "import { Counter } from \"./native\";\nCounter();\n",
+            ),
         ],
     );
     let graph = builder.build();
@@ -514,7 +566,10 @@ fn python_and_typescript_bind_to_rust_exports_by_name() {
     assert_eq!(lines, [1, 10]);
     let calc = symbol(Lang::Py, "app/use.py", "calc");
     let from_calc = outgoing(&graph, Relation::Binds, &calc);
-    assert_eq!(from_calc, [row("sym:rs:native/lib.rs#add", Confidence::Heuristic, 1)]);
+    assert_eq!(
+        from_calc,
+        [row("sym:rs:native/lib.rs#add", Confidence::Heuristic, 1)]
+    );
     // Matching is by exported name only: any module importing `add` binds.
     let other = module(Lang::Py, "other/x.py");
     assert_eq!(edge(&graph, Relation::Binds, &other, &add).count(), 2);
@@ -526,7 +581,11 @@ fn python_and_typescript_bind_to_rust_exports_by_name() {
     let web = module(Lang::Ts, "web/x.ts");
     assert_eq!(edge(&graph, Relation::Binds, &web, &counter).count(), 2);
     // The ghost export names no node, and exporting symbols record it.
-    assert!(!graph.nodes.contains_key(&symbol(Lang::Rs, "native/lib.rs", "ghost")));
+    assert!(
+        !graph
+            .nodes
+            .contains_key(&symbol(Lang::Rs, "native/lib.rs", "ghost"))
+    );
     assert_eq!(
         graph.nodes[&add].binding,
         Some(Binding {
@@ -579,10 +638,18 @@ def g():
         graph.nodes[id]
             .tags
             .iter()
-            .map(|(key, values)| format!("{key}={}", values.iter().cloned().collect::<Vec<_>>().join(",")))
+            .map(|(key, values)| {
+                format!(
+                    "{key}={}",
+                    values.iter().cloned().collect::<Vec<_>>().join(",")
+                )
+            })
             .collect()
     };
-    assert_eq!(tags(&module(Lang::Py, "src/a.py")), ["adr=0001,0002", "layer=domain"]);
+    assert_eq!(
+        tags(&module(Lang::Py, "src/a.py")),
+        ["adr=0001,0002", "layer=domain"]
+    );
     assert_eq!(
         tags(&symbol(Lang::Py, "src/a.py", "f")),
         ["adr=0001,0002,0003", "layer=domain", "owner=me"]
@@ -593,7 +660,10 @@ def g():
     );
     assert_eq!(tags(&external(Lang::Py, "requests")), ["boundary=net"]);
     assert_eq!(tags(&module(Lang::Py, "lib/b.py")), Vec::<String>::new());
-    assert_eq!(tags(&id(NodeKind::Package, Lang::Py, "lib", None)), Vec::<String>::new());
+    assert_eq!(
+        tags(&id(NodeKind::Package, Lang::Py, "lib", None)),
+        Vec::<String>::new()
+    );
 }
 
 // ADR 0004, "Inline annotations" and "Suppressions": a trailing tag is
@@ -615,11 +685,19 @@ x = 1  # modfence: layer=a
         .collect();
     assert_eq!(
         severities,
-        [(3, Severity::Error), (4, Severity::Warning), (5, Severity::Error)]
+        [
+            (3, Severity::Error),
+            (4, Severity::Warning),
+            (5, Severity::Error)
+        ]
     );
     assert!(strict.findings[0].message.contains("needs reason"));
     assert!(strict.findings[1].message.contains("trailing"));
-    assert!(strict.findings[2].message.contains("invalid modfence annotation"));
+    assert!(
+        strict.findings[2]
+            .message
+            .contains("invalid modfence annotation")
+    );
     assert!(strict.findings.iter().all(|f| f.path == "a.py"));
     let suppressed: Vec<(u32, Vec<&str>, Option<&str>)> = strict
         .suppressions
@@ -650,7 +728,11 @@ x = 1  # modfence: layer=a
 // the facts that could be recovered.
 #[test]
 fn file_diagnostics_are_kept_and_sorted() {
-    let graph = build(&[("b.py", "def (:\n"), ("a.ts", "const = ;\n"), ("c.py", "x = 1\n")]);
+    let graph = build(&[
+        ("b.py", "def (:\n"),
+        ("a.ts", "const = ;\n"),
+        ("c.py", "x = 1\n"),
+    ]);
     let found: Vec<(&str, DiagnosticCode)> = graph
         .diagnostics
         .iter()
@@ -658,7 +740,10 @@ fn file_diagnostics_are_kept_and_sorted() {
         .collect();
     assert_eq!(
         found,
-        [("a.ts", DiagnosticCode::ParseError), ("b.py", DiagnosticCode::ParseError)]
+        [
+            ("a.ts", DiagnosticCode::ParseError),
+            ("b.py", DiagnosticCode::ParseError)
+        ]
     );
     assert!(graph.nodes.contains_key(&module(Lang::Py, "c.py")));
     assert_well_formed(&graph);
