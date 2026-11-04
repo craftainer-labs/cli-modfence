@@ -290,8 +290,11 @@ pub fn check(graph: &Graph, config: &Config, precise: bool) -> Outcome {
     violations.extend(unused_violations(&mut ledger));
     violations.sort();
     // One import statement can yield an `imports` and a `binds` edge at the
-    // same site; a site is reported once per rule (ADR 0004, invariant 9).
-    violations.dedup_by(|b, a| a.rule == b.rule && a.path == b.path && a.span == b.span);
+    // same site; a site is reported once per rule and message (ADR 0004,
+    // invariant 9). Two ids of one ignore comment differ in their message.
+    violations.dedup_by(|b, a| {
+        a.rule == b.rule && a.path == b.path && a.span == b.span && a.message == b.message
+    });
     let mut notices = Vec::new();
     if !precise {
         notices.push(Notice {

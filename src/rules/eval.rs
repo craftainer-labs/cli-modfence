@@ -1,7 +1,7 @@
 //! Judging one site: the layers rule, the explicit rules and the default
 //! effect (ADR 0004, "Evaluation", "Default effect" and "Layers").
 
-use super::{DEFAULT_DENY, Endpoint, LAYERS, LAYER_KEY};
+use super::{DEFAULT_DENY, Endpoint, LAYER_KEY, LAYERS};
 use crate::config::{ConfidenceReq, Config, DefaultEffect, Effect, Relation, Severity, Subject};
 use crate::extract::NodeKind;
 use crate::graph::{Confidence, Node};
@@ -65,7 +65,7 @@ impl<'a> Judge<'a> {
     /// package and a `package` selector never matches it (ADR 0003, invariant
     /// 6). The exemption is per edge: a resolved edge to the same node still
     /// matches by package.
-    fn subject<'n>(&self, node: &'n Node, unplaced: bool) -> Subject<'n> {
+    fn subject(node: &Node, unplaced: bool) -> Subject<'_> {
         let package = node.kind == NodeKind::External && !unplaced;
         Subject {
             kind: node.kind,
@@ -133,7 +133,7 @@ impl<'a> Judge<'a> {
             });
         }
         let unplaced = relation == Relation::Imports && confidence == Confidence::Heuristic;
-        let (source, target) = (self.subject(from, unplaced), self.subject(to, unplaced));
+        let (source, target) = (Self::subject(from, unplaced), Self::subject(to, unplaced));
         for rule in &self.config.rules {
             let matched = rule.kinds.contains(&relation)
                 && counts(relation, confidence, rule.confidence)

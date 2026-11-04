@@ -277,7 +277,13 @@ fn a_package_selector_skips_only_the_unplaced_edge_to_a_node() {
     external.path = None;
     let edges = vec![
         edge(&a, &external, Relation::Imports, Confidence::Resolved, &[1]),
-        edge(&a, &external, Relation::Imports, Confidence::Heuristic, &[2]),
+        edge(
+            &a,
+            &external,
+            Relation::Imports,
+            Confidence::Heuristic,
+            &[2],
+        ),
     ];
     let graph = graph_of(&[&a, &external], edges);
     let to = "{ package = \"requests\" }";
