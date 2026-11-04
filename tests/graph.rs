@@ -349,10 +349,9 @@ fn a_bare_relative_import_names_the_package_not_a_sibling_module() {
 // external package; unplaced targets are not matched by `package` selectors.
 #[test]
 fn unplaced_imports_are_not_packages() {
-    let config = config::parse(
-        "version = 1\n[[node]]\npackage = \"**\"\ntags = { boundary = \"net\" }\n",
-    )
-    .unwrap();
+    let config =
+        config::parse("version = 1\n[[node]]\npackage = \"**\"\ntags = { boundary = \"net\" }\n")
+            .unwrap();
     let user = "import requests\nimport app.missing\nfrom app.sub import x\nfrom .gone import y\n";
     let graph = build_with(&config, &[("app/__init__.py", ""), ("user.py", user)]);
     assert_well_formed(&graph);
@@ -386,7 +385,10 @@ fn a_self_import_does_not_double_a_call() {
     let graph = build(&[("a/__init__.py", init)]);
     let at = module(Lang::Py, "a/__init__.py");
     let calls = outgoing(&graph, Relation::Calls, &at);
-    assert_eq!(calls, [row("sym:py:a/__init__.py#f", Confidence::Heuristic, 1)]);
+    assert_eq!(
+        calls,
+        [row("sym:py:a/__init__.py#f", Confidence::Heuristic, 1)]
+    );
 }
 
 // A trailing-tag check needs the comment's line; a line the text lacks is not
