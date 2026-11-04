@@ -104,7 +104,7 @@ fn a_package_view_has_packages_and_externals_with_rolled_up_edges() {
             "pkg:py:lib -> pkg:py:app imports 2",
         ]
     );
-    assert!(view.clusters.is_empty());
+    assert_eq!(view.clusters.len(), 0);
 }
 
 #[test]
@@ -196,11 +196,8 @@ fn group_by_clusters_the_visible_nodes_by_a_tag() {
     // An external package is clustered by its tags like any node.
     let network = View::new(&graph, Level::Package, Some("boundary"));
     assert_eq!(clusters(&network), ["network: ext:py:requests"]);
-    assert!(
-        View::new(&graph, Level::Module, Some("nope"))
-            .clusters
-            .is_empty()
-    );
+    let unknown = View::new(&graph, Level::Module, Some("nope"));
+    assert_eq!(unknown.clusters.len(), 0);
 }
 
 #[test]
