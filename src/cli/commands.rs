@@ -96,10 +96,10 @@ fn root_of(config: &Path) -> PathBuf {
 /// Loads the configuration, walks the analysis root, extracts every Python and
 /// TypeScript file and builds the graph. File problems go to `err`.
 fn analyse(common: &Common, err: &mut impl Write) -> Result<(Config, Graph), Failure> {
-    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    let cwd = std::env::current_dir().unwrap_or_default();
     let (config, root) = match common.config.clone().or_else(|| discover(&cwd)) {
         Some(path) => (load(&path)?, root_of(&path)),
-        None => (Config::default(), cwd),
+        None => (Config::default(), PathBuf::from(".")),
     };
     let extractors: [&dyn Extractor; 2] = [&PythonExtractor, &TsExtractor];
     let files = walker::walk(&root, &config, |path| {
