@@ -172,6 +172,12 @@ fn malformed_toml_and_a_missing_version_are_errors() {
 }
 
 #[test]
+fn a_future_version_is_reported_before_unknown_keys() {
+    let error = fail("version = 2\n[future]\nx = 1\n");
+    assert!(error.message.contains("unsupported version 2"));
+}
+
+#[test]
 fn only_version_one_is_accepted() {
     let text = "version = 2\n";
     let error = fail(text);

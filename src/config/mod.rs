@@ -249,6 +249,17 @@ impl Config {
 /// A [`ParseError`] for malformed TOML, an unknown key, a wrong type or value,
 /// or a violation of ADR 0004's invariants 1, 2, 6 and 13.
 pub fn parse(text: &str) -> Result<Config, ParseError> {
+    // A later schema may add keys this one denies, so a wrong version is
+    // reported before the strict parse can complain about them.
+    let probe: Result<VersionProbe, _> = toml::from_str(text);
+    let wrong = probe.ok().and_then(|probe| probe.version);
+    if let Some(version) = wrong.filter(|version| *version.get_ref() != 1) {
+        return Err(ParseError::new(
+            text,
+            format!("unsupported version {}, expected 1", version.get_ref()),
+            Some(version.span()),
+        ));
+    }
     let raw: Raw = toml::from_str(text)
         .map_err(|error| ParseError::new(text, error.message().to_owned(), error.span()))?;
     raw.build()
@@ -257,6 +268,12 @@ pub fn parse(text: &str) -> Result<Config, ParseError> {
 
 /// A problem found after parsing: what, and the span of the culprit.
 type Problem = (String, Range<usize>);
+
+/// Only the `version` key, read leniently ahead of the strict parse.
+#[derive(Deserialize)]
+struct VersionProbe {
+    version: Option<Spanned<u32>>,
+}
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
