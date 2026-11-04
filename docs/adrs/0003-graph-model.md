@@ -167,6 +167,11 @@ points, ends exclusive. SARIF output sets `columnKind` to
 6. Import edges to files inside the analysis root are `resolved`; an import
    the core cannot place becomes an edge to an `external` node, never a
    dropped edge.
+   Clarification (NC4a): an import edge has `confidence = "resolved"` when its
+   target lies inside the analysis or is a named external package, and
+   `heuristic` only when the import cannot be placed at all. The `external`
+   node of an unplaced import is named after the raw specifier and is not a
+   package: a `package` selector (ADR 0004) never matches it.
 7. A tree-sitter call edge is never `resolved`; only a SCIP match makes one.
 8. A SCIP reference upgrades a call edge only when it lies at the span of a
    tree-sitter call site and its definition maps to one of our symbol

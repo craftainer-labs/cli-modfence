@@ -6,6 +6,7 @@
 
 pub mod config;
 pub mod extract;
+pub mod graph;
 
 use std::ffi::OsString;
 use std::fmt;
