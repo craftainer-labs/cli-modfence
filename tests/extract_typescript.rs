@@ -625,13 +625,14 @@ function ignored() {}
             expect(23, None),
             expect(27, Some("Decorated~last")),
             expect(28, Some("Decorated~last")),
+            expect(32, None),
             expect(33, None),
             expect(35, None),
             expect(36, None),
         ]
     );
     // A malformed annotation is kept, with its error.
-    assert!(facts.annotations[10].parsed.is_err());
+    assert!(facts.annotations[11].parsed.is_err());
     // Annotation-like text in a string or template is not read.
     let strings = run(
         "s.ts",
