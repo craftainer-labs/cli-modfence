@@ -21,4 +21,12 @@ Rules:
 - Unknown keys are errors (`deny_unknown_fields`); do not add a catch-all.
 - Path and package globs are built with `literal_separator(true)`, so `*` does
   not cross `/`.
+- `exclude` patterns follow gitignore: without a `/` (other than a trailing
+  one) a pattern matches at any depth; with one it is anchored at the analysis
+  root, as is a leading `/`; a trailing `/` matches directories and everything
+  below; `*` does not cross `/`, `**` does. Negation (`!`) is not supported.
+- `package = "*"` does not match scoped npm names such as `@babel/core`
+  (`*` does not cross `/`); use `@*/*` for those, or `**` for all packages.
+- Tag value sets are never empty (the TOML and annotation parsers reject
+  them); `resolve_tags` still treats an empty set as no contribution.
 - Tests are in `tests/config.rs`; do not add `#[cfg(test)]` modules here.

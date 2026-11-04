@@ -172,6 +172,12 @@ fn malformed_toml_and_a_missing_version_are_errors() {
 }
 
 #[test]
+fn a_future_version_is_reported_before_unknown_keys() {
+    let error = fail("version = 2\n[future]\nx = 1\n");
+    assert!(error.message.contains("unsupported version 2"));
+}
+
+#[test]
 fn only_version_one_is_accepted() {
     let text = "version = 2\n";
     let error = fail(text);
@@ -250,6 +256,53 @@ fn tag_keys_are_validated_in_one_place() {
     for key in ["", "Layer", "1a", "a b", "a.b"] {
         assert!(validate_tag_key(key).is_err(), "{key}");
     }
+}
+
+#[test]
+fn exclude_patterns_follow_gitignore() {
+    let text = "version = 1\nexclude = [\"*.log\", \"node_modules\", \"dist/\", \"src/*.rs\", \"/build\"]\n";
+    let config = config::parse(text).unwrap();
+    let excluded = |path: &str| config.exclude.iter().any(|glob| glob.is_match(path));
+    assert!(excluded("x.log"));
+    assert!(excluded("a/b/x.log"));
+    assert!(excluded("node_modules/x.js"));
+    assert!(excluded("pkg/node_modules/x.js"));
+    assert!(excluded("dist/x.js"));
+    assert!(excluded("a/dist/b/x.js"));
+    assert!(!excluded("dist"));
+    assert!(excluded("src/a.rs"));
+    assert!(!excluded("lib/src/a.rs"));
+    assert!(!excluded("src/a/b.rs"));
+    assert!(excluded("build/x"));
+    assert!(!excluded("a/build/x"));
+    assert!(!excluded("src/a.py"));
+    assert!(format!("{:?}", config.clone()).contains("ExcludeGlob"));
+}
+
+#[test]
+fn an_empty_path_glob_is_an_error() {
+    assert!(
+        fail("version = 1\n[[node]]\nmatch = \"\"\ntags = { a = \"b\" }\n")
+            .message
+            .contains("must not be empty")
+    );
+}
+
+#[test]
+fn a_bare_slash_is_not_an_exclude_pattern() {
+    assert!(
+        fail("version = 1\nexclude = [\"/\"]\n")
+            .message
+            .contains("invalid glob")
+    );
+}
+
+#[test]
+fn an_empty_value_set_does_not_wipe_a_lower_level() {
+    let lower = Tags::from([("layer".to_owned(), BTreeSet::from(["domain".to_owned()]))]);
+    let higher = Tags::from([("layer".to_owned(), BTreeSet::new())]);
+    let effective = resolve_tags([&lower, &higher], &BTreeSet::new());
+    assert_eq!(effective, lower);
 }
 
 #[test]

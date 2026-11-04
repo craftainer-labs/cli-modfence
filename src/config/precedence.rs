@@ -52,7 +52,8 @@ pub fn resolve_tags<'a>(
 ) -> Tags {
     let mut effective = Tags::new();
     for level in levels {
-        for (key, values) in level {
+        // An empty set contributes nothing; the parsers never produce one.
+        for (key, values) in level.iter().filter(|(_, values)| !values.is_empty()) {
             if accumulate.contains(key) {
                 effective
                     .entry(key.clone())

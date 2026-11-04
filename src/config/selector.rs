@@ -86,6 +86,65 @@ impl Parse for PathGlob {
     }
 }
 
+/// An `exclude` pattern with gitignore semantics: without a `/` (other than a
+/// trailing one) it matches at any depth; with one it is anchored at the
+/// analysis root, as is a leading `/`; a trailing `/` matches directories
+/// only, so everything below them. A match on a directory excludes what is
+/// below it.
+#[derive(Debug, Clone)]
+pub struct ExcludeGlob {
+    itself: Option<GlobMatcher>,
+    below: GlobMatcher,
+}
+
+impl ExcludeGlob {
+    /// Whether the root-relative, `/`-separated `path` is excluded.
+    #[must_use]
+    pub fn is_match(&self, path: &str) -> bool {
+        match &self.itself {
+            Some(glob) if glob.is_match(path) => true,
+            _ => self.below.is_match(path),
+        }
+    }
+}
+
+/// The `exclude` entry parser.
+pub(crate) struct ExcludePattern;
+
+impl Parse for ExcludePattern {
+    type Out = ExcludeGlob;
+
+    fn parse(text: &str) -> Result<ExcludeGlob, String> {
+        if text.is_empty() {
+            return Err("a glob must not be empty".to_owned());
+        }
+        let invalid = |error: String| format!("invalid glob `{text}`: {error}");
+        let (body, directory) = match text.strip_suffix('/') {
+            Some(body) => (body, true),
+            None => (text, false),
+        };
+        let (body, rooted) = match body.strip_prefix('/') {
+            Some(body) => (body, true),
+            None => (body, false),
+        };
+        if body.is_empty() {
+            return Err(invalid("no path before the slash".to_owned()));
+        }
+        let base = if rooted || body.contains('/') {
+            body.to_owned()
+        } else {
+            format!("**/{body}")
+        };
+        let below = compile_glob(&format!("{base}/**")).map_err(invalid)?;
+        let itself = if directory {
+            None
+        } else {
+            Some(compile_glob(&base).map_err(invalid)?)
+        };
+        Ok(ExcludeGlob { itself, below })
+    }
+}
+
 /// A language code, `py`, `ts` or `rs`.
 pub(crate) struct LangName;
 

@@ -27,10 +27,10 @@ use toml::Spanned;
 use crate::extract::Tags;
 
 use self::precedence::TagKey;
-use self::selector::{Many, One, PathGlob, TagValue};
+use self::selector::{ExcludePattern, Many, One, PathGlob, TagValue};
 
 pub use self::precedence::{resolve_tags, validate_tag_key};
-pub use self::selector::{Selector, Subject};
+pub use self::selector::{ExcludeGlob, Selector, Subject};
 
 /// A configuration problem, located in the file when the parser knows where.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -196,8 +196,9 @@ pub struct Rule {
 /// The parsed `modfence.toml`.
 #[derive(Debug, Clone)]
 pub struct Config {
-    /// `exclude` globs, added to the ignore files the walker honours.
-    pub exclude: Vec<GlobMatcher>,
+    /// `exclude` patterns (gitignore semantics), added to the ignore files the
+    /// walker honours.
+    pub exclude: Vec<ExcludeGlob>,
     /// Layer names, highest first; empty when `layers` is not set.
     pub layers: Vec<String>,
     /// The default effect.
@@ -249,6 +250,17 @@ impl Config {
 /// A [`ParseError`] for malformed TOML, an unknown key, a wrong type or value,
 /// or a violation of ADR 0004's invariants 1, 2, 6 and 13.
 pub fn parse(text: &str) -> Result<Config, ParseError> {
+    // A later schema may add keys this one denies, so a wrong version is
+    // reported before the strict parse can complain about them.
+    let probe: Result<VersionProbe, _> = toml::from_str(text);
+    let wrong = probe.ok().and_then(|probe| probe.version);
+    if let Some(version) = wrong.filter(|version| *version.get_ref() != 1) {
+        return Err(ParseError::new(
+            text,
+            format!("unsupported version {}, expected 1", version.get_ref()),
+            Some(version.span()),
+        ));
+    }
     let raw: Raw = toml::from_str(text)
         .map_err(|error| ParseError::new(text, error.message().to_owned(), error.span()))?;
     raw.build()
@@ -258,12 +270,20 @@ pub fn parse(text: &str) -> Result<Config, ParseError> {
 /// A problem found after parsing: what, and the span of the culprit.
 type Problem = (String, Range<usize>);
 
+/// Only the `version` key, read leniently ahead of the strict parse.
+#[derive(Deserialize)]
+struct VersionProbe {
+    version: Option<Spanned<u32>>,
+}
+
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Raw {
-    version: Spanned<u32>,
+    // Checked by `parse`, ahead of the strict parse; required here.
+    #[serde(rename = "version")]
+    _version: Spanned<u32>,
     #[serde(default)]
-    exclude: Vec<One<PathGlob>>,
+    exclude: Vec<One<ExcludePattern>>,
     layers: Option<Spanned<Vec<Spanned<String>>>>,
     #[serde(default)]
     default: DefaultEffect,
@@ -314,13 +334,6 @@ struct RawRule {
 
 impl Raw {
     fn build(self) -> Result<Config, Problem> {
-        let version = self.version;
-        if *version.get_ref() != 1 {
-            return Err((
-                format!("unsupported version {}, expected 1", version.get_ref()),
-                version.span(),
-            ));
-        }
         Ok(Config {
             exclude: self.exclude.into_iter().map(|glob| glob.0).collect(),
             layers: layers(self.layers)?,
