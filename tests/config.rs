@@ -4,7 +4,7 @@
 use std::collections::BTreeSet;
 
 use modfence::config::{
-    self, Config, ConfidenceReq, DefaultEffect, Effect, ParseError, Relation, Severity, Subject,
+    self, ConfidenceReq, Config, DefaultEffect, Effect, ParseError, Relation, Severity, Subject,
     resolve_tags, validate_tag_key,
 };
 use modfence::extract::{Lang, NodeKind, Tags};
@@ -69,7 +69,11 @@ fn the_schema_example_parses() {
     let ids: Vec<&str> = config.rules.iter().map(|r| r.id.as_str()).collect();
     assert_eq!(
         ids,
-        ["domain-no-network", "app-uses-legacy-reader", "no-new-legacy"]
+        [
+            "domain-no-network",
+            "app-uses-legacy-reader",
+            "no-new-legacy"
+        ]
     );
     let last = &config.rules[2];
     assert_eq!(last.kinds, [Relation::Imports, Relation::Calls]);
@@ -178,13 +182,16 @@ fn only_version_one_is_accepted() {
 
 #[test]
 fn the_error_column_counts_code_points_not_bytes() {
-    let text = "version = 1\nlayers = [\"é\", \"é\"]\n";
+    let text = "version = 1\n[[node]]\nmatch = \"a\"\ntags = { a = \"é\", \"é\" = \"x\" }\n";
     let error = fail(text);
     let start = error.span.clone().expect("a span").start;
     let line_start = text[..start].rfind('\n').map_or(0, |at| at + 1);
     let characters = text[line_start..start].chars().count();
     assert_eq!(error.column, Some(u32::try_from(characters + 1).unwrap()));
-    assert!(start - line_start > characters, "the line holds a wide character");
+    assert!(
+        start - line_start > characters,
+        "the line holds a wide character"
+    );
 }
 
 // ADR 0004, invariant 1: duplicate layer names; schema: at least two layers.
@@ -195,10 +202,26 @@ fn layers_are_checked() {
     assert!(error.message.contains("duplicate layer `app`"));
     assert_eq!(error.line, Some(2));
     assert_eq!(culprit(text, &error).trim_matches('"'), "app");
-    assert!(fail("version = 1\nlayers = [\"a\"]\n").message.contains("at least two"));
-    assert!(fail("version = 1\nlayers = []\n").message.contains("at least two"));
-    assert!(fail("version = 1\nlayers = [\"a\", \"b c\"]\n").message.contains("b c"));
-    assert!(fail("version = 1\nlayers = [\"a\", \"\"]\n").message.contains("layer name"));
+    assert!(
+        fail("version = 1\nlayers = [\"a\"]\n")
+            .message
+            .contains("at least two")
+    );
+    assert!(
+        fail("version = 1\nlayers = []\n")
+            .message
+            .contains("at least two")
+    );
+    assert!(
+        fail("version = 1\nlayers = [\"a\", \"b c\"]\n")
+            .message
+            .contains("b c")
+    );
+    assert!(
+        fail("version = 1\nlayers = [\"a\", \"\"]\n")
+            .message
+            .contains("layer name")
+    );
     let config = config::parse("version = 1\nlayers = [\"a.b\", \"c_d\", \"e-f\"]\n").unwrap();
     assert_eq!(config.layers, ["a.b", "c_d", "e-f"]);
 }
@@ -235,8 +258,16 @@ fn exclude_globs_are_checked() {
     assert!(config.exclude[0].is_match("a/x.py"));
     assert!(!config.exclude[0].is_match("a/b/x.py"));
     assert!(config.exclude[1].is_match("b/c/d"));
-    assert!(fail("version = 1\nexclude = [\"[\"]\n").message.contains("invalid glob"));
-    assert!(fail("version = 1\nexclude = [\"\"]\n").message.contains("must not be empty"));
+    assert!(
+        fail("version = 1\nexclude = [\"[\"]\n")
+            .message
+            .contains("invalid glob")
+    );
+    assert!(
+        fail("version = 1\nexclude = [\"\"]\n")
+            .message
+            .contains("must not be empty")
+    );
 }
 
 // ADR 0004, `[[node]]`.
@@ -249,7 +280,11 @@ fn node_entries_need_one_target_and_tags() {
     let text = "version = 1\n[[node]]\nmatch = \"a\"\ntags = {}\n";
     let error = fail(text);
     assert!(error.message.contains("at least one tag"));
-    assert!(fail("version = 1\n[[node]]\nmatch = \"a\"\n").message.contains("tags"));
+    assert!(
+        fail("version = 1\n[[node]]\nmatch = \"a\"\n")
+            .message
+            .contains("tags")
+    );
 }
 
 #[test]
@@ -311,7 +346,10 @@ fn rule_ids_are_checked() {
         assert_eq!(error.line, Some(3));
     }
     for id in ["Bad", "-x", "a_b", ""] {
-        assert!(fail(&rule(id)).message.contains("[a-z0-9][a-z0-9-]*"), "{id}");
+        assert!(
+            fail(&rule(id)).message.contains("[a-z0-9][a-z0-9-]*"),
+            "{id}"
+        );
     }
     assert!(config::parse(&rule("ok-1")).is_ok());
     let twice = format!("{}{}", rule("same"), &rule("same")["version = 1\n".len()..]);
@@ -335,12 +373,32 @@ fn a_rule_that_can_never_match_is_an_error() {
 #[test]
 fn rule_fields_are_checked() {
     let base = "version = 1\n[[rule]]\nid = \"r\"\nfrom = { a = \"b\" }\nto = { a = \"b\" }\neffect = \"forbid\"\n";
-    assert!(fail(&format!("{base}kinds = []\n")).message.contains("kinds must not be empty"));
-    assert!(fail(&format!("{base}kinds = [\"bogus\"]\n")).message.contains("bogus"));
-    assert!(fail(&format!("{base}message = \"\"\n")).message.contains("message"));
-    assert!(fail(&format!("{base}severity = \"fatal\"\n")).message.contains("fatal"));
+    assert!(
+        fail(&format!("{base}kinds = []\n"))
+            .message
+            .contains("kinds must not be empty")
+    );
+    assert!(
+        fail(&format!("{base}kinds = [\"bogus\"]\n"))
+            .message
+            .contains("bogus")
+    );
+    assert!(
+        fail(&format!("{base}message = \"\"\n"))
+            .message
+            .contains("message")
+    );
+    assert!(
+        fail(&format!("{base}severity = \"fatal\"\n"))
+            .message
+            .contains("fatal")
+    );
     assert!(fail(&base.replace("forbid", "ban")).message.contains("ban"));
-    assert!(fail(&base.replace("effect = \"forbid\"\n", "")).message.contains("effect"));
+    assert!(
+        fail(&base.replace("effect = \"forbid\"\n", ""))
+            .message
+            .contains("effect")
+    );
     let ok = format!("{base}message = \"m\"\nseverity = \"note\"\n");
     let rule = &config::parse(&ok).unwrap().rules[0];
     assert_eq!(rule.message.as_deref(), Some("m"));
@@ -359,12 +417,36 @@ fn selectors_are_validated() {
     assert!(error.message.contains("selector key"));
     assert!(fail(&with("{}")).message.contains("at least one key"));
     assert!(fail(&with("\"x\"")).message.contains("selector table"));
-    assert!(fail(&with("{ lang = \"go\" }")).message.contains("unknown language `go`"));
-    assert!(fail(&with("{ kind = [\"module\", \"file\"] }")).message.contains("unknown kind `file`"));
-    assert!(fail(&with("{ path = \"[\" }")).message.contains("invalid glob"));
-    assert!(fail(&with("{ package = [] }")).message.contains("must not be empty"));
-    assert!(fail(&with("{ layer = \"\" }")).message.contains("must not be empty"));
-    assert!(fail(&with("{ layer = 3 }")).message.contains("non-empty list of strings"));
+    assert!(
+        fail(&with("{ lang = \"go\" }"))
+            .message
+            .contains("unknown language `go`")
+    );
+    assert!(
+        fail(&with("{ kind = [\"module\", \"file\"] }"))
+            .message
+            .contains("unknown kind `file`")
+    );
+    assert!(
+        fail(&with("{ path = \"[\" }"))
+            .message
+            .contains("invalid glob")
+    );
+    assert!(
+        fail(&with("{ package = [] }"))
+            .message
+            .contains("must not be empty")
+    );
+    assert!(
+        fail(&with("{ layer = \"\" }"))
+            .message
+            .contains("must not be empty")
+    );
+    assert!(
+        fail(&with("{ layer = 3 }"))
+            .message
+            .contains("non-empty list of strings")
+    );
 }
 
 #[test]
@@ -434,10 +516,7 @@ fn tag_precedence_table() {
         ),
         (
             "symbol inline replaces the module's whole list",
-            vec![
-                tags(&[("team", &["a", "b"])]),
-                tags(&[("team", &["c"])]),
-            ],
+            vec![tags(&[("team", &["a", "b"])]), tags(&[("team", &["c"])])],
             tags(&[("team", &["c"])]),
         ),
         (
@@ -464,7 +543,11 @@ fn tag_precedence_table() {
                 tags(&[("owner", &["m"])]),
                 tags(&[("deprecated", &["true"])]),
             ],
-            tags(&[("deprecated", &["true"]), ("layer", &["a"]), ("owner", &["m"])]),
+            tags(&[
+                ("deprecated", &["true"]),
+                ("layer", &["a"]),
+                ("owner", &["m"]),
+            ]),
         ),
     ];
     for (name, levels, expected) in rows {

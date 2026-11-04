@@ -21,7 +21,9 @@ pub fn validate_tag_key(key: &str) -> Result<(), String> {
     } else if is_name(key) {
         Ok(())
     } else {
-        Err(format!("a tag key must match [a-z][a-z0-9_-]*, not `{key}`"))
+        Err(format!(
+            "a tag key must match [a-z][a-z0-9_-]*, not `{key}`"
+        ))
     }
 }
 

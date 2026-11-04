@@ -10,7 +10,7 @@
 //! Path globs match the whole repository-relative path, and `*` does not cross
 //! `/` (gitignore-style, `**` does).
 //!
-//! The file is the input of the rules engine (NC4b) and of the tag computation
+//! The file is the input of the rules engine (`NC4b`) and of the tag computation
 //! in the `graph` module; this module reads no files and runs nothing.
 
 mod precedence;
@@ -75,7 +75,13 @@ impl std::error::Error for ParseError {}
 fn line_column(text: &str, offset: usize) -> (u32, u32) {
     let before = text.get(..offset).unwrap_or(text);
     let line = before.matches('\n').count() + 1;
-    let column = before.rsplit('\n').next().unwrap_or_default().chars().count() + 1;
+    let column = before
+        .rsplit('\n')
+        .next()
+        .unwrap_or_default()
+        .chars()
+        .count()
+        + 1;
     (
         u32::try_from(line).unwrap_or(u32::MAX),
         u32::try_from(column).unwrap_or(u32::MAX),
@@ -161,9 +167,7 @@ impl NodeEntry {
     pub fn matches(&self, subject: &Subject<'_>) -> bool {
         match &self.target {
             EntryTarget::Path(glob) => subject.path.is_some_and(|path| glob.is_match(path)),
-            EntryTarget::Package(glob) => {
-                subject.package.is_some_and(|name| glob.is_match(name))
-            }
+            EntryTarget::Package(glob) => subject.package.is_some_and(|name| glob.is_match(name)),
         }
     }
 }
@@ -411,7 +415,9 @@ fn check_rule_id(id: &str) -> Result<(), String> {
     if valid {
         Ok(())
     } else {
-        Err(format!("a rule id must match [a-z0-9][a-z0-9-]*, not `{id}`"))
+        Err(format!(
+            "a rule id must match [a-z0-9][a-z0-9-]*, not `{id}`"
+        ))
     }
 }
 

@@ -62,8 +62,10 @@ impl Parse for TagValue {
 
     fn parse(text: &str) -> Result<String, String> {
         if text.is_empty() || text.contains('"') || text.chars().any(char::is_control) {
-            Err("a tag value must be non-empty, without double quotes or control characters"
-                .to_owned())
+            Err(
+                "a tag value must be non-empty, without double quotes or control characters"
+                    .to_owned(),
+            )
         } else {
             Ok(text.to_owned())
         }
