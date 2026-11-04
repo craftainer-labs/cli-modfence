@@ -95,13 +95,13 @@ pub(super) enum ViewFormat {
     Text,
     /// The graph document.
     Json,
-    /// Graphviz DOT (NC5b).
+    /// Graphviz DOT (`NC5b`).
     Dot,
-    /// Mermaid (NC5b).
+    /// Mermaid (`NC5b`).
     Mermaid,
-    /// `GraphML` (NC5b).
+    /// `GraphML` (`NC5b`).
     Graphml,
-    /// Interactive HTML (NC5c).
+    /// Interactive HTML (`NC5c`).
     Html,
 }
 

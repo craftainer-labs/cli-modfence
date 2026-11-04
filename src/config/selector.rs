@@ -104,7 +104,11 @@ impl ExcludeGlob {
     /// [`is_match`]: Self::is_match
     #[must_use]
     pub fn is_dir_match(&self, path: &str) -> bool {
-        self.is_match(path) || self.directory.as_ref().is_some_and(|glob| glob.is_match(path))
+        self.is_match(path)
+            || self
+                .directory
+                .as_ref()
+                .is_some_and(|glob| glob.is_match(path))
     }
 }
 

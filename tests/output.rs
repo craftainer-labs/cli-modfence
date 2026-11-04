@@ -184,13 +184,23 @@ fn group_by_clusters_the_visible_nodes_by_a_tag() {
         ["team-a: mod:py:app/__init__.py mod:py:app/a.py mod:py:app/b.py"]
     );
     // The other values stay on the node, for the hover text.
-    let node = owners.nodes.iter().find(|n| n.id.as_str() == "mod:py:app/a.py");
-    let values: Vec<&str> = node.unwrap().tags["owner"].iter().map(String::as_str).collect();
+    let node = owners
+        .nodes
+        .iter()
+        .find(|n| n.id.as_str() == "mod:py:app/a.py");
+    let values: Vec<&str> = node.unwrap().tags["owner"]
+        .iter()
+        .map(String::as_str)
+        .collect();
     assert_eq!(values, ["team-a", "team-b"]);
     // An external package is clustered by its tags like any node.
     let network = View::new(&graph, Level::Package, Some("boundary"));
     assert_eq!(clusters(&network), ["network: ext:py:requests"]);
-    assert!(View::new(&graph, Level::Module, Some("nope")).clusters.is_empty());
+    assert!(
+        View::new(&graph, Level::Module, Some("nope"))
+            .clusters
+            .is_empty()
+    );
 }
 
 #[test]
@@ -274,7 +284,10 @@ fn the_json_document_has_everything_the_schema_names() {
     assert_eq!(nodes.len(), graph.nodes.len());
     let module = &nodes["mod:py:app/a.py"];
     assert_eq!(module["label"], "app/a.py");
-    assert_eq!(module["metadata"]["tags"]["owner"], serde_json::json!(["team-a", "team-b"]));
+    assert_eq!(
+        module["metadata"]["tags"]["owner"],
+        serde_json::json!(["team-a", "team-b"])
+    );
     let symbol = &nodes["sym:py:app/a.py#run"]["metadata"];
     assert_eq!(symbol["symbol_kind"], "function");
     assert_eq!(symbol["span"]["start_line"], 5);
@@ -287,7 +300,10 @@ fn the_json_document_has_everything_the_schema_names() {
     assert_eq!(external["tags"]["boundary"], serde_json::json!(["network"]));
     let edges = body["edges"].as_array().unwrap();
     assert_eq!(edges.len(), graph.edges.len());
-    let contains = edges.iter().find(|edge| edge["relation"] == "contains").unwrap();
+    let contains = edges
+        .iter()
+        .find(|edge| edge["relation"] == "contains")
+        .unwrap();
     assert_eq!(contains["metadata"], serde_json::json!({}));
     let import = edges
         .iter()
@@ -307,7 +323,10 @@ fn the_json_document_has_everything_the_schema_names() {
             }
         })
     );
-    let folded = edges.iter().find(|edge| edge["source"] == "mod:py:lib/c.py").unwrap();
+    let folded = edges
+        .iter()
+        .find(|edge| edge["source"] == "mod:py:lib/c.py")
+        .unwrap();
     assert_eq!(folded["metadata"]["count"], 2);
 }
 

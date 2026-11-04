@@ -46,8 +46,8 @@ pub(super) fn parse(args: &[String]) -> Result<Selector, Failure> {
         let (key, raw) = arg
             .split_once('=')
             .ok_or_else(|| Failure::usage(format!("`{arg}` is not a key=value selector")))?;
-        let values = split_values(raw)
-            .map_err(|reason| Failure::usage(format!("`{arg}` {reason}")))?;
+        let values =
+            split_values(raw).map_err(|reason| Failure::usage(format!("`{arg}` {reason}")))?;
         let array = Value::Array(values.into_iter().map(Value::String).collect());
         if table.insert(key.to_owned(), array).is_some() {
             return Err(Failure::usage(format!(

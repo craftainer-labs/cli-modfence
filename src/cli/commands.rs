@@ -47,10 +47,10 @@ fn run_check(args: &CheckArgs, out: &mut impl Write, err: &mut impl Write) -> Re
 }
 
 fn run_graph(args: &ViewArgs, out: &mut impl Write, err: &mut impl Write) -> Result<u8, Failure> {
-    let renderer = args.renderer()?;
+    let chosen = args.renderer()?;
     let (_, graph) = analyse(&args.common, err)?;
-    let rendered = match renderer {
-        Some(renderer) => renderer.render(&graph, &args.view(&graph)),
+    let rendered = match chosen {
+        Some(draw) => draw.render(&graph, &args.view(&graph)),
         None => text::summary(&graph),
     };
     emit(&rendered, &args.common, out)?;
@@ -58,13 +58,13 @@ fn run_graph(args: &ViewArgs, out: &mut impl Write, err: &mut impl Write) -> Res
 }
 
 fn run_trace(args: &TraceArgs, out: &mut impl Write, err: &mut impl Write) -> Result<u8, Failure> {
-    let renderer = args.view.renderer()?;
+    let chosen = args.view.renderer()?;
     let selector = trace::parse(&args.selectors)?;
     let (_, graph) = analyse(&args.view.common, err)?;
     let selected = trace::select(&graph, &selector);
     let part = output::incident(&graph, &selected);
-    let rendered = match renderer {
-        Some(renderer) => renderer.render(&part, &args.view.view(&part)),
+    let rendered = match chosen {
+        Some(draw) => draw.render(&part, &args.view.view(&part)),
         None => trace::render(&part, &selected),
     };
     emit(&rendered, &args.view.common, out)?;

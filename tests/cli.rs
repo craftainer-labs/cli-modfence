@@ -395,9 +395,14 @@ fn graph_json_matches_the_golden_file_and_ignores_the_view_flags() {
     assert_eq!(run.code, 0, "{}", run.err);
     assert!(run.out.ends_with("}\n"));
     assert_eq!(unversioned(&run.out), golden, "{}", run.out);
-    let flags = ["--level", "package", "--group-by", "layer"];
-    let narrowed = on("json", &[&["graph", "--format", "json"][..], &flags].concat());
-    assert_eq!(narrowed.out, run.out);
+    for level in ["package", "module", "symbol"] {
+        let flags = ["--level", level, "--group-by", "layer"];
+        let narrowed = on(
+            "json",
+            &[&["graph", "--format", "json"][..], &flags].concat(),
+        );
+        assert_eq!(narrowed.out, run.out, "{level}");
+    }
     assert_eq!(run.err, "");
 }
 
@@ -473,8 +478,11 @@ mod unreadable {
     #[test]
     fn the_walker_prunes_excluded_directories_and_names_the_failing_one() {
         let root = scratch("walk");
-        std::fs::write(root.join("modfence.toml"), "version = 1\nexclude = [\"vendor/\"]\n")
-            .unwrap();
+        std::fs::write(
+            root.join("modfence.toml"),
+            "version = 1\nexclude = [\"vendor/\"]\n",
+        )
+        .unwrap();
         std::fs::write(root.join("a.py"), "x = 1\n").unwrap();
         let vendor = root.join("deep/vendor");
         if !lock(&vendor) {
