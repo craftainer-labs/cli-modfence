@@ -123,6 +123,7 @@ fn the_page_makes_no_network_request() {
     for line in page.lines().filter(|line| line.contains("http")) {
         assert!(
             line.starts_with("// https://d3js.org/")
+                || line.starts_with("<meta http-equiv=")
                 || line.trim() == "var NS = 'http://www.w3.org/2000/svg';",
             "{line}"
         );
@@ -297,7 +298,7 @@ fn the_level_and_the_grouping_show_in_the_summary() {
     let package = page(Level::Package, None);
     assert!(package.contains("Showing packages and external packages: "));
     assert!(package.contains("grouped by package)."));
-    assert!(data(&package)["clusters"].as_array().unwrap().is_empty());
+    assert_eq!(data(&package)["clusters"], serde_json::json!([]));
     let module = page(Level::Module, None);
     assert!(module.contains("Showing packages, modules and external packages: "));
     let symbol = page(Level::Symbol, Some("layer"));
@@ -312,6 +313,6 @@ fn an_empty_graph_is_a_valid_page() {
     let page = Html.render(&graph, &View::new(&graph, Level::Module, None));
     assert!(page.contains("0 nodes, 0 edges, 0 clusters"));
     let data = data(&page);
-    assert!(data["nodes"].as_array().unwrap().is_empty());
-    assert!(data["edges"].as_array().unwrap().is_empty());
+    assert_eq!(data["nodes"], serde_json::json!([]));
+    assert_eq!(data["edges"], serde_json::json!([]));
 }
