@@ -49,6 +49,16 @@ tree-sitter-python = "0.25.0"
 tree-sitter-rust = "0.24.2"
 tree-sitter-typescript = "0.23.2"
 
+# Config, graph and report code (NC4, ADRs 0003 and 0004). `toml` parses
+# modfence.toml with key spans for file-and-line errors, `serde` derives its
+# model (deny_unknown_fields makes unknown keys errors), `serde_json` writes
+# the graph JSON and SARIF, and `globset` matches path globs. No graph crate:
+# rules, tags, collapse-to-depth and `trace` need no graph algorithms.
+globset = "0.4.21"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+toml = "1.1.8"
+
 [lints]
 workspace = true
 
