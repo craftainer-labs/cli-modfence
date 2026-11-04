@@ -305,8 +305,7 @@ fn annotations_escape_messages_and_properties() {
     let tricky = violation(Severity::Error, rule, path, span(1, 1, 2), message);
     let text = github::render(&outcome(vec![tricky]));
     let first = text.lines().next().unwrap();
-    let head =
-        "::error file=a%3Ab%2Cc%25.py,line=1,endLine=1,col=1,endColumn=2,title=r%3A1%2C2";
+    let head = "::error file=a%3Ab%2Cc%25.py,line=1,endLine=1,col=1,endColumn=2,title=r%3A1%2C2";
     assert_eq!(first, format!("{head}::50%25 done%0D%0Anext"));
 }
 
