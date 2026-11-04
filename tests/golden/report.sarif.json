@@ -1,0 +1,286 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "runs": [
+    {
+      "columnKind": "unicodeCodePoints",
+      "invocations": [
+        {
+          "executionSuccessful": true,
+          "toolExecutionNotifications": [
+            {
+              "level": "note",
+              "message": {
+                "text": "call edges were not checked; run with --precise"
+              }
+            }
+          ]
+        }
+      ],
+      "properties": {
+        "modfence": {
+          "callEdgesChecked": false,
+          "precise": false
+        }
+      },
+      "results": [
+        {
+          "level": "error",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "c.py",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "endColumn": 30,
+                  "endLine": 2,
+                  "startColumn": 1,
+                  "startLine": 2
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "invalid modfence annotation"
+          },
+          "partialFingerprints": {
+            "primaryLocationLineHash": "b14b57e489c09038:1"
+          },
+          "properties": {},
+          "relatedLocations": [],
+          "ruleId": "modfence/invalid-annotation"
+        },
+        {
+          "level": "warning",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "c.py",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "endColumn": 40,
+                  "endLine": 5,
+                  "startColumn": 1,
+                  "startLine": 5
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "ignore[x] suppressed nothing"
+          },
+          "partialFingerprints": {
+            "primaryLocationLineHash": "1a77e93fc7adbbce:1"
+          },
+          "properties": {},
+          "relatedLocations": [],
+          "ruleId": "modfence/unused-ignore"
+        },
+        {
+          "level": "warning",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "a.py",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "endColumn": 20,
+                  "endLine": 3,
+                  "startColumn": 5,
+                  "startLine": 3
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "no b"
+          },
+          "partialFingerprints": {
+            "primaryLocationLineHash": "8a693c3dfb07f1c8:1"
+          },
+          "properties": {
+            "confidence": "resolved",
+            "from": {
+              "node": "mod:py:a.py",
+              "tags": {
+                "layer": [
+                  "app"
+                ],
+                "owner": [
+                  "web"
+                ]
+              }
+            },
+            "to": {
+              "node": "mod:py:b.py",
+              "tags": {}
+            }
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "message": {
+                "text": "mod:py:b.py"
+              },
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "b.py",
+                  "uriBaseId": "%SRCROOT%"
+                }
+              }
+            }
+          ],
+          "ruleId": "no-b"
+        },
+        {
+          "level": "warning",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "a.py",
+                  "uriBaseId": "%SRCROOT%"
+                },
+                "region": {
+                  "endColumn": 20,
+                  "endLine": 8,
+                  "startColumn": 5,
+                  "startLine": 8
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "no b"
+          },
+          "partialFingerprints": {
+            "primaryLocationLineHash": "8a693c3dfb07f1c8:2"
+          },
+          "properties": {
+            "confidence": "resolved",
+            "from": {
+              "node": "mod:py:a.py",
+              "tags": {
+                "layer": [
+                  "app"
+                ],
+                "owner": [
+                  "web"
+                ]
+              }
+            },
+            "to": {
+              "node": "mod:py:b.py",
+              "tags": {}
+            }
+          },
+          "relatedLocations": [
+            {
+              "id": 0,
+              "message": {
+                "text": "mod:py:b.py"
+              },
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "b.py",
+                  "uriBaseId": "%SRCROOT%"
+                }
+              }
+            }
+          ],
+          "ruleId": "no-b"
+        }
+      ],
+      "tool": {
+        "driver": {
+          "informationUri": "https://github.com/craftainer-labs/cli-modfence",
+          "name": "modfence",
+          "rules": [
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "fullDescription": {
+                "text": "A module must not depend on a module in a higher layer of `layers` in modfence.toml; a layer may use itself and the layers below it."
+              },
+              "help": {
+                "text": "Fix the dependency, or suppress one site with `modfence: ignore[layers] reason=\"...\"`."
+              },
+              "id": "layers",
+              "shortDescription": {
+                "text": "A module depends on a higher layer"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "fullDescription": {
+                "text": "With `default = \"deny\"` in modfence.toml, a dependency between two modules of the repository needs an `allow` rule, or layers that permit it."
+              },
+              "help": {
+                "text": "Fix the dependency, or suppress one site with `modfence: ignore[default-deny] reason=\"...\"`."
+              },
+              "id": "default-deny",
+              "shortDescription": {
+                "text": "No rule allows this dependency"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "fullDescription": {
+                "text": "A `modfence:` comment could not be read, or is a tag that has no effect where it is."
+              },
+              "help": {
+                "text": "Fix the dependency, or suppress one site with `modfence: ignore[modfence/invalid-annotation] reason=\"...\"`."
+              },
+              "id": "modfence/invalid-annotation",
+              "shortDescription": {
+                "text": "A modfence annotation is malformed"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "fullDescription": {
+                "text": "A `modfence: ignore[...]` comment names a rule that has no violation on its line or the line below, so it can be removed."
+              },
+              "help": {
+                "text": "Fix the dependency, or suppress one site with `modfence: ignore[modfence/unused-ignore] reason=\"...\"`."
+              },
+              "id": "modfence/unused-ignore",
+              "shortDescription": {
+                "text": "An ignore suppressed nothing"
+              }
+            },
+            {
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "fullDescription": {
+                "text": "no b"
+              },
+              "help": {
+                "text": "Fix the dependency, or suppress one site with `modfence: ignore[no-b] reason=\"...\"`."
+              },
+              "id": "no-b",
+              "shortDescription": {
+                "text": "Rule `no-b` of modfence.toml"
+              }
+            }
+          ],
+          "version": "0.0.0"
+        }
+      }
+    }
+  ],
+  "version": "2.1.0"
+}
