@@ -254,6 +254,18 @@ fn only_edges_between_two_modules_are_judged() {
 }
 
 #[test]
+fn a_site_with_an_imports_and_a_binds_edge_is_reported_once() {
+    let (a, b) = (module_node("a.py", &[]), module_node("b.py", &[]));
+    let edges = vec![
+        edge(&a, &b, Relation::Imports, Confidence::Resolved, &[1]),
+        edge(&a, &b, Relation::Binds, Confidence::Heuristic, &[1]),
+    ];
+    let graph = graph_of(&[&a, &b], edges);
+    let config = cfg(&format!("{A_TO_B}effect = \"forbid\"\n"));
+    assert_eq!(found(&rules::check(&graph, &config, true)), "r@a.py:1");
+}
+
+#[test]
 fn calls_between_symbols_of_one_module_are_not_judged() {
     let text = "def f():\n    pass\n\n\ndef g():\n    f()\n";
     let any = "{ path = \"**\" }";

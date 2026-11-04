@@ -3,13 +3,10 @@
 
 use std::collections::BTreeSet;
 
-use super::{DEFAULT_DENY, Endpoint, LAYERS};
+use super::{DEFAULT_DENY, Endpoint, LAYERS, LAYER_KEY};
 use crate::config::{ConfidenceReq, Config, DefaultEffect, Effect, Relation, Severity, Subject};
 use crate::extract::{NodeId, NodeKind};
 use crate::graph::{Confidence, Graph, Node, Relation as EdgeRelation};
-
-/// The tag key that `layers` judges.
-const LAYER_KEY: &str = "layer";
 
 /// What decided a site to be a violation.
 pub(super) struct Hit {
