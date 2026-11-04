@@ -23,8 +23,9 @@ Rules:
   resolved edges; `any` counts all. The layers rule and `default-deny` use the
   "omitted" rule.
 - A `package` selector never matches the `external` node of an import that
-  could not be placed (ADR 0003, invariant 6): such a node is one that a
-  `heuristic` `imports` edge ends at.
+  could not be placed (ADR 0003, invariant 6). This is decided per edge: only
+  a `heuristic` `imports` edge is exempt, and a resolved edge to the same
+  node still matches by package.
 - An ignore covers the sites that start on its own line or the next, in its
   own file, and is judged per rule id: each id that suppressed nothing is one
   `modfence/unused-ignore` warning. An unused ignore can itself be ignored by

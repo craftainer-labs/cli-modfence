@@ -28,6 +28,9 @@ Rules:
 - `package = "*"` does not match scoped npm names such as `@babel/core`
   (`*` does not cross `/`); use `@*/*` for those, or `**` for all packages.
 - Selector tag values go through the same `TagValue` parser as node tags.
+  Migration: a selector value that is empty or holds a double quote or a
+  control character used to parse and never match; it is now an exit-2 config
+  error, so fix or remove such a value.
   Selector keys are lowercase names (`SelectorKey`, the pattern of
   `validate_tag_key`); ADR 0004 allows any tag key, so unknown keys are not
   errors.

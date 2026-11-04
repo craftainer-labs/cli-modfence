@@ -1,7 +1,7 @@
 //! Notices about the configuration that are not violations: a rule that can
 //! never match and `layers` that no node can use.
 
-use super::Notice;
+use super::{LAYER_KEY, Notice};
 use crate::config::{Config, Relation, Selector, Severity};
 use crate::extract::NodeKind;
 use crate::graph::Graph;
@@ -42,7 +42,7 @@ pub(super) fn notices(graph: &Graph, config: &Config) -> Vec<Notice> {
     let layered = graph
         .nodes
         .values()
-        .any(|node| node.tags.contains_key("layer"));
+        .any(|node| node.tags.contains_key(LAYER_KEY));
     if !config.layers.is_empty() && !layered {
         notices.push(Notice {
             level: Severity::Warning,

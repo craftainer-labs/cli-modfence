@@ -26,6 +26,9 @@ use crate::config::{Config, Severity};
 use crate::extract::{NodeId, Span, Tags};
 use crate::graph::{Confidence, Graph, INVALID_ANNOTATION, Relation, Suppression};
 
+/// The tag key that `layers` judges.
+pub(crate) const LAYER_KEY: &str = "layer";
+
 /// The reserved id of the layers rule.
 pub const LAYERS: &str = "layers";
 
@@ -192,7 +195,7 @@ fn unused_ignore(ignore: &Suppression, id: &str) -> Violation {
 
 /// The violations of every site of every checked edge.
 fn edge_violations(graph: &Graph, config: &Config, ledger: &mut Ignores<'_>) -> Vec<Violation> {
-    let judge = eval::Judge::new(graph, config);
+    let judge = eval::Judge::new(config);
     let mut violations = Vec::new();
     for edge in &graph.edges {
         let kind = (rule_relation(edge.relation), edge.confidence);
@@ -286,6 +289,12 @@ pub fn check(graph: &Graph, config: &Config, precise: bool) -> Outcome {
     violations.extend(annotation_violations(graph, &mut ledger));
     violations.extend(unused_violations(&mut ledger));
     violations.sort();
+    // One import statement can yield an `imports` and a `binds` edge at the
+    // same site; a site is reported once per rule and message (ADR 0004,
+    // invariant 9). Two ids of one ignore comment differ in their message.
+    violations.dedup_by(|b, a| {
+        a.rule == b.rule && a.path == b.path && a.span == b.span && a.message == b.message
+    });
     let mut notices = Vec::new();
     if !precise {
         notices.push(Notice {
