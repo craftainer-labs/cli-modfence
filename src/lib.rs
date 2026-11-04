@@ -7,6 +7,7 @@
 pub mod config;
 pub mod extract;
 pub mod graph;
+pub mod report;
 pub mod rules;
 
 use std::ffi::OsString;
