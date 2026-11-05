@@ -20,10 +20,10 @@ const PLACEHOLDER: &str = "@@script@@";
 /// changes, the policy test below fails and shows the new hash; compute it
 /// independently (Python `hashlib.sha256` and `base64.b64encode` over the same
 /// text) before pasting it here.
-const SCRIPT_HASH: &str = "id2/82nPwr8kyCEvGL+DQtPysaD7U17euJ+FmY89O+Y=";
+const SCRIPT_HASH: &str = "qGEAK1skMvcHQdPWXNEYNVC79aUCHs5D5NSu9shWiLQ=";
 
 /// The base64 SHA-256 of `style.css`.
-const STYLE_HASH: &str = "ejVU8Rk1KVrjmk/4PLXEaDMZJLXs9ubhQHR1bILnDlk=";
+const STYLE_HASH: &str = "jpHdUM11btK/ML6dWsRcN6UHYG8BOSo4Lvsq0uTf0NI=";
 
 fn config() -> String {
     format!(
@@ -107,6 +107,26 @@ fn the_page_is_a_complete_accessible_document() {
     assert!(page.contains("@media (prefers-color-scheme: dark)"));
     assert!(page.contains(":focus-visible {"));
     assert!(page.contains("(prefers-reduced-motion: reduce)"));
+}
+
+#[test]
+fn the_diagram_is_hidden_until_the_script_runs() {
+    // With scripting off the page is the summary and the tables.
+    let page = page(Level::Module, None);
+    for opening in [
+        "<div class=\"controls\" id=\"controls\" role=\"group\" aria-label=\"Diagram controls\" hidden>",
+        "<p class=\"muted\" id=\"hint\" hidden>",
+        "<div id=\"stage\" hidden>",
+        "<ul class=\"legend\" id=\"legend\" aria-label=\"Legend\" hidden>",
+    ] {
+        assert!(page.contains(opening), "{opening}");
+    }
+    // The hidden attribute must win over the display set on those blocks.
+    assert!(page.contains("[hidden] {\n  display: none !important;"));
+    assert!(page.contains("Hold Ctrl and scroll to zoom."));
+    for button in ["pan-up", "pan-down", "pan-left", "pan-right"] {
+        assert!(page.contains(&format!("<button type=\"button\" id=\"{button}\">Pan ")));
+    }
 }
 
 #[test]

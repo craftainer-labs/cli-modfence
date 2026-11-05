@@ -11,6 +11,10 @@
   var svg = document.getElementById('diagram');
   var viewport = document.getElementById('viewport');
   var status = document.getElementById('status');
+  /* Without this script the page is the summary and the tables. */
+  ['controls', 'hint', 'stage', 'legend'].forEach(function (id) {
+    document.getElementById(id).hidden = false;
+  });
   var motion = window.matchMedia('(prefers-reduced-motion: reduce)');
   var SHAPES = {
     package: 'M-9,-9h18v18h-18z',
@@ -283,7 +287,18 @@
     view = { x: 0, y: 0, k: 1 };
     apply();
   });
+  var STEP = 60;
+  function pan(dx, dy) {
+    view.x += dx;
+    view.y += dy;
+    apply();
+  }
+  document.getElementById('pan-up').addEventListener('click', function () { pan(0, STEP); });
+  document.getElementById('pan-down').addEventListener('click', function () { pan(0, -STEP); });
+  document.getElementById('pan-left').addEventListener('click', function () { pan(STEP, 0); });
+  document.getElementById('pan-right').addEventListener('click', function () { pan(-STEP, 0); });
   svg.addEventListener('wheel', function (event) {
+    if (!event.ctrlKey && !event.metaKey) { return; }
     event.preventDefault();
     zoom(event.deltaY < 0 ? 1.1 : 1 / 1.1, toSvg(event));
   }, { passive: false });

@@ -16,10 +16,14 @@
 <main>
 <section aria-labelledby="diagram-heading">
 <h2 id="diagram-heading">Diagram</h2>
-<div class="controls" role="group" aria-label="Diagram controls">
+<div class="controls" id="controls" role="group" aria-label="Diagram controls" hidden>
 <button type="button" id="zoom-in">Zoom in</button>
 <button type="button" id="zoom-out">Zoom out</button>
 <button type="button" id="zoom-reset">Reset view</button>
+<button type="button" id="pan-up">Pan up</button>
+<button type="button" id="pan-down">Pan down</button>
+<button type="button" id="pan-left">Pan left</button>
+<button type="button" id="pan-right">Pan right</button>
 <span>
 <label for="tag-key">Filter by tag</label>
 <select id="tag-key"><option value="">no filter</option></select>
@@ -27,8 +31,8 @@
 <select id="tag-value" disabled><option value="">any value</option></select>
 </span>
 </div>
-<p class="muted">Drag the background to pan, scroll to zoom, drag a node to move it and select a node to highlight its edges. The tables below list the same nodes and edges, and their buttons select a node from the keyboard.</p>
-<div id="stage">
+<p class="muted" id="hint" hidden>Drag the background or use the pan buttons to pan. Hold Ctrl and scroll to zoom. Drag a node to move it, and select a node to highlight its edges. The tables below list the same nodes and edges, and their buttons select a node from the keyboard.</p>
+<div id="stage" hidden>
 <svg id="diagram" role="img" aria-labelledby="diagram-title diagram-desc" viewBox="0 0 960 640" preserveAspectRatio="xMidYMid meet">
 <title id="diagram-title">Dependency diagram</title>
 <desc id="diagram-desc">@@description@@</desc>
@@ -38,10 +42,10 @@
 </defs>
 <g id="viewport"></g>
 </svg>
-<noscript><p>The interactive diagram needs JavaScript. The tables below hold the same graph.</p></noscript>
 </div>
+<noscript><p>The interactive diagram needs JavaScript. The tables below hold the same graph.</p></noscript>
 <p id="status" role="status" aria-live="polite"></p>
-<ul class="legend" aria-label="Legend">
+<ul class="legend" id="legend" aria-label="Legend" hidden>
 <li><svg width="20" height="20" viewBox="-12 -12 24 24" aria-hidden="true" focusable="false"><path class="k-package" d="M-9,-9h18v18h-18z"/></svg>package</li>
 <li><svg width="20" height="20" viewBox="-12 -12 24 24" aria-hidden="true" focusable="false"><path class="k-module" d="M-8,0a8,8 0 1,0 16,0a8,8 0 1,0 -16,0"/></svg>module</li>
 <li><svg width="20" height="20" viewBox="-12 -12 24 24" aria-hidden="true" focusable="false"><path class="k-external" d="M0,-11L11,0L0,11L-11,0z"/></svg>external package</li>

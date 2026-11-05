@@ -77,6 +77,10 @@ p {
   outline-offset: 2px;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 .controls {
   display: flex;
   flex-wrap: wrap;
