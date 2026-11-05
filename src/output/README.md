@@ -99,7 +99,7 @@ One offline file that draws the `View` and lists it in tables.
    it from `mod.rs`: `fn render(&self, graph: &Graph, view: &View<'_>) -> String`.
    The text ends in a newline.
 2. In `src/cli/args.rs`, add the `ViewFormat` variant and its
-   `Ok(Some(&YourFormat))` arm in `ViewArgs::renderer`. Nothing
+   `Some(&YourFormat)` arm in `ViewArgs::renderer`. Nothing
    else in `src/cli/` changes: `graph` and `trace` both go through the
    renderer, and `trace` hands it the `incident` part of the graph.
 3. Add its tests to `tests/` and, for a document with a schema, its golden file.

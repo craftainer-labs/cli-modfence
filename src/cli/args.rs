@@ -4,7 +4,6 @@ use std::path::PathBuf;
 
 use clap::{Args, Parser, Subcommand, ValueEnum};
 
-use super::Failure;
 use crate::config::{Severity, validate_tag_key};
 use crate::graph::Graph;
 use crate::output::{self, Dot, GraphMl, Html, Json, Mermaid, Renderer, View};
@@ -150,17 +149,16 @@ pub(super) struct ViewArgs {
 }
 
 impl ViewArgs {
-    /// The renderer of `--format`, or `None` for the human text. A format that
-    /// the output layer does not provide yet is a usage error. A format adds
+    /// The renderer of `--format`, or `None` for the human text. A format adds
     /// one arm here.
-    pub(super) fn renderer(&self) -> Result<Option<&'static dyn Renderer>, Failure> {
+    pub(super) fn renderer(&self) -> Option<&'static dyn Renderer> {
         match self.format {
-            ViewFormat::Text => Ok(None),
-            ViewFormat::Json => Ok(Some(&Json)),
-            ViewFormat::Dot => Ok(Some(&Dot)),
-            ViewFormat::Mermaid => Ok(Some(&Mermaid)),
-            ViewFormat::Graphml => Ok(Some(&GraphMl)),
-            ViewFormat::Html => Ok(Some(&Html)),
+            ViewFormat::Text => None,
+            ViewFormat::Json => Some(&Json),
+            ViewFormat::Dot => Some(&Dot),
+            ViewFormat::Mermaid => Some(&Mermaid),
+            ViewFormat::Graphml => Some(&GraphMl),
+            ViewFormat::Html => Some(&Html),
         }
     }
 
