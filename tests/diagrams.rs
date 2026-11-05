@@ -127,9 +127,7 @@ fn dot_draws_a_label_only_at_a_level_that_shows_it() {
 fn mermaid_escapes_what_it_reads_as_syntax() {
     let out = render(&Mermaid, &hostile(), Level::Module, None);
     assert!(
-        out.contains(
-            "([\"q#quot;b\\c line#lt;/script#gt;--#gt;]]#gt;  #35;#96;#lt;#gt;#amp;'\"])"
-        ),
+        out.contains("([\"q#quot;b\\c line#lt;/script#gt;--#gt;]]#gt;  #35;#96;#lt;#gt;#amp;'\"])"),
         "{out}"
     );
     // No raw `"`, `<`, `>`, backtick or line break survives in any label.
@@ -148,10 +146,16 @@ fn mermaid_escapes_what_it_reads_as_syntax() {
 fn mermaid_node_ids_are_generated_so_no_label_is_syntax() {
     let out = render(&Mermaid, &hostile(), Level::Module, None);
     for line in out.lines().skip(1) {
-        let first = line.trim_start().split([' ', '[', '(', '{']).next().unwrap();
+        let first = line
+            .trim_start()
+            .split([' ', '[', '(', '{'])
+            .next()
+            .unwrap();
         assert!(
             ["subgraph", "end", "linkStyle"].contains(&first)
-                || first.strip_prefix('n').is_some_and(|rest| rest.parse::<usize>().is_ok()),
+                || first
+                    .strip_prefix('n')
+                    .is_some_and(|rest| rest.parse::<usize>().is_ok()),
             "{line}"
         );
     }
@@ -160,7 +164,8 @@ fn mermaid_node_ids_are_generated_so_no_label_is_syntax() {
 #[test]
 fn graphml_escapes_markup_and_replaces_characters_xml_forbids() {
     let out = render(&GraphMl, &hostile(), Level::Module, None);
-    let expected = "q&quot;b\\c&#10;line&lt;/script&gt;--&gt;]]&gt;\u{FFFD}\u{FFFD}#`&lt;&gt;&amp;&apos;";
+    let expected =
+        "q&quot;b\\c&#10;line&lt;/script&gt;--&gt;]]&gt;\u{FFFD}\u{FFFD}#`&lt;&gt;&amp;&apos;";
     assert!(
         out.contains(&format!("<data key=\"n_label\">{expected}</data>")),
         "{out}"
@@ -173,7 +178,10 @@ fn graphml_escapes_markup_and_replaces_characters_xml_forbids() {
     assert!(out.contains("<data key=\"n_tags\">{&quot;layer&quot;:[&quot;app&quot;],&quot;note&quot;:[&quot;q\\&quot;b\\\\c\\nline"));
     // Every `<` opens a tag, a declaration or a closing tag.
     for rest in out.split('<').skip(1) {
-        assert!(rest.starts_with(['?', '/', 'g', 'k', 'n', 'e', 'd']), "{rest}");
+        assert!(
+            rest.starts_with(['?', '/', 'g', 'k', 'n', 'e', 'd']),
+            "{rest}"
+        );
     }
 }
 
@@ -198,15 +206,22 @@ fn graphml_escapes_an_id_in_an_attribute_and_carriage_returns() {
         PythonExtractor.extract(&quoted, &ExtractCtx::default()),
     );
     let out = render(&GraphMl, &builder.build(), Level::Module, None);
-    assert!(out.contains("<node id=\"mod:py:app/q&quot;uote&lt;b&gt;.py\">"), "{out}");
+    assert!(
+        out.contains("<node id=\"mod:py:app/q&quot;uote&lt;b&gt;.py\">"),
+        "{out}"
+    );
 }
 
 #[test]
 fn clusters_are_subgraphs() {
     let graph = graph();
     let dot = render(&Dot, &graph, Level::Module, Some("layer"));
-    let first = dot.find("  subgraph cluster_0 {\n    label=\"app\";\n").expect(&dot);
-    let second = dot.find("  subgraph cluster_1 {\n    label=\"lib\";\n").expect(&dot);
+    let first = dot
+        .find("  subgraph cluster_0 {\n    label=\"app\";\n")
+        .expect(&dot);
+    let second = dot
+        .find("  subgraph cluster_1 {\n    label=\"lib\";\n")
+        .expect(&dot);
     assert!(first < second);
     let app = &dot[first..second];
     assert!(app.contains("\"mod:py:app/a.py\"") && !app.contains("lib/c.py"));
@@ -260,7 +275,11 @@ fn edges_are_styled_by_relation_and_counted() {
     assert!(mermaid.contains("|\"binds\"|"));
     assert!(mermaid.contains("|\"contains\"|"));
     assert!(mermaid.contains("|\"2\"|"));
-    for line in ["stroke-dasharray:6 3", "stroke-dasharray:2 3", "stroke:#bfbfbf"] {
+    for line in [
+        "stroke-dasharray:6 3",
+        "stroke-dasharray:2 3",
+        "stroke:#bfbfbf",
+    ] {
         assert!(mermaid.contains(&format!(" {line}\n")), "{line}");
     }
     assert_eq!(mermaid.matches("linkStyle").count(), 3);
@@ -297,5 +316,9 @@ fn an_empty_graph_is_an_empty_document() {
     );
     let xml = render(&GraphMl, &graph, Level::Module, None);
     assert!(xml.starts_with("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<graphml xmlns=\"http://graphml.graphdrawing.org/xmlns\">\n"));
-    assert!(xml.ends_with("  <graph id=\"modfence\" edgedefault=\"directed\">\n  </graph>\n</graphml>\n"));
+    assert!(
+        xml.ends_with(
+            "  <graph id=\"modfence\" edgedefault=\"directed\">\n  </graph>\n</graphml>\n"
+        )
+    );
 }

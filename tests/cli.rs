@@ -223,17 +223,27 @@ fn the_diagrams_follow_the_level_and_graphml_does_not() {
         package.out,
         "digraph \"modfence\" {\n  rankdir=LR;\n  \"ext:py:requests\" [label=\"requests\", shape=diamond];\n  \"pkg:py:pkg\" [label=\"pkg\", shape=box];\n  \"pkg:py:pkg\" -> \"ext:py:requests\" [style=solid, arrowhead=normal];\n}\n"
     );
-    let package = on("json", &["graph", "--format", "mermaid", "--level", "package"]);
+    let package = on(
+        "json",
+        &["graph", "--format", "mermaid", "--level", "package"],
+    );
     assert_eq!(
         package.out,
         "flowchart LR\n  n0{\"requests\"}\n  n1[\"pkg\"]\n  n1 --> n0\n"
     );
     let symbol = on("json", &["graph", "--format", "dot", "--level", "symbol"]);
-    assert!(symbol.out.contains("\"sym:py:pkg/orders.py#place\" [label=\"place\", shape=triangle];"));
+    assert!(
+        symbol
+            .out
+            .contains("\"sym:py:pkg/orders.py#place\" [label=\"place\", shape=triangle];")
+    );
     let golden = include_str!("golden/graph.graphml");
     for level in ["package", "module", "symbol"] {
         let flags = ["--level", level, "--group-by", "layer"];
-        let run = on("json", &[&["graph", "--format", "graphml"][..], &flags].concat());
+        let run = on(
+            "json",
+            &[&["graph", "--format", "graphml"][..], &flags].concat(),
+        );
         assert_eq!(run.out, golden, "{level}");
     }
 }
@@ -242,9 +252,18 @@ fn the_diagrams_follow_the_level_and_graphml_does_not() {
 fn diagrams_cluster_by_a_tag_key() {
     let run = on("json", &["graph", "--format", "dot", "--group-by", "layer"]);
     assert_eq!(run.code, 0, "{}", run.err);
-    assert!(run.out.contains("  subgraph cluster_0 {\n    label=\"domain\";\n"));
-    let run = on("json", &["graph", "--format", "mermaid", "--group-by", "boundary"]);
-    assert!(run.out.contains("  subgraph c0[\"network\"]\n    n0{\"requests\"}\n  end\n"));
+    assert!(
+        run.out
+            .contains("  subgraph cluster_0 {\n    label=\"domain\";\n")
+    );
+    let run = on(
+        "json",
+        &["graph", "--format", "mermaid", "--group-by", "boundary"],
+    );
+    assert!(
+        run.out
+            .contains("  subgraph c0[\"network\"]\n    n0{\"requests\"}\n  end\n")
+    );
 }
 
 #[test]
