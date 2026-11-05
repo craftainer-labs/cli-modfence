@@ -78,7 +78,7 @@ fn hostile() -> Graph {
         .nodes
         .get_mut(&id(NodeKind::Module, "app/a.py", None))
         .unwrap();
-    module.label = HOSTILE.to_owned();
+    HOSTILE.clone_into(&mut module.label);
     module.path = Some(HOSTILE.to_owned());
     module
         .tags
@@ -115,7 +115,7 @@ fn dot_draws_a_label_only_at_a_level_that_shows_it() {
         .nodes
         .get_mut(&id(NodeKind::Module, "app/b.py", None))
         .unwrap();
-    module.label = "a\"b".to_owned();
+    "a\"b".clone_into(&mut module.label);
     let out = render(&Dot, &graph, Level::Package, None);
     // At package level the module is not drawn; the label is escaped at module
     // level.
@@ -192,7 +192,7 @@ fn graphml_escapes_an_id_in_an_attribute_and_carriage_returns() {
         .nodes
         .get_mut(&id(NodeKind::Module, "app/b.py", None))
         .unwrap();
-    module.label = "tab\there\r\nend\u{FFFE}".to_owned();
+    "tab\there\r\nend\u{FFFE}".clone_into(&mut module.label);
     let out = render(&GraphMl, &graph, Level::Module, None);
     assert!(out.contains("<data key=\"n_label\">tab&#9;here&#13;&#10;end\u{FFFD}</data>"));
     let quoted = SourceFile {
