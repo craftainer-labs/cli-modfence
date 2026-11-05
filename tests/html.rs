@@ -20,7 +20,7 @@ const PLACEHOLDER: &str = "@@script@@";
 /// changes, the policy test below fails and shows the new hash; compute it
 /// independently (Python `hashlib.sha256` and `base64.b64encode` over the same
 /// text) before pasting it here.
-const SCRIPT_HASH: &str = "Y3JaBAa01Z7iPvIDOYjUtglTttERHNN5MwONkQwec+w=";
+const SCRIPT_HASH: &str = "id2/82nPwr8kyCEvGL+DQtPysaD7U17euJ+FmY89O+Y=";
 
 /// The base64 SHA-256 of `style.css`.
 const STYLE_HASH: &str = "ejVU8Rk1KVrjmk/4PLXEaDMZJLXs9ubhQHR1bILnDlk=";

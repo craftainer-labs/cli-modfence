@@ -22,7 +22,7 @@
   var nodes = data.nodes.map(function (n) {
     return { id: n.id, info: n, cluster: n.cluster };
   });
-  var byId = {};
+  var byId = Object.create(null);
   nodes.forEach(function (n) { byId[n.id] = n; });
   var links = data.edges.map(function (e) {
     return { source: e.source, target: e.target, info: e };
@@ -52,7 +52,8 @@
     var box = el('rect', { 'class': 'cluster', rx: 8 }, clusterLayer);
     var label = el('text', { 'class': 'cluster-label halo' }, clusterLayer);
     label.textContent = c.label;
-    return { members: c.members.map(function (id) { return byId[id]; }), box: box, label: label };
+    var members = c.members.map(function (id) { return byId[id]; }).filter(Boolean);
+    return { members: members, box: box, label: label };
   });
 
   var lines = links.map(function (l) {
@@ -80,12 +81,18 @@
   var buttons = Array.prototype.slice.call(document.querySelectorAll('.node-btn'));
 
   function neighbours(id) {
-    var out = {};
+    var out = Object.create(null);
     links.forEach(function (l) {
       if (l.info.source === id) { out[l.info.target] = 'to'; }
       if (l.info.target === id) { out[l.info.source] = out[l.info.source] || 'from'; }
     });
     return out;
+  }
+
+  /* The live region holds the filter note, then the selection description. */
+  var note = '';
+  function say(text) {
+    status.textContent = [note, text].filter(Boolean).join(' ');
   }
 
   function names(ids) {
@@ -110,7 +117,7 @@
       b.closest('tr').setAttribute('class', on ? 'picked' : '');
     });
     if (selected === null) {
-      status.textContent = '';
+      say('');
       return;
     }
     var out = [];
@@ -119,9 +126,9 @@
       if (l.info.source === selected) { out.push(l.info.target); }
       if (l.info.target === selected) { into.push(l.info.source); }
     });
-    status.textContent = byId[selected].info.label + ' selected. Points to: ' +
+    say(byId[selected].info.label + ' selected. Points to: ' +
       (out.length ? names(out) : 'nothing') + '. Pointed to by: ' +
-      (into.length ? names(into) : 'nothing') + '.';
+      (into.length ? names(into) : 'nothing') + '.');
   }
 
   function select(id) {
@@ -135,10 +142,10 @@
 
   var keySelect = document.getElementById('tag-key');
   var valueSelect = document.getElementById('tag-value');
-  var tags = {};
+  var tags = Object.create(null);
   nodes.forEach(function (n) {
     Object.keys(n.info.tags).forEach(function (key) {
-      tags[key] = tags[key] || {};
+      tags[key] = tags[key] || Object.create(null);
       n.info.tags[key].forEach(function (value) { tags[key][value] = true; });
     });
   });
@@ -176,8 +183,8 @@
     buttons.forEach(function (b) {
       b.closest('tr').hidden = byId[b.getAttribute('data-id')].off;
     });
+    note = key ? shown + ' of ' + nodes.length + ' nodes match.' : '';
     paint();
-    if (key) { status.textContent = shown + ' of ' + nodes.length + ' nodes match.'; }
   }
 
   keySelect.addEventListener('change', function () { fillValues(); filter(); });
@@ -188,6 +195,7 @@
   function clusterForce() {
     function force(alpha) {
       boxes.forEach(function (c) {
+        if (!c.members.length) { return; }
         var cx = 0;
         var cy = 0;
         c.members.forEach(function (n) { cx += n.x; cy += n.y; });
@@ -225,13 +233,14 @@
       n.group.setAttribute('transform', 'translate(' + n.x + ',' + n.y + ')');
     });
     boxes.forEach(function (c) {
+      if (!c.members.length) { return; }
       var xs = c.members.map(function (n) { return n.x; });
       var ys = c.members.map(function (n) { return n.y; });
       var x0 = Math.min.apply(null, xs) - 30;
       var y0 = Math.min.apply(null, ys) - 30;
       c.box.setAttribute('x', x0);
       c.box.setAttribute('y', y0);
-      c.box.setAttribute('width', Math.max.apply(null, xs) + 30 - x0 + 60);
+      c.box.setAttribute('width', Math.max.apply(null, xs) + 30 - x0);
       c.box.setAttribute('height', Math.max.apply(null, ys) + 30 - y0);
       c.label.setAttribute('x', x0 + 8);
       c.label.setAttribute('y', y0 + 14);
@@ -282,6 +291,7 @@
   var drag = null;
 
   svg.addEventListener('pointerdown', function (event) {
+    if (!event.isPrimary || event.button !== 0 || drag) { return; }
     var group = event.target.closest('.node');
     var start = toSvg(event);
     drag = { start: start, moved: false, view: { x: view.x, y: view.y }, node: null };

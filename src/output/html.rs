@@ -43,13 +43,13 @@ impl Renderer for Html {
             "default-src 'none'; script-src 'sha256-{}'; style-src 'sha256-{}'; \
              base-uri 'none'; form-action 'none'",
             base64(&sha256(script.as_bytes())),
-            base64(&sha256(STYLE.as_bytes())),
+            base64(&sha256(lf(STYLE).as_bytes())),
         );
         let summary = summary(view);
         let description = format!("{summary} The Nodes and Edges tables list the same graph.");
         let values = [
             ("csp", csp),
-            ("style", STYLE.to_owned()),
+            ("style", lf(STYLE)),
             ("summary", escape(&summary)),
             ("description", escape(&description)),
             ("nodes", node_rows(view)),
@@ -69,7 +69,14 @@ fn script() -> String {
         text.push_str(";\n");
     }
     text.push_str(APP);
-    text
+    lf(&text)
+}
+
+/// `text` with CR LF and lone CR as LF, which is how a browser reads inline
+/// script and style text before it hashes it for the policy, so a checkout
+/// with CRLF line endings still matches.
+fn lf(text: &str) -> String {
+    text.replace("\r\n", "\n").replace('\r', "\n")
 }
 
 /// What the view shows, in one sentence.
