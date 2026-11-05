@@ -7,9 +7,47 @@ files; `src/cli/` decides where the text goes.
 - `mod.rs`: the `Renderer` trait, the one interface every format implements.
 - `json.rs`: `Json`, the graph document of `schema/modfence-graph.schema.json`
   (ADR 0003, "Output format"). `SCHEMA_VERSION` is the document's `major.minor`.
+- `html.rs`: `Html`, the interactive page of `--format html` (NC5c): one
+  self-contained file, its assets in `html/` (below).
 - `view.rs`: `View`, the graph as a diagram draws it (a `Level`, the visible
   nodes, the edges rolled up to them, the clusters), and `incident`, the part
   of a graph that touches a set of nodes (what `trace` outputs).
+
+## The HTML page (`html.rs`, `html/`)
+
+One offline file that draws the `View` and lists it in tables.
+
+- **Assets** (embedded with `include_str!`, so they ship in the crate):
+  `html/page.html` (the template, `@@name@@` placeholders filled in one pass,
+  so embedded text is never re-scanned), `html/style.css`, `html/app.js` and
+  `html/vendor/d3-force/` (d3-force 3.0.1 and its three runtime dependencies,
+  ISC, unmodified `dist/*.min.js`; its `README.md` has the versions, tarball
+  URLs, npm `sha512` integrity and the update steps, `SHA256SUMS` the committed
+  files' sums, `LICENSE` the licence text). Nothing in it is edited by hand:
+  to update the library, follow that README.
+- **No network, strict policy.** The page has no external URL, font or script.
+  A `Content-Security-Policy` meta (`default-src 'none'`) allows only the one
+  inline script and the one inline style, each by its SHA-256, which `html.rs`
+  computes (a small FIPS 180-4 implementation, not a crate). Changing
+  `style.css`, `app.js` or a vendored file changes the hash; `tests/html.rs`
+  pins it and says what to update. The script sets no inline `style`
+  attribute and uses no `eval`, so the policy needs no `unsafe-*`.
+- **Data.** The view is embedded as a JSON data block (nodes with kind,
+  language, path, tags and cluster; edges with relation, confidence and count;
+  clusters). Every `<`, `>`, `&`, U+2028 and U+2029 in it is written as a
+  `\u` escape, so no label, path or tag value can end the block (the escape
+  reads back as the same character). The same node and edge lists are also
+  static HTML tables (`escape` for text and attributes), so the graph is
+  readable and keyboard-navigable without the script; each node row has a
+  button that selects it in the diagram.
+- **Accessibility** (checked by axe in a separate workflow, NC5d): `lang`,
+  `<title>`, a labelled `role="img"` SVG whose accessible equivalent is the
+  tables, `:focus-visible` outlines, AA contrast in light and dark
+  (`prefers-color-scheme`), shapes and dashes as well as colour, and
+  `prefers-reduced-motion` renders the settled layout with no animation.
+  Every colour, size and font is a CSS variable at the top of `style.css`.
+- **Randomness** is only the layout in the browser; the text of the page is a
+  pure function of the view.
 
 ## Adding a format (NC5b, NC5c)
 
@@ -66,5 +104,9 @@ formats (DOT, Mermaid, HTML) draw the view and never the graph directly.
 - Golden files are `tests/golden/*.graph.json`; the `graph-json-schema` hook in
   `.pre-commit-config.yaml` validates them, and `schema/examples/`, against the
   schema with ajv (Node), not with a Rust crate.
-- Tests are in `tests/output.rs` and `tests/cli.rs`; do not add `#[cfg(test)]`
-  modules here.
+- Tests are in `tests/output.rs`, `tests/html.rs` and `tests/cli.rs`; do not
+  add `#[cfg(test)]` modules here, with one exception: `html.rs` has a single
+  `tests` module with the known-answer vectors (NIST SHA-256, RFC 4648 base64)
+  for its private `sha256` and `base64`. They are private, and no public
+  surface should be added just to test them. `cargo llvm-cov` leaves
+  `#[cfg(test)]` code out of the measured lines, so the 100% gate is unaffected.

@@ -5,9 +5,11 @@
 //! Everything here is a pure function from a [`Graph`] to text; the command
 //! line decides where the text goes.
 
+mod html;
 mod json;
 mod view;
 
+pub use self::html::Html;
 pub use self::json::{Json, SCHEMA_VERSION};
 pub use self::view::{Cluster, Level, View, ViewEdge, incident};
 
