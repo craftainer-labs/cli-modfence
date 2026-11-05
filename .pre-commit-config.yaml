@@ -243,7 +243,7 @@ repos:
 
       - id: graphml-wellformed
         name: GraphML goldens are well-formed XML (xml.dom.minidom)
-        entry: python3 -c "import sys, xml.dom.minidom as m; [m.parse(f) for f in sys.argv[1:]]"
+        entry: python3 -I -c "import sys, xml.dom.minidom as m; [m.parse(f) for f in sys.argv[1:]]"
         language: python
         files: ^tests/golden/.*\.graphml$
         stages: [pre-commit, manual]

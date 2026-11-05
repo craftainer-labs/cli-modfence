@@ -221,7 +221,7 @@ fn the_diagrams_follow_the_level_and_graphml_does_not() {
     let package = on("json", &["graph", "--format", "dot", "--level", "package"]);
     assert_eq!(
         package.out,
-        "digraph \"modfence\" {\n  rankdir=LR;\n  \"ext:py:requests\" [label=\"requests\", shape=diamond];\n  \"pkg:py:pkg\" [label=\"pkg\", shape=box];\n  \"pkg:py:pkg\" -> \"ext:py:requests\" [style=solid, arrowhead=normal];\n}\n"
+        "digraph \"modfence\" {\n  rankdir=LR;\n  n0 [id=\"ext:py:requests\", label=\"requests\", shape=diamond];\n  n1 [id=\"pkg:py:pkg\", label=\"pkg\", shape=box];\n  n1 -> n0 [style=solid, arrowhead=normal];\n}\n"
     );
     let package = on(
         "json",

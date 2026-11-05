@@ -20,9 +20,11 @@ files; `src/cli/` decides where the text goes.
 Hand-written serializers (no crate). Output is a pure function of the input,
 in the order of the view (diagrams) or of the graph (`GraphML`).
 
-- **DOT** (`Dot`): a `digraph "modfence"` with `rankdir=LR`. Every id and label
-  is a quoted string with `"` and `\` escaped, a line break written `\n` and
-  other control characters replaced by a space. A cluster is `subgraph
+- **DOT** (`Dot`): a `digraph "modfence"` with `rankdir=LR`. Nodes are `n0`,
+  `n1`, ... in sorted id order, so ids that differ only in a character DOT
+  cannot carry stay distinct nodes; the real id is the node's `id` attribute.
+  Every id and label is a quoted string with `"` and `\` escaped, a line break
+  written `\n` and other control characters replaced by a space. A cluster is `subgraph
   cluster_<n>` (numbered in the view's cluster order) holding its members;
   other nodes follow it. Shapes follow the HTML legend (package `box`, module
   `ellipse`, external `diamond`, symbol `triangle`); an edge's `style` is its
@@ -41,21 +43,27 @@ in the order of the view (diagrams) or of the graph (`GraphML`).
   edge is `-->` and one `linkStyle` per relation sets `stroke-dasharray` (calls
   `6 3`, binds `2 3`) or the colour (contains); an edge that is not a plain
   import is labelled with its relation, and with its count when it folds
-  several sites.
+  several sites. Mermaid refuses large diagrams by default (`maxEdges` 500,
+  `maxTextSize` 50000 characters), and the renderer does not split them: raise
+  those limits in the Mermaid configuration or draw a coarser `--level`.
 - **GraphML** (`GraphMl`): a data format, so it writes the whole graph, never
   the view, and is the same for every `--level` and `--group-by`. An XML 1.0
   declaration, `<graphml xmlns="http://graphml.graphdrawing.org/xmlns">`, one
-  `<key>` per attribute of the JSON document (node: `kind`, `label`, `lang`,
+  `<key>` per attribute of the JSON document (node: `id`, `kind`, `label`, `lang`,
   `path`, `symbol_kind`, `span`, `tags`, `binding`; edge: `relation`,
   `confidence`, `origin`, `count`, `specifier`, `sites`) and
   `<graph edgedefault="directed">`. Structured values (`span`, `tags`,
   `binding`, `sites`) are compact JSON text in a string attribute, with
-  object keys sorted; `count` is an `int`. Node ids are the graph's ids and
-  edge ids `e0`, `e1`, ... in graph order. Text and attribute values escape
+  object keys sorted; `count` is an `int`. Nodes are `n0`, `n1`, ... in sorted id
+  order (GraphML ids are NMTOKENs, which a path is not) with the graph's id in
+  the `id` data; edge ids are `e0`, `e1`, ... in graph order and `source` and
+  `target` are node ids. Text and attribute values escape
   `& < > " '`, write tab, line feed and carriage return as character
   references (so they survive attribute-value normalisation), and replace
   every character XML 1.0 forbids (controls other than those three, U+FFFE and
-  U+FFFF) with U+FFFD.
+  U+FFFF) with U+FFFD. XML 1.0 cannot carry those characters at all, so this
+  is lossy for text such as a path with a control character; JSON is the
+  lossless data format.
 
 ## The HTML page (`html.rs`, `html/`)
 

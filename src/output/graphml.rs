@@ -1,11 +1,12 @@
 //! `GraphML` (`--format graphml`): the whole graph as XML for graph tools.
 
+use std::collections::BTreeMap;
 use std::fmt::Write as _;
 
 use serde_json::{Value, json};
 
 use super::{Renderer, View};
-use crate::extract::Span;
+use crate::extract::{NodeId, Span};
 use crate::graph::{Edge, Graph, Node};
 
 /// The `GraphML` document of the graph.
@@ -14,12 +15,14 @@ use crate::graph::{Edge, Graph, Node};
 /// and edge and ignores the view. Every node and edge attribute of the JSON
 /// document is a `<key>` and a `<data>` element; structured values (tags,
 /// span, binding, sites) are JSON text in a string attribute. The graph is
-/// `edgedefault="directed"`.
+/// `edgedefault="directed"`. Nodes are `n0`, `n1`, ... in sorted id order (the
+/// real id is the `node_id` data), so ids XML cannot carry never collide.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct GraphMl;
 
 /// The `<key>` declarations: id, scope, name and `attr.type`.
-const KEYS: [(&str, &str, &str, &str); 14] = [
+const KEYS: [(&str, &str, &str, &str); 15] = [
+    ("node_id", "node", "id", "string"),
     ("n_kind", "node", "kind", "string"),
     ("n_label", "node", "label", "string"),
     ("n_lang", "node", "lang", "string"),
@@ -77,8 +80,9 @@ fn span(span: Span) -> Value {
     })
 }
 
-fn node(out: &mut String, node: &Node) {
-    let _ = writeln!(out, "    <node id=\"{}\">", escape(node.id.as_str()));
+fn node(out: &mut String, number: usize, node: &Node) {
+    let _ = writeln!(out, "    <node id=\"n{number}\">");
+    data(out, "node_id", node.id.as_str());
     data(out, "n_kind", node.kind.as_str());
     data(out, "n_label", &node.label);
     data(out, "n_lang", node.lang.as_str());
@@ -104,12 +108,12 @@ fn node(out: &mut String, node: &Node) {
     out.push_str("    </node>\n");
 }
 
-fn edge(out: &mut String, number: usize, edge: &Edge) {
+fn edge(out: &mut String, number: usize, numbers: &BTreeMap<&NodeId, usize>, edge: &Edge) {
     let _ = writeln!(
         out,
-        "    <edge id=\"e{number}\" source=\"{}\" target=\"{}\">",
-        escape(edge.source.as_str()),
-        escape(edge.target.as_str())
+        "    <edge id=\"e{number}\" source=\"n{}\" target=\"n{}\">",
+        numbers[&edge.source],
+        numbers[&edge.target]
     );
     data(out, "e_relation", edge.relation.as_str());
     if let Some(confidence) = edge.confidence {
@@ -144,11 +148,17 @@ impl Renderer for GraphMl {
             );
         }
         out.push_str("  <graph id=\"modfence\" edgedefault=\"directed\">\n");
-        for graph_node in graph.nodes.values() {
-            node(&mut out, graph_node);
+        let numbers: BTreeMap<&NodeId, usize> = graph
+            .nodes
+            .keys()
+            .enumerate()
+            .map(|(number, id)| (id, number))
+            .collect();
+        for (number, graph_node) in graph.nodes.values().enumerate() {
+            node(&mut out, number, graph_node);
         }
         for (number, graph_edge) in graph.edges.iter().enumerate() {
-            edge(&mut out, number, graph_edge);
+            edge(&mut out, number, &numbers, graph_edge);
         }
         out.push_str("  </graph>\n</graphml>\n");
         out

@@ -207,9 +207,153 @@ fn graphml_escapes_an_id_in_an_attribute_and_carriage_returns() {
     );
     let out = render(&GraphMl, &builder.build(), Level::Module, None);
     assert!(
-        out.contains("<node id=\"mod:py:app/q&quot;uote&lt;b&gt;.py\">"),
+        out.contains("<data key=\"node_id\">mod:py:app/q&quot;uote&lt;b&gt;.py</data>"),
         "{out}"
     );
+}
+
+/// The DOT node name (`n<number>`) declared for the node `id`.
+fn dot_name(dot: &str, id: &str) -> String {
+    let line = dot
+        .lines()
+        .find(|line| line.contains(&format!("[id=\"{id}\",")))
+        .unwrap_or_else(|| panic!("no node {id} in {dot}"));
+    line.trim_start().split(' ').next().unwrap().to_owned()
+}
+
+/// Paths that differ only in a character the formats cannot carry: a space,
+/// a tab, two control characters and DEL.
+const COLLIDING: [&str; 5] = [
+    "app/a b.py",
+    "app/a\tb.py",
+    "app/a\u{1}b.py",
+    "app/a\u{2}b.py",
+    "app/a\u{7f}b.py",
+];
+
+fn colliding() -> Graph {
+    let config: Config = config::parse(CONFIG).unwrap();
+    let mut builder = Builder::new(&config);
+    for path in COLLIDING {
+        let file = SourceFile { path, text: "" };
+        builder.add(
+            &file,
+            PythonExtractor.extract(&file, &ExtractCtx::default()),
+        );
+    }
+    let mut graph = builder.build();
+    let first = id(NodeKind::Module, COLLIDING[0], None);
+    for path in &COLLIDING[1..] {
+        graph.edges.push(Edge {
+            source: first.clone(),
+            target: id(NodeKind::Module, path, None),
+            relation: Relation::Imports,
+            confidence: Some(Confidence::Resolved),
+            specifier: None,
+            sites: Vec::new(),
+        });
+    }
+    graph
+}
+
+#[test]
+fn dot_keeps_ids_that_differ_only_in_an_unrepresentable_character() {
+    let out = render(&Dot, &colliding(), Level::Module, None);
+    let mut names: Vec<&str> = out
+        .lines()
+        .filter(|line| line.contains("[id=\"mod:py:"))
+        .map(|line| line.trim_start().split(' ').next().unwrap())
+        .collect();
+    assert_eq!(names.len(), COLLIDING.len(), "{out}");
+    names.sort_unstable();
+    names.dedup();
+    assert_eq!(names.len(), COLLIDING.len(), "{out}");
+    // No two edges were rewired onto the same pair of nodes.
+    let mut ends: Vec<(&str, &str)> = out
+        .lines()
+        .filter(|line| line.contains(" -> "))
+        .map(|line| {
+            let mut words = line.split_whitespace();
+            (words.next().unwrap(), words.nth(1).unwrap())
+        })
+        .collect();
+    assert!(ends.len() >= 2 * (COLLIDING.len() - 1), "{out}");
+    let count = ends.len();
+    ends.sort_unstable();
+    ends.dedup();
+    assert_eq!(ends.len(), count, "{out}");
+    assert!(ends.iter().all(|(a, b)| names.contains(a) || names.contains(b)));
+}
+
+#[test]
+fn graphml_keeps_ids_that_differ_only_in_an_unrepresentable_character() {
+    let graph = colliding();
+    let out = render(&GraphMl, &graph, Level::Module, None);
+    let attribute = |line: &str, name: &str| -> String {
+        let (_, rest) = line.split_once(&format!("{name}=\"")).unwrap();
+        rest.split('"').next().unwrap().to_owned()
+    };
+    let mut ids: Vec<String> = out
+        .lines()
+        .filter(|line| line.trim_start().starts_with("<node "))
+        .map(|line| attribute(line, "id"))
+        .collect();
+    assert_eq!(ids.len(), graph.nodes.len());
+    ids.sort_unstable();
+    ids.dedup();
+    assert_eq!(ids.len(), graph.nodes.len(), "{out}");
+    // Each edge's endpoints are declared nodes, and no two edges coincide.
+    let mut ends = Vec::new();
+    for line in out
+        .lines()
+        .filter(|line| line.trim_start().starts_with("<edge "))
+    {
+        let (source, target) = (attribute(line, "source"), attribute(line, "target"));
+        assert!(ids.contains(&source) && ids.contains(&target), "{line}");
+        ends.push((source, target));
+    }
+    assert_eq!(ends.len(), graph.edges.len());
+    ends.sort_unstable();
+    ends.dedup();
+    assert_eq!(ends.len(), graph.edges.len(), "{out}");
+}
+
+#[test]
+fn mermaid_link_styles_follow_each_edge_in_order() {
+    let mut graph = graph();
+    let (run, go) = (
+        id(NodeKind::Symbol, "app/a.py", Some("run")),
+        id(NodeKind::Symbol, "app/b.py", Some("go")),
+    );
+    // A second binds edge between the same symbols, of another confidence.
+    graph.edges.push(Edge {
+        source: run,
+        target: go,
+        relation: Relation::Binds,
+        confidence: Some(Confidence::Resolved),
+        specifier: None,
+        sites: Vec::new(),
+    });
+    let out = render(&Mermaid, &graph, Level::Symbol, None);
+    let edges: Vec<&str> = out.lines().filter(|line| line.contains(" -->")).collect();
+    let styles = [
+        ("calls", "stroke-dasharray:6 3"),
+        ("binds", "stroke-dasharray:2 3"),
+        ("contains", "stroke:#bfbfbf"),
+    ];
+    for (relation, style) in styles {
+        let label = format!("|\"{relation}\"|");
+        let list: Vec<String> = edges
+            .iter()
+            .enumerate()
+            .filter(|(_, edge)| edge.contains(&label))
+            .map(|(number, _)| number.to_string())
+            .collect();
+        let line = format!("  linkStyle {} {style}\n", list.join(","));
+        assert!(out.contains(&line), "{relation}: {out}");
+    }
+    let binds = edges.iter().filter(|edge| edge.contains("|\"binds\"|"));
+    assert_eq!(binds.count(), 2, "{out}");
 }
 
 #[test]
@@ -224,8 +368,8 @@ fn clusters_are_subgraphs() {
         .expect(&dot);
     assert!(first < second);
     let app = &dot[first..second];
-    assert!(app.contains("\"mod:py:app/a.py\"") && !app.contains("lib/c.py"));
-    assert!(dot[second..].contains("\"mod:py:lib/c.py\""));
+    assert!(app.contains("id=\"mod:py:app/a.py\"") && !app.contains("lib/c.py"));
+    assert!(dot[second..].contains("id=\"mod:py:lib/c.py\""));
     let mermaid = render(&Mermaid, &graph, Level::Module, Some("layer"));
     let first = mermaid.find("  subgraph c0[\"app\"]\n").expect(&mermaid);
     let second = mermaid.find("  subgraph c1[\"lib\"]\n").expect(&mermaid);
@@ -260,16 +404,20 @@ fn edges_are_styled_by_relation_and_counted() {
     let graph = graph();
     let dot = render(&Dot, &graph, Level::Symbol, None);
     // The target carries the arrowhead.
-    assert!(dot.contains(
-        "\"sym:py:app/a.py#run\" -> \"sym:py:app/b.py#go\" [style=dashed, arrowhead=normal];"
-    ));
-    assert!(dot.contains(
-        "\"sym:py:app/a.py#run\" -> \"sym:py:app/b.py#go\" [style=dotted, arrowhead=normal];"
-    ));
+    let (run, go) = (
+        dot_name(&dot, "sym:py:app/a.py#run"),
+        dot_name(&dot, "sym:py:app/b.py#go"),
+    );
+    assert!(dot.contains(&format!("{run} -> {go} [style=dashed, arrowhead=normal];")));
+    assert!(dot.contains(&format!("{run} -> {go} [style=dotted, arrowhead=normal];")));
     assert!(dot.contains("[style=solid, color=\"gray75\", arrowhead=normal];"));
-    assert!(dot.contains(
-        "\"mod:py:lib/c.py\" -> \"mod:py:app/a.py\" [style=solid, arrowhead=normal, label=\"2\"];"
-    ));
+    let (lib, app) = (
+        dot_name(&dot, "mod:py:lib/c.py"),
+        dot_name(&dot, "mod:py:app/a.py"),
+    );
+    assert!(dot.contains(&format!(
+        "{lib} -> {app} [style=solid, arrowhead=normal, label=\"2\"];"
+    )));
     let mermaid = render(&Mermaid, &graph, Level::Symbol, None);
     assert!(mermaid.contains("|\"calls\"|"));
     assert!(mermaid.contains("|\"binds\"|"));
@@ -294,7 +442,7 @@ fn graphml_carries_everything_whatever_the_view() {
             assert_eq!(render(&GraphMl, &graph, level, group_by), all);
         }
     }
-    assert!(all.contains("<node id=\"sym:py:app/a.py#run\">"));
+    assert!(all.contains("<data key=\"node_id\">sym:py:app/a.py#run</data>"));
     assert!(all.contains("<graph id=\"modfence\" edgedefault=\"directed\">"));
     assert!(all.contains("<data key=\"n_binding\">{&quot;exported_name&quot;:&quot;run&quot;,&quot;framework&quot;:&quot;pyo3&quot;}</data>"));
     assert!(all.contains("<data key=\"e_count\">2</data>"));

@@ -13,7 +13,9 @@ use crate::graph::{Graph, Node, Relation};
 /// Node shapes follow the HTML legend (package box, module ellipse, external
 /// package diamond, symbol triangle) and edge styles the relation (imports
 /// solid, calls dashed, binds dotted, contains solid and light grey). The
-/// arrowhead is on the target. Ids and labels are quoted strings.
+/// arrowhead is on the target. Nodes are named `n0`, `n1`, ... in sorted id
+/// order, so ids that differ only in characters DOT cannot carry stay distinct
+/// nodes; the real id is the node's quoted `id` attribute.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Dot;
 
@@ -61,11 +63,18 @@ impl Renderer for Dot {
             .collect();
         let nodes: BTreeMap<&NodeId, &Node> =
             view.nodes.iter().map(|node| (&node.id, *node)).collect();
+        let numbers: BTreeMap<&NodeId, usize> = nodes
+            .keys()
+            .copied()
+            .enumerate()
+            .map(|(number, id)| (id, number))
+            .collect();
         let declare = |out: &mut String, indent: &str, id: &NodeId| {
             let node = nodes[&id];
             let _ = writeln!(
                 out,
-                "{indent}\"{}\" [label=\"{}\", shape={}];",
+                "{indent}n{} [id=\"{}\", label=\"{}\", shape={}];",
+                numbers[&id],
                 quote(id.as_str()),
                 quote(&node.label),
                 shape(node.kind)
@@ -87,9 +96,9 @@ impl Renderer for Dot {
         for edge in &view.edges {
             let _ = write!(
                 out,
-                "  \"{}\" -> \"{}\" [style={}, arrowhead=normal",
-                quote(edge.source.as_str()),
-                quote(edge.target.as_str()),
+                "  n{} -> n{} [style={}, arrowhead=normal",
+                numbers[&edge.source],
+                numbers[&edge.target],
                 style(edge.relation)
             );
             if edge.count > 1 {
