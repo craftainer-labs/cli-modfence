@@ -1,0 +1,11 @@
+digraph "modfence" {
+  rankdir=LR;
+  subgraph cluster_0 {
+    label="pkg";
+    "mod:py:pkg/orders.py" [label="pkg/orders.py", shape=ellipse];
+  }
+  "ext:py:requests" [label="requests", shape=diamond];
+  "pkg:py:pkg" [label="pkg", shape=box];
+  "mod:py:pkg/orders.py" -> "ext:py:requests" [style=solid, arrowhead=normal];
+  "pkg:py:pkg" -> "mod:py:pkg/orders.py" [style=solid, color="gray75", arrowhead=normal];
+}

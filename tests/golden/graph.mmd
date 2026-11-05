@@ -1,0 +1,9 @@
+flowchart LR
+  subgraph c0["pkg"]
+    n1(["pkg/orders.py"])
+  end
+  n0{"requests"}
+  n2["pkg"]
+  n1 --> n0
+  n2 -->|"contains"| n1
+  linkStyle 1 stroke:#bfbfbf

@@ -7,11 +7,55 @@ files; `src/cli/` decides where the text goes.
 - `mod.rs`: the `Renderer` trait, the one interface every format implements.
 - `json.rs`: `Json`, the graph document of `schema/modfence-graph.schema.json`
   (ADR 0003, "Output format"). `SCHEMA_VERSION` is the document's `major.minor`.
+- `dot.rs`, `mermaid.rs`: `Dot` and `Mermaid`, the view as a diagram (below).
+- `graphml.rs`: `GraphMl`, the whole graph as `GraphML` (below).
 - `html.rs`: `Html`, the interactive page of `--format html` (NC5c): one
   self-contained file, its assets in `html/` (below).
 - `view.rs`: `View`, the graph as a diagram draws it (a `Level`, the visible
   nodes, the edges rolled up to them, the clusters), and `incident`, the part
   of a graph that touches a set of nodes (what `trace` outputs).
+
+## DOT, Mermaid and GraphML (`dot.rs`, `mermaid.rs`, `graphml.rs`)
+
+Hand-written serializers (no crate). Output is a pure function of the input,
+in the order of the view (diagrams) or of the graph (`GraphML`).
+
+- **DOT** (`Dot`): a `digraph "modfence"` with `rankdir=LR`. Every id and label
+  is a quoted string with `"` and `\` escaped, a line break written `\n` and
+  other control characters replaced by a space. A cluster is `subgraph
+  cluster_<n>` (numbered in the view's cluster order) holding its members;
+  other nodes follow it. Shapes follow the HTML legend (package `box`, module
+  `ellipse`, external `diamond`, symbol `triangle`); an edge's `style` is its
+  relation (imports solid, calls dashed, binds dotted, contains solid in light
+  grey), the arrowhead is on the target, and a folded edge of several sites has
+  a `label` with the count.
+- **Mermaid** (`Mermaid`): `flowchart LR`, classic syntax that Mermaid 10 and
+  later (mermaid-cli) renders; nothing needs 11.3's `@{ shape }`. Nodes are
+  `n0`, `n1`, ... in node order and clusters `c0`, ... (`subgraph c0["label"]`),
+  so a label is never read as syntax. Labels are quoted, with `"`, `#`, `<`,
+  `>`, `&` and the backtick written as Mermaid entity codes (`#quot;`, `#35;`,
+  `#lt;`, `#gt;`, `#amp;`, `#96;`) and control characters as a space. Shapes:
+  package `["..."]`, module `(["..."])` (stadium), external `{"..."}`
+  (rhombus), symbol `{{"..."}}` (hexagon, standing in for the triangle that
+  Mermaid only has from 11.3). Mermaid has no per-edge dash syntax, so every
+  edge is `-->` and one `linkStyle` per relation sets `stroke-dasharray` (calls
+  `6 3`, binds `2 3`) or the colour (contains); an edge that is not a plain
+  import is labelled with its relation, and with its count when it folds
+  several sites.
+- **GraphML** (`GraphMl`): a data format, so it writes the whole graph, never
+  the view, and is the same for every `--level` and `--group-by`. An XML 1.0
+  declaration, `<graphml xmlns="http://graphml.graphdrawing.org/xmlns">`, one
+  `<key>` per attribute of the JSON document (node: `kind`, `label`, `lang`,
+  `path`, `symbol_kind`, `span`, `tags`, `binding`; edge: `relation`,
+  `confidence`, `origin`, `count`, `specifier`, `sites`) and
+  `<graph edgedefault="directed">`. Structured values (`span`, `tags`,
+  `binding`, `sites`) are compact JSON text in a string attribute, with
+  object keys sorted; `count` is an `int`. Node ids are the graph's ids and
+  edge ids `e0`, `e1`, ... in graph order. Text and attribute values escape
+  `& < > " '`, write tab, line feed and carriage return as character
+  references (so they survive attribute-value normalisation), and replace
+  every character XML 1.0 forbids (controls other than those three, U+FFFE and
+  U+FFFF) with U+FFFD.
 
 ## The HTML page (`html.rs`, `html/`)
 
@@ -49,13 +93,13 @@ One offline file that draws the `View` and lists it in tables.
 - **Randomness** is only the layout in the browser; the text of the page is a
   pure function of the view.
 
-## Adding a format (NC5b, NC5c)
+## Adding a format
 
 1. Implement `Renderer` for a unit struct in its own file here and re-export
    it from `mod.rs`: `fn render(&self, graph: &Graph, view: &View<'_>) -> String`.
    The text ends in a newline.
-2. In `src/cli/args.rs`, replace the `Err(Self::pending("..."))` arm of
-   `ViewArgs::renderer` for the format with `Ok(Some(&YourFormat))`. Nothing
+2. In `src/cli/args.rs`, add the `ViewFormat` variant and its
+   `Ok(Some(&YourFormat))` arm in `ViewArgs::renderer`. Nothing
    else in `src/cli/` changes: `graph` and `trace` both go through the
    renderer, and `trace` hands it the `incident` part of the graph.
 3. Add its tests to `tests/` and, for a document with a schema, its golden file.
@@ -104,7 +148,9 @@ formats (DOT, Mermaid, HTML) draw the view and never the graph directly.
 - Golden files are `tests/golden/*.graph.json`; the `graph-json-schema` hook in
   `.pre-commit-config.yaml` validates them, and `schema/examples/`, against the
   schema with ajv (Node), not with a Rust crate.
-- Tests are in `tests/output.rs`, `tests/html.rs` and `tests/cli.rs`; do not
+- Tests are in `tests/output.rs`, `tests/html.rs`, `tests/diagrams.rs` (DOT,
+  Mermaid and `GraphML`: escaping, clusters, levels) and `tests/cli.rs` (the
+  `tests/golden/graph.*` and `trace.*` files of the three formats); do not
   add `#[cfg(test)]` modules here, with one exception: `html.rs` has a single
   `tests` module with the known-answer vectors (NIST SHA-256, RFC 4648 base64)
   for its private `sha256` and `base64`. They are private, and no public

@@ -7,7 +7,7 @@ use clap::{Args, Parser, Subcommand, ValueEnum};
 use super::Failure;
 use crate::config::{Severity, validate_tag_key};
 use crate::graph::Graph;
-use crate::output::{self, Html, Json, Renderer, View};
+use crate::output::{self, Dot, GraphMl, Html, Json, Mermaid, Renderer, View};
 
 /// A cross-language module-boundary checker for Python, TypeScript and Rust.
 #[derive(Debug, Parser)]
@@ -157,16 +157,11 @@ impl ViewArgs {
         match self.format {
             ViewFormat::Text => Ok(None),
             ViewFormat::Json => Ok(Some(&Json)),
-            ViewFormat::Dot => Err(Self::pending("dot")),
-            ViewFormat::Mermaid => Err(Self::pending("mermaid")),
-            ViewFormat::Graphml => Err(Self::pending("graphml")),
+            ViewFormat::Dot => Ok(Some(&Dot)),
+            ViewFormat::Mermaid => Ok(Some(&Mermaid)),
+            ViewFormat::Graphml => Ok(Some(&GraphMl)),
             ViewFormat::Html => Ok(Some(&Html)),
         }
-    }
-
-    /// The refusal of a format that is not implemented yet.
-    fn pending(name: &str) -> Failure {
-        Failure::usage(format!("--format {name} is not implemented yet (NC5)"))
     }
 
     /// The view of `graph` that `--level` and `--group-by` ask for.

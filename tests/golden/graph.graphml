@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns">
+  <key id="n_kind" for="node" attr.name="kind" attr.type="string"/>
+  <key id="n_label" for="node" attr.name="label" attr.type="string"/>
+  <key id="n_lang" for="node" attr.name="lang" attr.type="string"/>
+  <key id="n_path" for="node" attr.name="path" attr.type="string"/>
+  <key id="n_symbol_kind" for="node" attr.name="symbol_kind" attr.type="string"/>
+  <key id="n_span" for="node" attr.name="span" attr.type="string"/>
+  <key id="n_tags" for="node" attr.name="tags" attr.type="string"/>
+  <key id="n_binding" for="node" attr.name="binding" attr.type="string"/>
+  <key id="e_relation" for="edge" attr.name="relation" attr.type="string"/>
+  <key id="e_confidence" for="edge" attr.name="confidence" attr.type="string"/>
+  <key id="e_origin" for="edge" attr.name="origin" attr.type="string"/>
+  <key id="e_count" for="edge" attr.name="count" attr.type="int"/>
+  <key id="e_specifier" for="edge" attr.name="specifier" attr.type="string"/>
+  <key id="e_sites" for="edge" attr.name="sites" attr.type="string"/>
+  <graph id="modfence" edgedefault="directed">
+    <node id="ext:py:requests">
+      <data key="n_kind">external</data>
+      <data key="n_label">requests</data>
+      <data key="n_lang">py</data>
+      <data key="n_tags">{&quot;boundary&quot;:[&quot;network&quot;]}</data>
+    </node>
+    <node id="mod:py:pkg/orders.py">
+      <data key="n_kind">module</data>
+      <data key="n_label">pkg/orders.py</data>
+      <data key="n_lang">py</data>
+      <data key="n_path">pkg/orders.py</data>
+      <data key="n_tags">{&quot;layer&quot;:[&quot;domain&quot;]}</data>
+    </node>
+    <node id="pkg:py:pkg">
+      <data key="n_kind">package</data>
+      <data key="n_label">pkg</data>
+      <data key="n_lang">py</data>
+      <data key="n_path">pkg</data>
+    </node>
+    <node id="sym:py:pkg/orders.py#place">
+      <data key="n_kind">symbol</data>
+      <data key="n_label">place</data>
+      <data key="n_lang">py</data>
+      <data key="n_path">pkg/orders.py</data>
+      <data key="n_symbol_kind">function</data>
+      <data key="n_span">{&quot;end_column&quot;:13,&quot;end_line&quot;:5,&quot;start_column&quot;:1,&quot;start_line&quot;:4}</data>
+      <data key="n_tags">{&quot;layer&quot;:[&quot;domain&quot;]}</data>
+    </node>
+    <edge id="e0" source="mod:py:pkg/orders.py" target="ext:py:requests">
+      <data key="e_relation">imports</data>
+      <data key="e_confidence">resolved</data>
+      <data key="e_origin">tree-sitter</data>
+      <data key="e_count">1</data>
+      <data key="e_specifier">requests</data>
+      <data key="e_sites">[{&quot;path&quot;:&quot;pkg/orders.py&quot;,&quot;span&quot;:{&quot;end_column&quot;:16,&quot;end_line&quot;:1,&quot;start_column&quot;:1,&quot;start_line&quot;:1}}]</data>
+    </edge>
+    <edge id="e1" source="mod:py:pkg/orders.py" target="sym:py:pkg/orders.py#place">
+      <data key="e_relation">contains</data>
+    </edge>
+    <edge id="e2" source="pkg:py:pkg" target="mod:py:pkg/orders.py">
+      <data key="e_relation">contains</data>
+    </edge>
+  </graph>
+</graphml>

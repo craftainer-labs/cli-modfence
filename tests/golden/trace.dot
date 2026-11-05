@@ -1,0 +1,6 @@
+digraph "modfence" {
+  rankdir=LR;
+  "ext:py:requests" [label="requests", shape=diamond];
+  "mod:py:pkg/orders.py" [label="pkg/orders.py", shape=ellipse];
+  "mod:py:pkg/orders.py" -> "ext:py:requests" [style=solid, arrowhead=normal];
+}

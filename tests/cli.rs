@@ -183,21 +183,68 @@ fn graph_prints_a_text_summary() {
     assert_eq!(on("missing", &["graph"]).code, 74);
 }
 
+// DOT, Mermaid and GraphML of the `json` fixture. The diagrams draw the module
+// view; GraphML is a data format and carries the whole graph.
 #[test]
-fn the_formats_of_later_items_are_a_usage_error() {
-    for format in ["dot", "mermaid", "graphml"] {
-        for command in [&["graph"][..], &["trace", "layer=ui"]] {
-            let mut args = command.to_vec();
-            args.extend(["--format", format]);
-            let run = on("app", &args);
-            assert_eq!(run.code, 2, "{format}");
-            assert_eq!(run.out, "");
-            assert_eq!(
-                run.err,
-                format!("error: --format {format} is not implemented yet (NC5)\n")
-            );
-        }
+fn graph_matches_the_golden_file_of_each_format() {
+    let goldens = [
+        ("dot", include_str!("golden/graph.dot")),
+        ("mermaid", include_str!("golden/graph.mmd")),
+        ("graphml", include_str!("golden/graph.graphml")),
+    ];
+    for (format, golden) in goldens {
+        let run = on("json", &["graph", "--format", format]);
+        assert_eq!(run.code, 0, "{format}: {}", run.err);
+        assert_eq!(run.out, golden, "{format}");
+        assert_eq!(run.err, "");
     }
+}
+
+// ADR 0004, invariant 23: the diagram of a trace is the selection, its edges
+// and their other ends.
+#[test]
+fn trace_matches_the_golden_file_of_each_format() {
+    let goldens = [
+        ("dot", include_str!("golden/trace.dot")),
+        ("mermaid", include_str!("golden/trace.mmd")),
+        ("graphml", include_str!("golden/trace.graphml")),
+    ];
+    for (format, golden) in goldens {
+        let run = on("json", &["trace", "package=requests", "--format", format]);
+        assert_eq!(run.code, 0, "{format}: {}", run.err);
+        assert_eq!(run.out, golden, "{format}");
+    }
+}
+
+#[test]
+fn the_diagrams_follow_the_level_and_graphml_does_not() {
+    let package = on("json", &["graph", "--format", "dot", "--level", "package"]);
+    assert_eq!(
+        package.out,
+        "digraph \"modfence\" {\n  rankdir=LR;\n  \"ext:py:requests\" [label=\"requests\", shape=diamond];\n  \"pkg:py:pkg\" [label=\"pkg\", shape=box];\n  \"pkg:py:pkg\" -> \"ext:py:requests\" [style=solid, arrowhead=normal];\n}\n"
+    );
+    let package = on("json", &["graph", "--format", "mermaid", "--level", "package"]);
+    assert_eq!(
+        package.out,
+        "flowchart LR\n  n0{\"requests\"}\n  n1[\"pkg\"]\n  n1 --> n0\n"
+    );
+    let symbol = on("json", &["graph", "--format", "dot", "--level", "symbol"]);
+    assert!(symbol.out.contains("\"sym:py:pkg/orders.py#place\" [label=\"place\", shape=triangle];"));
+    let golden = include_str!("golden/graph.graphml");
+    for level in ["package", "module", "symbol"] {
+        let flags = ["--level", level, "--group-by", "layer"];
+        let run = on("json", &[&["graph", "--format", "graphml"][..], &flags].concat());
+        assert_eq!(run.out, golden, "{level}");
+    }
+}
+
+#[test]
+fn diagrams_cluster_by_a_tag_key() {
+    let run = on("json", &["graph", "--format", "dot", "--group-by", "layer"]);
+    assert_eq!(run.code, 0, "{}", run.err);
+    assert!(run.out.contains("  subgraph cluster_0 {\n    label=\"domain\";\n"));
+    let run = on("json", &["graph", "--format", "mermaid", "--group-by", "boundary"]);
+    assert!(run.out.contains("  subgraph c0[\"network\"]\n    n0{\"requests\"}\n  end\n"));
 }
 
 #[test]
