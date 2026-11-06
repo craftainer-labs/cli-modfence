@@ -112,8 +112,7 @@ fn edge(out: &mut String, number: usize, numbers: &BTreeMap<&NodeId, usize>, edg
     let _ = writeln!(
         out,
         "    <edge id=\"e{number}\" source=\"n{}\" target=\"n{}\">",
-        numbers[&edge.source],
-        numbers[&edge.target]
+        numbers[&edge.source], numbers[&edge.target]
     );
     data(out, "e_relation", edge.relation.as_str());
     if let Some(confidence) = edge.confidence {

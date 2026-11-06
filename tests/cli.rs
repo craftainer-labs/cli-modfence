@@ -235,7 +235,7 @@ fn the_diagrams_follow_the_level_and_graphml_does_not() {
     assert!(
         symbol
             .out
-            .contains("\"sym:py:pkg/orders.py#place\" [label=\"place\", shape=triangle];")
+            .contains("[id=\"sym:py:pkg/orders.py#place\", label=\"place\", shape=triangle];")
     );
     let golden = include_str!("golden/graph.graphml");
     for level in ["package", "module", "symbol"] {

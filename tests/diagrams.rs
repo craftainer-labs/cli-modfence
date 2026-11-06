@@ -282,7 +282,10 @@ fn dot_keeps_ids_that_differ_only_in_an_unrepresentable_character() {
     ends.sort_unstable();
     ends.dedup();
     assert_eq!(ends.len(), count, "{out}");
-    assert!(ends.iter().all(|(a, b)| names.contains(a) || names.contains(b)));
+    assert!(
+        ends.iter()
+            .all(|(a, b)| names.contains(a) || names.contains(b))
+    );
 }
 
 #[test]
