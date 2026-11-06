@@ -241,6 +241,13 @@ repos:
         files: ^(schema/modfence-graph\.schema\.json|schema/examples/graph\.example\.json|tests/golden/[^/]+\.graph\.json)$
         stages: [pre-commit, manual]
 
+      - id: graphml-wellformed
+        name: GraphML goldens are well-formed XML (xml.dom.minidom)
+        entry: python3 -I -c "import sys, xml.dom.minidom as m; [m.parse(f) for f in sys.argv[1:]]"
+        language: python
+        files: ^tests/golden/.*\.graphml$
+        stages: [pre-commit, manual]
+
   # Supply-chain/secret scanners (OWASP A01/A03/A04/A08 -- see
   # docs/TEMPLATE.md's "Checks"). Revs are tags, not SHAs: Renovate's
   # pre-commit manager bumps tags directly, and a SHA + "# frozen: vX"

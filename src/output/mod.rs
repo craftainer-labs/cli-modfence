@@ -1,16 +1,23 @@
 //! Output of the dependency graph (ADR 0004, "Traceability outputs"): the
 //! [`Renderer`] trait that every document format implements, the [`Json`]
-//! graph document, and the [`View`] that the diagram formats draw.
+//! graph document, the other formats ([`Dot`], [`Mermaid`], [`GraphMl`],
+//! [`Html`]) and the [`View`] that the diagram formats draw.
 //!
 //! Everything here is a pure function from a [`Graph`] to text; the command
 //! line decides where the text goes.
 
+mod dot;
+mod graphml;
 mod html;
 mod json;
+mod mermaid;
 mod view;
 
+pub use self::dot::Dot;
+pub use self::graphml::GraphMl;
 pub use self::html::Html;
 pub use self::json::{Json, SCHEMA_VERSION};
+pub use self::mermaid::Mermaid;
 pub use self::view::{Cluster, Level, View, ViewEdge, incident};
 
 use crate::graph::Graph;

@@ -27,13 +27,11 @@ Rules:
   be read or written (a missing or unreadable configuration file included, so
   `--config typo.toml` is 74; one that is read but invalid is 2). The status does not depend on `--format`.
 - Human text is the default. Machine formats need an explicit `--format`:
-  `check` has `text|sarif|github`; `graph` and `trace` have `text|json`.
-  `dot|mermaid|graphml` are accepted by the parser and then refused with
-  "not implemented yet (NC5)" (exit 2), so scripts fail loudly instead of
-  getting text.
+  `check` has `text|sarif|github`; `graph` and `trace` have
+  `text|json|dot|mermaid|graphml|html`.
 - `--level package|module|symbol` (default `module`) and `--group-by <tag key>`
-  (an invalid key is a usage error) shape the diagram formats. `text` and
-  `json` ignore them: JSON always carries everything. `trace --format json` is
+  (an invalid key is a usage error) shape the diagram formats (`dot`, `mermaid`, `html`). `text`, `json` and
+  `graphml` ignore them: the data formats always carry everything. `trace --format json` is
   the graph document restricted to the selection (its nodes, their edges and
   those edges' other ends), with no extra metadata.
 - Output goes to standard output, or to `--output <file>`. Notices, file
