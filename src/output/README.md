@@ -48,6 +48,16 @@ in the order of the view (diagrams) or of the graph (`GraphML`).
   several sites. Mermaid refuses large diagrams by default (`maxEdges` 500,
   `maxTextSize` 50000 characters), and the renderer does not split them: raise
   those limits in the Mermaid configuration or draw a coarser `--level`.
+- **Mermaid shows no tags.** Mermaid's only tooltip is the third part of a
+  `click` line (`click <id> "<url>" "<tooltip>"`, or `click <id> callback
+  "<tooltip>"`), and every form needs a URL or a JavaScript callback; there
+  is no href-less, callback-less form. The flowchart "Interaction" page
+  (https://mermaid.js.org/syntax/flowchart.html#interaction) also says click
+  events are disabled under `securityLevel='strict'`, the default of
+  mermaid-cli and most hosts. A fake URL would make every tagged node a link,
+  so the renderer emits no `click` lines and tags are not visible in Mermaid
+  (ADR 0004: "as far as its support goes"). Use DOT, GraphML or HTML to see
+  tags, or `--group-by` to cluster by a tag key.
 - **GraphML** (`GraphMl`): a data format, so it writes the whole graph, never
   the view, and is the same for every `--level` and `--group-by`. An XML 1.0
   declaration, `<graphml xmlns="http://graphml.graphdrawing.org/xmlns">`, one

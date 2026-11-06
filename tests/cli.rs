@@ -138,6 +138,24 @@ fn a_clean_repository_exits_0() {
     assert!(run.out.contains("0 error(s), 0 warning(s), 0 note(s)"));
 }
 
+// ADR 0004, invariant 21: the exit status does not depend on the output format.
+#[test]
+fn the_exit_status_is_the_same_for_every_format() {
+    for (fixture, extra, expected) in [
+        ("app", &[][..], 1),
+        ("clean", &[][..], 0),
+        ("warn", &[][..], 0),
+        ("warn", &["--fail-on", "warning"][..], 1),
+    ] {
+        for format in ["text", "sarif", "github"] {
+            let mut args = vec!["check", "--format", format];
+            args.extend_from_slice(extra);
+            let run = on(fixture, &args);
+            assert_eq!(run.code, expected, "{fixture} {args:?}");
+        }
+    }
+}
+
 #[test]
 fn machine_formats_need_an_explicit_format() {
     let sarif = on("app", &["check", "--format", "sarif"]);
