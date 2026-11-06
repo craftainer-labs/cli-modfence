@@ -4,3 +4,10 @@ ignore:
   # The JSON schemas for the graph output and modfence.toml, plus examples
   # (docs/adrs/0003-graph-model.md).
   - schema/
+
+  # The accessibility check of the HTML output (src/output/README.md): its
+  # workflow and its Playwright/axe project. tests/ is already ignored; the
+  # explicit line records that this tree is modfence's own, with its own
+  # package.json and lockfile.
+  - .github/workflows/a11y.yml
+  - tests/a11y/

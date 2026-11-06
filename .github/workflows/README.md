@@ -19,6 +19,14 @@
   arch-specific runtime break (e.g. a C-extension dependency missing an
   arm64 wheel), since `checks.yml`'s test run uses `MODE=mock`
   in-process fakes for some paths rather than the built image.
+- `a11y.yml` — instance-owned (modfence only; see
+  `../template-sync-manifest.local.yml`), on push to `main`, on pull requests
+  and on demand, with `contents: read` only. Builds modfence, writes the HTML
+  pages for the test fixtures (`../../tests/a11y/generate-pages.sh`) and runs
+  Playwright in Chromium with `@axe-core/playwright` (WCAG 2.0 to 2.2, A and
+  AA, zero violations), plus keyboard, no-JavaScript and offline/CSP checks;
+  see `../../tests/a11y/README.md`. Its job is `axe`, and the maintainer adds
+  it as a required check.
 - `release-binaries.yml` — manually dispatched with a `tag` input, right after
   each `Release`: `gh workflow run release-binaries.yml -f tag=vX.Y.Z`. Ships
   the CLI's binaries: attaches the dist archives, their checksums and the

@@ -10,6 +10,9 @@ of [`template-rust-cli`](https://github.com/craftainer/template-rust-cli); see
 instance. The program is still the template's example; the checker is built
 in later items.
 
+The pages of `--format html` are checked for accessibility (axe, in Chromium)
+by the `A11y` workflow; see [`tests/a11y/README.md`](tests/a11y/README.md).
+
 ## Creating a CLI from this template
 
 1. On GitHub, use "Use this template" on this repository (or

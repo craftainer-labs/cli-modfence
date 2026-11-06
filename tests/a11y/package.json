@@ -1,0 +1,14 @@
+{
+  "name": "modfence-a11y",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Accessibility checks (axe, in Chromium) of the pages `modfence --format html` writes. Not part of the crate.",
+  "scripts": {
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "4.14.0",
+    "@playwright/test": "1.64.1",
+    "playwright-core": "1.64.1"
+  }
+}
