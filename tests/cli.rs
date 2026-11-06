@@ -221,7 +221,7 @@ fn the_diagrams_follow_the_level_and_graphml_does_not() {
     let package = on("json", &["graph", "--format", "dot", "--level", "package"]);
     assert_eq!(
         package.out,
-        "digraph \"modfence\" {\n  rankdir=LR;\n  n0 [id=\"ext:py:requests\", label=\"requests\", shape=diamond];\n  n1 [id=\"pkg:py:pkg\", label=\"pkg\", shape=box];\n  n1 -> n0 [style=solid, arrowhead=normal];\n}\n"
+        "digraph \"modfence\" {\n  rankdir=LR;\n  n0 [id=\"ext:py:requests\", label=\"requests\", shape=diamond, tooltip=\"boundary: network\"];\n  n1 [id=\"pkg:py:pkg\", label=\"pkg\", shape=box];\n  n1 -> n0 [style=solid, arrowhead=normal];\n}\n"
     );
     let package = on(
         "json",
@@ -235,7 +235,7 @@ fn the_diagrams_follow_the_level_and_graphml_does_not() {
     assert!(
         symbol
             .out
-            .contains("[id=\"sym:py:pkg/orders.py#place\", label=\"place\", shape=triangle];")
+            .contains("[id=\"sym:py:pkg/orders.py#place\", label=\"place\", shape=triangle, tooltip=\"layer: domain\"];")
     );
     let golden = include_str!("golden/graph.graphml");
     for level in ["package", "module", "symbol"] {

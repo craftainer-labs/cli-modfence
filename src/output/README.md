@@ -30,7 +30,9 @@ in the order of the view (diagrams) or of the graph (`GraphML`).
   `ellipse`, external `diamond`, symbol `triangle`); an edge's `style` is its
   relation (imports solid, calls dashed, binds dotted, contains solid in light
   grey), the arrowhead is on the target, and a folded edge of several sites has
-  a `label` with the count.
+  a `label` with the count. A node with tags has a `tooltip` of one
+  `key: value, value` line per key (keys sorted, escaped like a label), shown
+  on hover by Graphviz viewers that support it; a node without tags has none.
 - **Mermaid** (`Mermaid`): `flowchart LR`, classic syntax that Mermaid 10 and
   later (mermaid-cli) renders; nothing needs 11.3's `@{ shape }`. Nodes are
   `n0`, `n1`, ... in node order and clusters `c0`, ... (`subgraph c0["label"]`),

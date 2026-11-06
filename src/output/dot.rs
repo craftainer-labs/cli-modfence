@@ -15,7 +15,9 @@ use crate::graph::{Graph, Node, Relation};
 /// solid, calls dashed, binds dotted, contains solid and light grey). The
 /// arrowhead is on the target. Nodes are named `n0`, `n1`, ... in sorted id
 /// order, so ids that differ only in characters DOT cannot carry stay distinct
-/// nodes; the real id is the node's quoted `id` attribute.
+/// nodes; the real id is the node's quoted `id` attribute. A node with tags has
+/// a `tooltip` of `key: value, value` lines, so Graphviz viewers show them on
+/// hover (ADR 0004, "Traceability outputs").
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Dot;
 
@@ -33,6 +35,24 @@ fn quote(text: &str) -> String {
         }
     }
     out
+}
+
+/// The `, tooltip="..."` attribute of `node`: one `key: value, value` line per
+/// tag key (keys and values in their stored, sorted order). Empty for a node
+/// without tags, so it gets no tooltip.
+fn tooltip(node: &Node) -> String {
+    if node.tags.is_empty() {
+        return String::new();
+    }
+    let lines: Vec<String> = node
+        .tags
+        .iter()
+        .map(|(key, values)| {
+            let values: Vec<&str> = values.iter().map(String::as_str).collect();
+            format!("{key}: {}", values.join(", "))
+        })
+        .collect();
+    format!(", tooltip=\"{}\"", quote(&lines.join("\n")))
 }
 
 const fn shape(kind: NodeKind) -> &'static str {
@@ -73,11 +93,12 @@ impl Renderer for Dot {
             let node = nodes[&id];
             let _ = writeln!(
                 out,
-                "{indent}n{} [id=\"{}\", label=\"{}\", shape={}];",
+                "{indent}n{} [id=\"{}\", label=\"{}\", shape={}{}];",
                 numbers[&id],
                 quote(id.as_str()),
                 quote(&node.label),
-                shape(node.kind)
+                shape(node.kind),
+                tooltip(node)
             );
         };
         for (number, cluster) in view.clusters.iter().enumerate() {
