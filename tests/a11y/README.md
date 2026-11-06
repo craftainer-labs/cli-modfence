@@ -13,7 +13,8 @@ them on every pull request and push to `main`, and nothing else does.
   `A11Y_PAGES`, and checks:
   - axe with the tags `wcag2a`, `wcag2aa`, `wcag21a`, `wcag21aa` and
     `wcag22aa`: zero violations, in light, dark, reduced-motion and
-    dark-plus-reduced-motion, with a node selected, and with JavaScript off;
+    dark-plus-reduced-motion, with a node selected, and on the page with its
+    script removed (axe cannot run in a context with JavaScript off);
   - with JavaScript on, the diagram and controls are visible and the zoom,
     pan and reset buttons and the tables' select buttons work from the
     keyboard;

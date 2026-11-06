@@ -2,6 +2,7 @@
 // (WCAG 2.0 to 2.2, A and AA), keyboard use, no JavaScript, and an offline
 // load without a Content-Security-Policy violation. The pages are made by
 // generate-pages.sh into the directory named by A11Y_PAGES.
+const fs = require('node:fs');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const { test, expect } = require('@playwright/test');
@@ -96,8 +97,18 @@ for (const name of PAGES) {
       await context.close();
     });
 
-    test('axe finds no violation without JavaScript', async ({ browser }) => {
-      const { context, page } = await open(browser, name, { javaScriptEnabled: false });
+    // axe needs a script context, so it cannot run in a context with
+    // JavaScript off. The page's own code is removed instead, which leaves the
+    // document a browser without JavaScript shows (the next test checks that
+    // with JavaScript really off).
+    test('axe finds no violation in the page without its script', async ({ browser }) => {
+      const context = await browser.newContext();
+      const page = await context.newPage();
+      const file = path.resolve(DIR, `${name}.html`);
+      const html = fs.readFileSync(file, 'utf8').replace(/<script>[\s\S]*?<\/script>/, '');
+      expect(html).not.toContain('<script>');
+      await page.setContent(html);
+      await expect(page.locator('#stage')).toBeHidden();
       await expectNoViolations(page);
       await context.close();
     });
