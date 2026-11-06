@@ -1,0 +1,68 @@
+# Accessibility gate for `modfence ... --format html`: builds modfence, writes
+# the HTML pages for the test fixtures and checks them with axe in Chromium
+# (Playwright). Instance-owned: the template has no such page. The tests are
+# in tests/a11y/.
+name: A11y
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  axe:
+    # renovate: datasource=github-runners depName=ubuntu
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-24.04' }}
+    timeout-minutes: 30
+    env:
+      A11Y_PAGES: ${{ github.workspace }}/target/a11y-pages
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # rust-toolchain.toml names the compiler; rustup 1.28 installs it only
+      # when asked to.
+      - name: Install the pinned Rust toolchain
+        run: rustup toolchain install
+
+      - name: Build modfence
+        run: cargo build --release --locked
+
+      - name: Write the HTML pages from the test fixtures
+        run: bash tests/a11y/generate-pages.sh target/release/modfence "$A11Y_PAGES"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+
+      - name: Install the test dependencies
+        working-directory: tests/a11y
+        run: npm ci --ignore-scripts
+
+      # Through the local binary, so the browser build is the one the lockfile
+      # pins.
+      - name: Install Chromium
+        working-directory: tests/a11y
+        run: npx --no-install playwright install --with-deps chromium
+
+      - name: Run the axe and browser tests
+        working-directory: tests/a11y
+        run: npx --no-install playwright test
+
+      - name: Upload the pages and the Playwright output
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: a11y-output
+          path: |
+            target/a11y-pages/
+            tests/a11y/test-results/
+          if-no-files-found: ignore
+          retention-days: 7

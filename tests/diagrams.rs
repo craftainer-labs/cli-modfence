@@ -109,6 +109,28 @@ fn dot_escapes_quotes_backslashes_and_line_breaks() {
 }
 
 #[test]
+fn dot_tooltips_list_the_tags_escaped_and_only_for_tagged_nodes() {
+    let out = render(&Dot, &hostile(), Level::Module, None);
+    // One line per key in key order; the hostile value is escaped like a label.
+    assert!(
+        out.contains(
+            r#"shape=ellipse, tooltip="layer: app\nnote: q\"b\\c\nline</script>-->]]>  #`<>&'"];"#
+        ),
+        "{out}"
+    );
+    // A node without tags has no tooltip, and a tooltip is one line.
+    let external = out
+        .lines()
+        .find(|line| line.contains("id=\"ext:py:requests\""))
+        .expect(&out);
+    assert!(!external.contains("tooltip"), "{external}");
+    assert!(
+        out.lines()
+            .all(|line| line.starts_with("  ") || line == "}" || line.starts_with("digraph"))
+    );
+}
+
+#[test]
 fn dot_draws_a_label_only_at_a_level_that_shows_it() {
     let mut graph = graph();
     let module = graph
