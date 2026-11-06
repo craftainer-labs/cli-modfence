@@ -241,6 +241,19 @@ repos:
         files: ^(schema/modfence-graph\.schema\.json|schema/examples/graph\.example\.json|tests/golden/[^/]+\.graph\.json)$
         stages: [pre-commit, manual]
 
+      # The SARIF report (ADR 0004, "Reports"): the golden SARIF validates
+      # against the official 2.1.0 schema, vendored in schema/vendor/ (see its
+      # README for provenance and licence). The schema is draft-04, which
+      # ajv-cli 5.0.0 cannot select (--spec has no draft4), so tests/validate_sarif.cjs
+      # uses ajv-draft-04; all versions are exact so the check cannot drift.
+      - id: sarif-json-schema
+        name: SARIF goldens validate against the SARIF 2.1.0 schema (ajv)
+        entry: node tests/validate_sarif.cjs
+        language: node
+        additional_dependencies: ["ajv@8.17.1", "ajv-draft-04@1.0.0", "ajv-formats@3.0.1"]
+        files: ^(schema/vendor/sarif-schema-2\.1\.0\.json|tests/validate_sarif\.cjs|tests/golden/[^/]+\.sarif\.json)$
+        stages: [pre-commit, manual]
+
       - id: graphml-wellformed
         name: GraphML goldens are well-formed XML (xml.dom.minidom)
         entry: python3 -I -c "import sys, xml.dom.minidom as m; [m.parse(f) for f in sys.argv[1:]]"
