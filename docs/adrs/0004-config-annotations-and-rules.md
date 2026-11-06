@@ -4,10 +4,13 @@
 
 Proposed. The G-api decisions in the table "Decisions (G-api)", and the items
 A to E below it (including the tag `accumulate` option, the orchestrator's
-proposal), were approved by the user on 2026-11-01. It becomes
-Accepted when its implementation merges (NC4 for config, annotations, rules
-and reports; NC5 for `trace` and the tag outputs), per
-[`README.md`](README.md).
+proposal), were approved by the user on 2026-11-01. NC4 (config, annotations,
+rules and reports: cli-modfence #10, #11, #12, #13 and #16) and NC5 (`trace`
+and the tag outputs: #17, #18, #19 and the accessibility check) implemented
+most of it. It becomes Accepted, per [`README.md`](README.md), after the rest
+lands: NC3c (the Rust extractor, #8, so `// modfence:` annotations work in
+Rust), NC6 (the `--precise` flag) and NC5e (validating SARIF against the 2.1.0
+schema, the Mermaid tag tooltip, and the remaining tests).
 
 ## Context
 
