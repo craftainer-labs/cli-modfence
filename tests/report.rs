@@ -134,6 +134,48 @@ fn the_sarif_document_matches_the_golden_file() {
     assert_eq!(without_version(document), without_version(parse(GOLDEN)));
 }
 
+// ADR 0004, "Reports": a built-in finding's fingerprint covers the rule id and
+// the path only, so rewording its message keeps the alert, and two findings of
+// the rule in one file are told apart by the `:n` suffix.
+#[test]
+fn a_built_in_fingerprint_ignores_the_message() {
+    let fingerprints = |messages: &[&str]| -> Vec<String> {
+        let violations = messages
+            .iter()
+            .enumerate()
+            .map(|(line, message)| {
+                violation(
+                    Severity::Error,
+                    INVALID_ANNOTATION,
+                    "c.py",
+                    span(u32::try_from(line).unwrap() + 1, 1, 30),
+                    message,
+                )
+            })
+            .collect();
+        let text = sarif::render(&outcome(violations), &cfg(NO_B));
+        let document = parse(&text);
+        let hashes: Vec<String> = run_of(&document)["results"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|result| {
+                result["partialFingerprints"]["primaryLocationLineHash"]
+                    .as_str()
+                    .unwrap()
+                    .to_owned()
+            })
+            .collect();
+        hashes
+    };
+    let before = fingerprints(&["bad key at offset 3"]);
+    let after = fingerprints(&["bad key at offset 9, reworded"]);
+    assert_eq!(before, after);
+    let two = fingerprints(&["first", "second"]);
+    let hash = before[0].strip_suffix(":1").unwrap();
+    assert_eq!(two, [format!("{hash}:1"), format!("{hash}:2")]);
+}
+
 // ADR 0004, invariant 18: every result has a location with the four region
 // fields, a fingerprint and properties; every rule has its texts.
 #[test]

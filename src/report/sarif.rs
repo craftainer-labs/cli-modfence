@@ -84,8 +84,10 @@ fn fnv(parts: &[&str]) -> u64 {
 }
 
 /// The fingerprint hash of a violation: the rule, source, target and relation
-/// of an edge violation; the rule, the path and the message of an annotation
-/// finding. No line number goes in, so edits elsewhere keep the fingerprint.
+/// of an edge violation; the rule and the path of a built-in finding (ADR 0004,
+/// "Reports"; the `:n` suffix separates several findings of one rule in one
+/// file, and a changed message keeps the alert). No line number goes in, so
+/// edits elsewhere keep the fingerprint.
 fn fingerprint_hash(violation: &Violation) -> String {
     let hash = match &violation.dependency {
         Some(dependency) => fnv(&[
@@ -94,7 +96,7 @@ fn fingerprint_hash(violation: &Violation) -> String {
             dependency.to.id.as_str(),
             dependency.relation.as_str(),
         ]),
-        None => fnv(&[&violation.rule, &violation.path, &violation.message]),
+        None => fnv(&[&violation.rule, &violation.path]),
     };
     format!("{hash:016x}")
 }
