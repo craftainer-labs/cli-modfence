@@ -105,8 +105,23 @@ for (const name of PAGES) {
       const context = await browser.newContext();
       const page = await context.newPage();
       const file = path.resolve(DIR, `${name}.html`);
-      const html = fs.readFileSync(file, 'utf8').replace(/<script>[\s\S]*?<\/script>/, '');
-      expect(html).not.toContain('<script>');
+      // Parsed, not executed (DOMParser runs no script), then every script that
+      // is not a JSON data block is removed element by element.
+      const { html, executable, data } = await page.evaluate((source) => {
+        const doc = new DOMParser().parseFromString(source, 'text/html');
+        for (const script of doc.querySelectorAll('script')) {
+          if (script.type !== 'application/json') {
+            script.remove();
+          }
+        }
+        return {
+          html: `<!doctype html>${doc.documentElement.outerHTML}`,
+          executable: doc.querySelectorAll('script:not([type="application/json"])').length,
+          data: doc.querySelectorAll('script[type="application/json"]').length,
+        };
+      }, fs.readFileSync(file, 'utf8'));
+      expect(executable, 'executable scripts left').toBe(0);
+      expect(data, 'the data script survives').toBeGreaterThan(0);
       await page.setContent(html);
       await expect(page.locator('#stage')).toBeHidden();
       await expectNoViolations(page);
@@ -183,7 +198,10 @@ for (const name of PAGES) {
     test('loads offline without a policy violation', async ({ browser }) => {
       const { context, page, problems, blocked } = await open(browser, name);
       await expect(page.locator('#stage')).toBeVisible();
-      await page.waitForTimeout(500);
+      await page.waitForLoadState('load');
+      await page.evaluate(
+        () => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))),
+      );
       expect(blocked, 'requests other than the page').toEqual([]);
       expect(problems).toEqual([]);
       await context.close();

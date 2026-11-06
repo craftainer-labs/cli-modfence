@@ -355,6 +355,10 @@ E. **Deny severity.** `default-deny` is always `error`, or settable
   selectors on a multi-valued key match more nodes than they might expect.
 - The semantic fingerprint changes if a node is renamed or moved, which
   reopens that alert once; that is intended.
+- A built-in finding's fingerprint is the rule and the path plus `:n`, so
+  fixing an earlier finding of the same rule in the same file renumbers the
+  later `:n` suffixes, and GitHub may close one alert and keep another open
+  (GitHub's own `primaryLocationLineHash` `:n` behaves the same way).
 - GitHub keeps only 5,000 results per upload, so the first run on a repository
   with a bad rule can hide violations. The warning and the severity ordering
   limit the damage.

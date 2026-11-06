@@ -44,7 +44,7 @@ jobs:
 
       - name: Install the test dependencies
         working-directory: tests/a11y
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       # Through the local binary, so the browser build is the one the lockfile
       # pins.
