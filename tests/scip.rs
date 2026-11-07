@@ -262,6 +262,9 @@ fn a_root_outside_the_analysis_root_yields_no_documents() {
         "file:///repo/bad%zz",
         "file:///repo/trunc%4",
         "file:///repo/%ff",
+        "file:///repo/sub#frag",
+        "file:///repo?x=1",
+        "file:///repo/%00",
     ];
     for project_root in foreign {
         let bytes = index_with(
@@ -398,7 +401,47 @@ fn load_reads_a_file_and_refuses_what_it_cannot() {
             bytes: MAX_INDEX_BYTES + 1
         }
     );
+    // A directory (like a pipe or device) is not an index file.
+    let refused = load(&directory, ROOT).expect_err("not a regular file");
+    assert!(matches!(refused, ScipError::Io(_)), "{refused:?}");
     std::fs::remove_dir_all(&directory).expect("cleans up");
+}
+
+#[test]
+fn the_index_root_is_escaped_in_warnings() {
+    let bytes = index_with(
+        "file:///x\u{1b}]0;title\u{7}\nforged line",
+        None,
+        vec![document(
+            "a.py",
+            Wire::UTF8CodeUnitOffsetFromLineStart,
+            vec![],
+        )],
+    );
+    let (_, stats) = read_index(&bytes, ROOT).expect("reads");
+    let warnings = stats.warnings("x.scip");
+    assert_eq!(warnings.len(), 1);
+    assert!(
+        !warnings[0].chars().any(char::is_control),
+        "{:?}",
+        warnings[0]
+    );
+}
+
+#[test]
+fn extreme_wire_values_are_rejected_or_do_not_overflow() {
+    let (index, stats) = one_document(vec![
+        occurrence(&[i32::MIN, 0, 1], "min", 0),
+        occurrence(&[0, i32::MIN, 1], "min-start", 0),
+        occurrence(&[0, 0, i32::MIN], "min-end", 0),
+        occurrence(&[i32::MAX, 0, i32::MAX], "max", 0),
+    ]);
+    assert_eq!(index.documents[0].occurrences.len(), 1);
+    assert_eq!(index.documents[0].occurrences[0].symbol, "max");
+    assert_eq!(stats.malformed_occurrences, 3);
+    let lines = LineIndex::new("abc");
+    let huge = range(u32::MAX, 0, u32::MAX, 1);
+    assert_eq!(lines.span(huge, PositionEncoding::Utf8), None);
 }
 
 /// One code point `a`, an emoji (4 UTF-8 bytes, 2 UTF-16 units), `e` with a

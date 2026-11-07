@@ -44,7 +44,12 @@ pub(crate) fn root_prefix(project_root: &str, analysis_root: &str) -> Option<Str
     if project_root.is_empty() {
         return Some(String::new());
     }
-    let path = percent_decode(project_root.strip_prefix("file://")?)?;
+    let uri = project_root.strip_prefix("file://")?;
+    // A query or fragment is not part of a directory path.
+    if uri.contains(['?', '#']) {
+        return None;
+    }
+    let path = percent_decode(uri)?;
     let path = path.trim_end_matches('/');
     let root = analysis_root.trim_end_matches('/');
     if path == root {

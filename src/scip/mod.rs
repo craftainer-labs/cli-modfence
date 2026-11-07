@@ -82,6 +82,8 @@ impl ReadStats {
     pub fn warnings(&self, name: &str) -> Vec<String> {
         let mut lines = Vec::new();
         if let Some(root) = &self.foreign_root {
+            // The root comes from the index: no control characters on stderr.
+            let root: String = root.escape_debug().take(200).collect();
             lines.push(format!(
                 "{name}: index root {root} is outside the analysis root; {} documents ignored",
                 self.rejected_documents

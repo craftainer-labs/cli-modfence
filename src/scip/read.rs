@@ -1,5 +1,6 @@
 //! Parsing `index.scip` into [`Index`].
 
+use std::io::Read;
 use std::path::Path;
 
 use protobuf::Message;
@@ -27,7 +28,9 @@ pub fn check_size(bytes: u64) -> Result<(), Error> {
     }
 }
 
-/// Reads the index file at `path`, checking its size before reading it.
+/// Reads the index file at `path`, checking its size before reading it and
+/// bounding the read itself. The cap bounds the encoded input only; the parsed
+/// message is several times larger in memory.
 ///
 /// # Errors
 ///
@@ -35,8 +38,19 @@ pub fn check_size(bytes: u64) -> Result<(), Error> {
 /// everything [`read_index`] reports.
 pub fn load(path: &Path, root: &str) -> Result<(Index, ReadStats), Error> {
     let io = |error: std::io::Error| Error::Io(error.to_string());
-    check_size(std::fs::metadata(path).map_err(io)?.len())?;
-    read_index(&std::fs::read(path).map_err(io)?, root)
+    let file = std::fs::File::open(path).map_err(io)?;
+    let metadata = file.metadata().map_err(io)?;
+    if !metadata.is_file() {
+        return Err(Error::Io("not a regular file".to_owned()));
+    }
+    check_size(metadata.len())?;
+    // Read at most one byte past the cap, so a file that grows after the
+    // check above cannot exhaust memory either.
+    let mut bytes = Vec::new();
+    file.take(MAX_INDEX_BYTES + 1)
+        .read_to_end(&mut bytes)
+        .map_err(io)?;
+    read_index(&bytes, root)
 }
 
 /// Parses the bytes of an index. Document paths are made relative to
