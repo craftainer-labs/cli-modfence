@@ -69,7 +69,7 @@ clap = { version = "4.6.6", default-features = false, features = ["std", "derive
 # it pins `protobuf` to =3.7.2. The direct `protobuf` entry brings the
 # `Message` trait into scope for parsing; Cargo resolves it to the pinned
 # 3.7.2. No network-capable crates (NFR-0002).
-protobuf = "3.7.2"
+protobuf = "=3.7.2"
 scip = "0.10.0"
 
 [lints]

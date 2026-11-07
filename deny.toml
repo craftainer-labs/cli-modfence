@@ -34,11 +34,11 @@ wildcards = "deny"
 # binary's dependency tree. This list names the crates the NFR gives as
 # examples; the no-network integration test is the authoritative gate.
 deny = [
-    { name = "reqwest" },
-    { name = "hyper" },
-    { name = "ureq" },
-    { name = "curl" },
-    { name = "attohttpc" },
+    { crate = "reqwest" },
+    { crate = "hyper" },
+    { crate = "ureq" },
+    { crate = "curl" },
+    { crate = "attohttpc" },
 ]
 
 [sources]
