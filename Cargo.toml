@@ -64,6 +64,14 @@ toml = "1.1.8"
 # suggestions or other extras, and no network-capable crates (NFR-0002).
 clap = { version = "4.6.6", default-features = false, features = ["std", "derive", "help", "usage", "error-context"] }
 
+# SCIP index reader for `--precise` (NC6, ADR 0003). `scip` ships the
+# generated protobuf types, needs no protoc at build time and does no I/O;
+# it pins `protobuf` to =3.7.2. The direct `protobuf` entry brings the
+# `Message` trait into scope for parsing; Cargo resolves it to the pinned
+# 3.7.2. No network-capable crates (NFR-0002).
+protobuf = "3.7.2"
+scip = "0.10.0"
+
 [lints]
 workspace = true
 
