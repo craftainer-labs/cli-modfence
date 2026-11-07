@@ -10,7 +10,9 @@ and the tag outputs: #17, #18, #19 and the accessibility check) implemented
 most of it. It becomes Accepted, per [`README.md`](README.md), after the rest
 lands: NC3c (the Rust extractor, #8, so `// modfence:` annotations work in
 Rust) and NC6 (the `--precise` flag). NC5e (validating SARIF against the
-2.1.0 schema, the Mermaid tag tooltip, and the remaining tests) is done.
+2.1.0 schema and the remaining tests) is done; the Mermaid tag tooltip is
+dropped, because Mermaid has no tooltip without a URL or callback (see
+`src/output/README.md`).
 
 ## Context
 

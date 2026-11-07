@@ -6,27 +6,46 @@ const fs = require("node:fs");
 const Ajv = require("ajv-draft-04");
 const addFormats = require("ajv-formats");
 
-const schemaPath = "schema/vendor/sarif-schema-2.1.0.json";
+const path = require("node:path");
+
+const root = path.join(__dirname, "..");
+const schemaPath = path.join(root, "schema", "vendor", "sarif-schema-2.1.0.json");
 const ajv = new Ajv({ allErrors: true, strict: false });
 addFormats(ajv);
 const validate = ajv.compile(JSON.parse(fs.readFileSync(schemaPath, "utf8")));
 
 let failed = false;
 let checked = 0;
-// The hook also runs when the schema or this script changes; those are not reports.
-for (const file of process.argv.slice(2).filter((f) => f.endsWith(".sarif.json"))) {
+// The hook also runs when only the schema or this script changed; then no
+// report is among the arguments, so validate every golden report instead.
+let files = process.argv.slice(2).filter((f) => f.endsWith(".sarif.json"));
+if (files.length === 0) {
+  const dir = path.join(root, "tests", "golden");
+  files = fs
+    .readdirSync(dir)
+    .filter((f) => f.endsWith(".sarif.json"))
+    .map((f) => path.join(dir, f));
+}
+for (const file of files) {
   checked += 1;
-  if (validate(JSON.parse(fs.readFileSync(file, "utf8")))) {
+  let errors = null;
+  try {
+    if (!validate(JSON.parse(fs.readFileSync(file, "utf8")))) {
+      errors = validate.errors.map((e) => `  ${e.instancePath || "/"} ${e.message}`);
+    }
+  } catch (err) {
+    errors = [`  ${err.message}`];
+  }
+  if (errors === null) {
     console.log(`${file} valid`);
   } else {
     failed = true;
     console.error(`${file} invalid`);
-    for (const error of validate.errors) {
-      console.error(`  ${error.instancePath || "/"} ${error.message}`);
-    }
+    for (const line of errors) console.error(line);
   }
 }
-if (checked === 0 && process.argv.length > 2) {
-  console.log("no SARIF report among the arguments");
+if (checked === 0) {
+  console.error("no SARIF report found to validate");
+  failed = true;
 }
 process.exit(failed ? 1 : 0);
