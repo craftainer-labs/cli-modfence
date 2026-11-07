@@ -38,15 +38,16 @@ pub fn check_size(bytes: u64) -> Result<(), Error> {
 /// everything [`read_index`] reports.
 pub fn load(path: &Path, root: &str) -> Result<(Index, ReadStats), Error> {
     let io = |error: std::io::Error| Error::Io(error.to_string());
-    let file = std::fs::File::open(path).map_err(io)?;
-    let metadata = file.metadata().map_err(io)?;
-    if !metadata.is_file() {
+    // Stat before opening: opening a pipe without a writer would block.
+    if !std::fs::metadata(path).map_err(io)?.is_file() {
         return Err(Error::Io("not a regular file".to_owned()));
     }
-    check_size(metadata.len())?;
+    let file = std::fs::File::open(path).map_err(io)?;
+    let length = file.metadata().map_err(io)?.len();
+    check_size(length)?;
     // Read at most one byte past the cap, so a file that grows after the
     // check above cannot exhaust memory either.
-    let mut bytes = Vec::new();
+    let mut bytes = Vec::with_capacity(usize::try_from(length).unwrap_or(0));
     file.take(MAX_INDEX_BYTES + 1)
         .read_to_end(&mut bytes)
         .map_err(io)?;
