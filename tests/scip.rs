@@ -20,7 +20,7 @@ const ROOT: &str = "/repo";
 fn occurrence(range: &[i32], symbol: &str, roles: i32) -> Occurrence {
     let mut occurrence = Occurrence::new();
     occurrence.range = range.to_vec();
-    occurrence.symbol = symbol.to_owned();
+    symbol.clone_into(&mut occurrence.symbol);
     occurrence.symbol_roles = roles;
     occurrence
 }
@@ -44,7 +44,7 @@ fn multi(start_line: i32, start: i32, end_line: i32, end: i32) -> MultiLineRange
 
 fn document(path: &str, encoding: Wire, occurrences: Vec<Occurrence>) -> Document {
     let mut document = Document::new();
-    document.relative_path = path.to_owned();
+    path.clone_into(&mut document.relative_path);
     document.position_encoding = EnumOrUnknown::new(encoding);
     document.occurrences = occurrences;
     document
@@ -52,11 +52,11 @@ fn document(path: &str, encoding: Wire, occurrences: Vec<Occurrence>) -> Documen
 
 fn index_with(project_root: &str, tool: Option<(&str, &str)>, documents: Vec<Document>) -> Vec<u8> {
     let mut metadata = Metadata::new();
-    metadata.project_root = project_root.to_owned();
+    project_root.clone_into(&mut metadata.project_root);
     if let Some((name, version)) = tool {
         let mut info = ToolInfo::new();
-        info.name = name.to_owned();
-        info.version = version.to_owned();
+        name.clone_into(&mut info.name);
+        version.clone_into(&mut info.version);
         metadata.tool_info = MessageField::some(info);
     }
     let mut index = Index::new();
@@ -70,7 +70,11 @@ fn read(documents: Vec<Document>) -> (ScipIndex, ReadStats) {
 }
 
 fn one_document(occurrences: Vec<Occurrence>) -> (ScipIndex, ReadStats) {
-    read(vec![document("a.py", Wire::UTF8CodeUnitOffsetFromLineStart, occurrences)])
+    read(vec![document(
+        "a.py",
+        Wire::UTF8CodeUnitOffsetFromLineStart,
+        occurrences,
+    )])
 }
 
 fn scratch(name: &str) -> PathBuf {
@@ -197,8 +201,16 @@ fn unsafe_document_paths_are_dropped_and_counted() {
         .iter()
         .map(|path| document(path, Wire::UTF8CodeUnitOffsetFromLineStart, vec![]))
         .collect();
-    documents.push(document("pkg/mod.py", Wire::UTF8CodeUnitOffsetFromLineStart, vec![]));
-    documents.push(document("dir with space/x.py", Wire::UTF8CodeUnitOffsetFromLineStart, vec![]));
+    documents.push(document(
+        "pkg/mod.py",
+        Wire::UTF8CodeUnitOffsetFromLineStart,
+        vec![],
+    ));
+    documents.push(document(
+        "dir with space/x.py",
+        Wire::UTF8CodeUnitOffsetFromLineStart,
+        vec![],
+    ));
     let (index, stats) = read(documents);
     let kept: Vec<_> = index.documents.iter().map(|d| d.path.as_str()).collect();
     assert_eq!(kept, ["pkg/mod.py", "dir with space/x.py"]);
@@ -220,10 +232,18 @@ fn the_index_root_decides_the_path_prefix() {
         let bytes = index_with(
             project_root,
             None,
-            vec![document("m.py", Wire::UTF8CodeUnitOffsetFromLineStart, vec![])],
+            vec![document(
+                "m.py",
+                Wire::UTF8CodeUnitOffsetFromLineStart,
+                vec![],
+            )],
         );
         let (index, stats) = read_index(&bytes, ROOT).expect("reads");
-        assert_eq!(index.documents[0].path, format!("{prefix}m.py"), "{project_root}");
+        assert_eq!(
+            index.documents[0].path,
+            format!("{prefix}m.py"),
+            "{project_root}"
+        );
         assert_eq!(stats, ReadStats::default(), "{project_root}");
     }
 }
@@ -258,22 +278,35 @@ fn a_root_outside_the_analysis_root_yields_no_documents() {
         assert_eq!(stats.rejected_documents, 2, "{project_root}");
         assert_eq!(stats.foreign_root.as_deref(), Some(project_root));
         let warnings = stats.warnings("x.scip");
-        assert!(warnings[0].contains("outside the analysis root"), "{warnings:?}");
+        assert!(
+            warnings[0].contains("outside the analysis root"),
+            "{warnings:?}"
+        );
     }
     // An index made at a parent of the analysis root is foreign too.
     let bytes = index_with(
         "file:///repo",
         None,
-        vec![document("pkg/a.py", Wire::UTF8CodeUnitOffsetFromLineStart, vec![])],
+        vec![document(
+            "pkg/a.py",
+            Wire::UTF8CodeUnitOffsetFromLineStart,
+            vec![],
+        )],
     );
     let (index, stats) = read_index(&bytes, "/repo/pkg").expect("reads");
-    assert!(index.documents.is_empty());
+    assert_eq!(index.documents, Vec::new());
     assert!(stats.foreign_root.is_some());
 }
 
 #[test]
 fn the_tool_is_its_name_and_version() {
-    let documents = || vec![document("a.py", Wire::UTF8CodeUnitOffsetFromLineStart, vec![])];
+    let documents = || {
+        vec![document(
+            "a.py",
+            Wire::UTF8CodeUnitOffsetFromLineStart,
+            vec![],
+        )]
+    };
     let cases = [
         (Some(("scip-python", "0.6")), Some("scip-python 0.6")),
         (Some(("rust-analyzer", "")), Some("rust-analyzer")),
@@ -294,28 +327,40 @@ fn malformed_input_is_an_error_and_never_a_panic() {
         vec![document(
             "a.py",
             Wire::UTF16CodeUnitOffsetFromLineStart,
-            vec![occurrence(&[1, 2, 5], "scip-python python pkg 1.0 `a`/f().", DEFINITION)],
+            vec![occurrence(
+                &[1, 2, 5],
+                "scip-python python pkg 1.0 `a`/f().",
+                DEFINITION,
+            )],
         )],
     );
     let truncated = read_index(&valid[..valid.len() - 1], ROOT);
     let error = truncated.expect_err("a truncated index is an error");
     assert!(matches!(error, ScipError::Parse(_)));
     assert!(error.to_string().starts_with("not a SCIP index: "));
-    assert!(matches!(read_index(&[0xff; 8], ROOT), Err(ScipError::Parse(_))));
+    assert!(matches!(
+        read_index(&[0xff; 8], ROOT),
+        Err(ScipError::Parse(_))
+    ));
     for end in 0..valid.len() {
         let _ = read_index(&valid[..end], ROOT);
     }
     let (empty, stats) = read_index(&[], ROOT).expect("an empty message is an empty index");
     assert_eq!(empty, ScipIndex::default());
     assert_eq!(stats, ReadStats::default());
-    assert!(stats.warnings("x.scip").is_empty());
+    assert_eq!(stats.warnings("x.scip"), Vec::<String>::new());
 }
 
 #[test]
 fn the_size_cap_is_a_constant() {
     assert!(check_size(MAX_INDEX_BYTES).is_ok());
     let error = check_size(MAX_INDEX_BYTES + 1).expect_err("one byte over");
-    assert_eq!(error, ScipError::TooLarge { bytes: MAX_INDEX_BYTES + 1 });
+    assert_eq!(
+        error,
+        ScipError::TooLarge {
+            bytes: MAX_INDEX_BYTES + 1
+        }
+    );
     assert!(error.to_string().contains("more than the limit"));
 }
 
@@ -325,7 +370,11 @@ fn load_reads_a_file_and_refuses_what_it_cannot() {
     let bytes = index_with(
         "",
         None,
-        vec![document("a.py", Wire::UTF8CodeUnitOffsetFromLineStart, vec![])],
+        vec![document(
+            "a.py",
+            Wire::UTF8CodeUnitOffsetFromLineStart,
+            vec![],
+        )],
     );
     let file = directory.join("index.scip");
     std::fs::write(&file, &bytes).expect("writes");
@@ -339,9 +388,16 @@ fn load_reads_a_file_and_refuses_what_it_cannot() {
     // A sparse file one byte over the cap is refused without being read.
     let big = directory.join("big.scip");
     let handle = std::fs::File::create(&big).expect("creates");
-    handle.set_len(MAX_INDEX_BYTES + 1).expect("sets the length");
+    handle
+        .set_len(MAX_INDEX_BYTES + 1)
+        .expect("sets the length");
     let refused = load(&big, ROOT).expect_err("too large");
-    assert_eq!(refused, ScipError::TooLarge { bytes: MAX_INDEX_BYTES + 1 });
+    assert_eq!(
+        refused,
+        ScipError::TooLarge {
+            bytes: MAX_INDEX_BYTES + 1
+        }
+    );
     std::fs::remove_dir_all(&directory).expect("cleans up");
 }
 
@@ -361,7 +417,11 @@ fn offsets_become_code_points_in_every_encoding() {
         (PositionEncoding::Utf32, 4, 7),
     ];
     for (encoding, start, end) in cases {
-        assert_eq!(lines.span(range(0, start, 0, end), encoding), expected, "{encoding:?}");
+        assert_eq!(
+            lines.span(range(0, start, 0, end), encoding),
+            expected,
+            "{encoding:?}"
+        );
     }
 }
 
@@ -384,7 +444,10 @@ fn offsets_inside_a_character_or_past_the_line_are_not_positions() {
 #[test]
 fn spans_cover_empty_ranges_several_lines_and_crlf() {
     let utf32 = PositionEncoding::Utf32;
-    assert_eq!(LineIndex::new("").span(range(0, 0, 0, 0), utf32), Span::new(1, 1, 1, 1));
+    assert_eq!(
+        LineIndex::new("").span(range(0, 0, 0, 0), utf32),
+        Span::new(1, 1, 1, 1)
+    );
     assert_eq!(
         LineIndex::new("ab\ncd").span(range(0, 1, 1, 1), utf32),
         Span::new(1, 2, 2, 2)

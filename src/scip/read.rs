@@ -58,7 +58,11 @@ pub fn read_index(bytes: &[u8], root: &str) -> Result<(Index, ReadStats), Error>
         .tool_info
         .as_ref()
         .filter(|info| !info.name.is_empty())
-        .map(|info| format!("{} {}", info.name, info.version).trim_end().to_owned());
+        .map(|info| {
+            format!("{} {}", info.name, info.version)
+                .trim_end()
+                .to_owned()
+        });
     let documents = std::mem::take(&mut raw.documents);
     let project_root = raw.metadata.project_root.clone();
     let Some(prefix) = root_prefix(&project_root, root) else {
