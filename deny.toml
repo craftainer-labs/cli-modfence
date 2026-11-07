@@ -30,6 +30,16 @@ allow = [
 [bans]
 multiple-versions = "warn"
 wildcards = "deny"
+# NFR-0002 (offline operation) bans HTTP and socket-client crates from the
+# binary's dependency tree. This list names the crates the NFR gives as
+# examples; the no-network integration test is the authoritative gate.
+deny = [
+    { crate = "reqwest" },
+    { crate = "hyper" },
+    { crate = "ureq" },
+    { crate = "curl" },
+    { crate = "attohttpc" },
+]
 
 [sources]
 unknown-registry = "deny"
