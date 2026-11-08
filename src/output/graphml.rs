@@ -117,7 +117,7 @@ fn edge(out: &mut String, number: usize, numbers: &BTreeMap<&NodeId, usize>, edg
     data(out, "e_relation", edge.relation.as_str());
     if let Some(confidence) = edge.confidence {
         data(out, "e_confidence", confidence.as_str());
-        data(out, "e_origin", "tree-sitter");
+        data(out, "e_origin", edge.origin().as_str());
         data(out, "e_count", &edge.count().to_string());
     }
     if let Some(specifier) = &edge.specifier {

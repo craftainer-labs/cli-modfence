@@ -4,12 +4,12 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use super::locate::{Files, Resolved, dir_of};
 use super::{
-    Binding, Confidence, Edge, FileDiagnostic, Finding, Graph, Node, Relation, Site, Suppression,
+    Backend, Binding, Confidence, Edge, FileDiagnostic, Finding, Graph, Node, Relation, Site, Suppression,
 };
 use crate::config::{Config, Severity, Subject};
 use crate::extract::{
     self, DiagnosticCode, FileFacts, Lang, NodeId, NodeKind, Parsed, SourceFile, Span, Tags,
-    merge_tags,
+    decode_component, merge_tags,
 };
 
 /// Placeholder for an external package whose name is empty (`import ""`).
@@ -224,6 +224,7 @@ impl<'c> Builder<'c> {
         findings.sort();
         suppressions.sort();
         Graph {
+            backend: Backend::TreeSitter,
             edges: acc.edges(),
             nodes: acc.nodes,
             languages: files.iter().map(|file| file.lang).collect(),
@@ -280,7 +281,14 @@ fn symbol_names(files: &[FileEntry]) -> BTreeMap<&str, BTreeMap<String, Vec<Node
 }
 
 fn short_name(node: &extract::Node) -> String {
-    let qualified = node.display_qualname().unwrap_or_default();
+    short_name_of(&node.id)
+}
+
+/// The short name of a symbol id: the last component of its qualified name,
+/// without a repeat ordinal. Empty for an id without a qualified name.
+pub(super) fn short_name_of(id: &NodeId) -> String {
+    let encoded = id.qualname().unwrap_or_default();
+    let qualified = decode_component(encoded).unwrap_or_else(|| encoded.to_owned());
     let last = qualified.rsplit(['.', '~']).next().unwrap_or_default();
     last.split('@').next().unwrap_or_default().to_owned()
 }

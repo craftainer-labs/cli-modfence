@@ -2,6 +2,7 @@
 //! roots, the size cap and malformed input. Indexes are built in code.
 
 use std::path::PathBuf;
+use std::time::{Duration, Instant};
 
 use modfence::extract::Span;
 use modfence::scip::{
@@ -501,4 +502,68 @@ fn spans_cover_empty_ranges_several_lines_and_crlf() {
     assert_eq!(crlf.span(range(0, 0, 0, 2), utf32), Span::new(1, 1, 1, 3));
     assert_eq!(crlf.span(range(0, 0, 0, 3), utf32), None);
     assert_eq!(crlf.span(range(1, 0, 1, 2), utf32), Span::new(2, 1, 2, 3));
+}
+
+#[test]
+fn text_from_a_span_is_sliced_by_code_points() {
+    let lines = LineIndex::new(LINE);
+    assert_eq!(lines.slice(Span::new(1, 5, 1, 8).unwrap()), Some("foo"));
+    assert_eq!(lines.slice(Span::new(1, 2, 1, 3).unwrap()), Some("\u{1f600}"));
+    let ascii = LineIndex::new("abc\ndef");
+    assert_eq!(ascii.slice(Span::new(2, 2, 2, 4).unwrap()), Some("ef"));
+    assert_eq!(ascii.slice(Span::new(2, 3, 2, 3).unwrap()), Some(""));
+    // Several lines, a line the source lacks and columns past the end.
+    assert_eq!(ascii.slice(Span::new(1, 1, 2, 2).unwrap()), None);
+    assert_eq!(ascii.slice(Span::new(5, 1, 5, 2).unwrap()), None);
+    assert_eq!(ascii.slice(Span::new(1, 1, 1, 99).unwrap()), None);
+    assert_eq!(lines.slice(Span::new(1, 1, 1, 99).unwrap()), None);
+    let zero = Span {
+        start_line: 0,
+        start_column: 1,
+        end_line: 0,
+        end_column: 1,
+    };
+    assert_eq!(ascii.slice(zero), None);
+}
+
+#[test]
+fn a_very_long_line_converts_in_bounded_time() {
+    let started = Instant::now();
+    // 2 MB of two-byte characters on one line, then `foo`; and 2 MB of ASCII.
+    let wide = format!("{}foo", "\u{e9}".repeat(1_000_000));
+    let narrow = "a".repeat(2_000_000);
+    let wide = LineIndex::new(&wide);
+    let narrow = LineIndex::new(&narrow);
+    for column in (0..1_000_000_u32).step_by(10) {
+        let expected = Span::new(1, column + 1, 1, column + 2);
+        let utf8 = range(0, 2 * column, 0, 2 * column + 2);
+        assert_eq!(wide.span(utf8, PositionEncoding::Utf8), expected);
+        let units = range(0, column, 0, column + 1);
+        assert_eq!(wide.span(units, PositionEncoding::Utf16), expected);
+        assert_eq!(wide.span(units, PositionEncoding::Utf32), expected);
+        assert_eq!(narrow.span(units, PositionEncoding::Utf8), expected);
+        let text = wide.slice(expected.unwrap());
+        assert_eq!(text, Some("\u{e9}"));
+    }
+    // Queries are bisections of a table built once per line and encoding: far
+    // below the minutes that a scan from the line start per query would take.
+    assert!(started.elapsed() < Duration::from_secs(30));
+}
+
+#[test]
+fn strings_from_the_index_are_escaped_where_they_are_printed() {
+    let documents = vec![document("a.py", Wire::UTF8CodeUnitOffsetFromLineStart, vec![])];
+    let bytes = index_with("", Some(("scip\u{1b}[31m", "1\n2")), documents);
+    let (index, _) = read_index(&bytes, ROOT).expect("reads");
+    assert_eq!(index.tool.as_deref(), Some("scip\\u{1b}[31m 1\\n2"));
+    let long = "n".repeat(300);
+    let documents = vec![document("a.py", Wire::UTF8CodeUnitOffsetFromLineStart, vec![])];
+    let bytes = index_with("", Some((long.as_str(), "")), documents);
+    let (index, _) = read_index(&bytes, ROOT).expect("reads");
+    assert_eq!(index.tool.map(|tool| tool.len()), Some(100));
+
+    let parse = ScipError::Parse("bad\nthing\u{1b}".to_owned());
+    assert_eq!(parse.to_string(), "not a SCIP index: bad\\nthing\\u{1b}");
+    let parse = ScipError::Parse("x".repeat(500));
+    assert_eq!(parse.to_string().len(), "not a SCIP index: ".len() + 200);
 }

@@ -13,6 +13,11 @@ each file's text and facts to `Builder::add`.
   (`binds`, always `heuristic`), turns annotations into module and symbol tags
   and findings, and computes each node's effective tags through
   `crate::config`.
+- `precise.rs`: `apply`, `--precise` (NC6b). After the build it moves the call
+  sites that SCIP indexes resolve from their heuristic edges to `resolved`
+  ones (origin `scip`), sets `Graph::backend`, and returns `PreciseStats`
+  (counted documents and occurrences, with `warnings`). It takes the index data
+  of `src/scip/` and the files' text, and reads nothing itself.
 - `locate.rs`: pure import resolution against the set of analysed paths
   (Python dotted and relative imports against configurable roots, TypeScript
   relative specifiers with extension, `.js` to `.ts` and `index` fallbacks).
@@ -23,5 +28,9 @@ Rules:
 - Every edge endpoint is a node, and `contains` is the only relation without a
   confidence or a site.
 - Not here yet: `tsconfig` `paths` aliases, reading `pyproject.toml` and
-  `package.json` roots, Rust `crate::` resolution, SCIP. The JSON output is `src/output/`.
+  `package.json` roots, Rust `crate::` resolution. The JSON output is `src/output/`.
+- `apply` never adds a call site, never touches `imports`, `binds` or
+  `contains` edges, and is deterministic: a symbol defined at several nodes
+  resolves to the smallest id, and the smallest symbol wins when occurrences
+  share a span. Its tests are in `tests/graph_precise.rs`.
 - Tests are in `tests/graph.rs`; do not add `#[cfg(test)]` modules here.

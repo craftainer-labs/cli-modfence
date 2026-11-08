@@ -62,7 +62,7 @@ fn edge(edge: &Edge) -> Value {
     let mut metadata = Map::new();
     if let Some(confidence) = edge.confidence {
         metadata.insert("confidence".to_owned(), json!(confidence.as_str()));
-        metadata.insert("origin".to_owned(), json!("tree-sitter"));
+        metadata.insert("origin".to_owned(), json!(edge.origin().as_str()));
         metadata.insert("count".to_owned(), json!(edge.count()));
     }
     if let Some(specifier) = &edge.specifier {
@@ -108,7 +108,7 @@ fn document(graph: &Graph) -> Value {
                 "schema_version": SCHEMA_VERSION,
                 "tool": { "name": "modfence", "version": env!("CARGO_PKG_VERSION") },
                 "root": ".",
-                "backend": "tree-sitter",
+                "backend": graph.backend.as_str(),
                 "languages": languages,
                 "diagnostics": diagnostics,
             },

@@ -83,8 +83,7 @@ impl ReadStats {
     pub fn warnings(&self, name: &str) -> Vec<String> {
         let mut lines = Vec::new();
         if let Some(root) = &self.foreign_root {
-            // The root comes from the index: no control characters on stderr.
-            let root: String = root.escape_debug().take(200).collect();
+            let root = printable(root, 200);
             lines.push(format!(
                 "{name}: index root {root} is outside the analysis root; {} documents ignored",
                 self.rejected_documents
@@ -134,9 +133,16 @@ impl fmt::Display for Error {
                 "the index is {bytes} bytes, more than the limit of {MAX_INDEX_BYTES}"
             ),
             Self::Io(message) => write!(f, "cannot read the index: {message}"),
-            Self::Parse(message) => write!(f, "not a SCIP index: {message}"),
+            Self::Parse(message) => write!(f, "not a SCIP index: {}", printable(message, 200)),
         }
     }
 }
 
 impl std::error::Error for Error {}
+
+/// `text` from an index (or from a parser reading one), safe to print: control
+/// characters escaped, at most `limit` characters. Every string that comes from
+/// an index passes through here before it can reach standard error.
+pub(crate) fn printable(text: &str, limit: usize) -> String {
+    text.escape_debug().take(limit).collect()
+}

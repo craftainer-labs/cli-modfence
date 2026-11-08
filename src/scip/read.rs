@@ -8,7 +8,7 @@ use scip::types::occurrence::{Typed_enclosing_range, Typed_range};
 use scip::types::{self as wire, PositionEncoding as Wire};
 
 use super::path::{is_safe_relative, root_prefix};
-use super::{Document, Error, Index, Occurrence, PositionEncoding, RawRange, ReadStats};
+use super::{Document, Error, Index, Occurrence, PositionEncoding, RawRange, ReadStats, printable};
 
 /// The largest index the reader accepts, in bytes. A larger file is an error
 /// rather than a reason to exhaust memory; real indexes of large repositories
@@ -74,9 +74,9 @@ pub fn read_index(bytes: &[u8], root: &str) -> Result<(Index, ReadStats), Error>
         .as_ref()
         .filter(|info| !info.name.is_empty())
         .map(|info| {
-            format!("{} {}", info.name, info.version)
-                .trim_end()
-                .to_owned()
+            // The name and version come from the index: escaped here, so no
+            // caller can print raw control characters.
+            printable(format!("{} {}", info.name, info.version).trim_end(), 100)
         });
     let documents = std::mem::take(&mut raw.documents);
     let project_root = raw.metadata.project_root.clone();
