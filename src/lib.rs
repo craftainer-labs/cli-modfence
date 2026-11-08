@@ -12,5 +12,6 @@ pub mod graph;
 pub mod output;
 pub mod report;
 pub mod rules;
+pub mod scip;
 
 pub use cli::run;
