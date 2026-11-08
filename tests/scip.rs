@@ -196,6 +196,8 @@ fn unsafe_document_paths_are_dropped_and_counted() {
         "./a.py",
         "a/.",
         "a\0b.py",
+        "C:/x.py",
+        "c:x.py",
     ];
     let mut documents: Vec<Document> = unsafe_paths
         .iter()

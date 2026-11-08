@@ -2,10 +2,12 @@
 //! invariant 12: modfence only reads below the analysis root).
 
 /// Whether `path` is a safe relative path in a SCIP document: non-empty, `/`
-/// separators only, and no empty, `.` or `..` segment (so it is neither
+/// separators only, no Windows drive (`C:`) first segment, and no empty, `.` or `..` segment (so it is neither
 /// absolute nor able to leave the analysis root).
 pub(crate) fn is_safe_relative(path: &str) -> bool {
+    let drive = matches!(path.as_bytes(), [letter, b':', ..] if letter.is_ascii_alphabetic());
     !path.is_empty()
+        && !drive
         && !path.contains(['\\', '\0'])
         && path
             .split('/')

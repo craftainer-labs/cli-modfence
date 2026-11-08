@@ -5,6 +5,7 @@ use crate::extract::Span;
 /// How a document counts the `character` of its ranges (`PositionEncoding` in
 /// `scip.proto`). An unspecified encoding is read as UTF-8 by the reader.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum PositionEncoding {
     /// Offsets in UTF-8 bytes from the start of the line.
     Utf8,
@@ -62,7 +63,8 @@ impl RawRange {
 }
 
 /// The lines of one source file, for converting [`RawRange`]s. Lines end at
-/// `\n`; a `\r` before it is not part of the line.
+/// `\n` only, as SCIP defines (a lone `\r`, U+2028 and U+2029 do not end a
+/// line); a `\r` before the `\n` is stripped and is not part of the line.
 #[derive(Debug, Clone)]
 pub struct LineIndex<'a> {
     lines: Vec<&'a str>,

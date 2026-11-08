@@ -63,6 +63,7 @@ pub struct Index {
 /// What the reader left out or had to assume. The caller prints
 /// [`ReadStats::warnings`] on standard error.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[non_exhaustive]
 pub struct ReadStats {
     /// Documents dropped for an unsafe path (absolute, `..`, a backslash), or
     /// all of them when the index root is outside the analysis root.
@@ -112,6 +113,7 @@ impl ReadStats {
 
 /// Why an index could not be read.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Error {
     /// The index is larger than [`MAX_INDEX_BYTES`].
     TooLarge {
