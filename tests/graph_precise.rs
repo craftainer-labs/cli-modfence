@@ -9,11 +9,9 @@ use modfence::extract::python::PythonExtractor;
 use modfence::extract::typescript::TsExtractor;
 use modfence::extract::{ExtractCtx, Extractor, Lang, NodeId, NodeKind, SourceFile};
 use modfence::graph::precise::{PreciseStats, apply};
-use modfence::graph::{Backend, Builder, Confidence, Graph, Origin, Relation};
+use modfence::graph::{Backend, Builder, Confidence, Edge, Graph, Origin, Relation};
 use modfence::output::{GraphMl, Json, Level, Renderer, View};
-use modfence::scip::{
-    DEFINITION, Document, IMPORT, Index, Occurrence, PositionEncoding, RawRange,
-};
+use modfence::scip::{DEFINITION, Document, IMPORT, Index, Occurrence, PositionEncoding, RawRange};
 
 const LIB: &str = "def run():\n    pass\n\n\ndef other():\n    pass\n";
 const APP: &str = "from lib import run, other\n\n\ndef main():\n    run()\n    other()\n    run()\n\n\ndef helper():\n    run()\n";
@@ -42,7 +40,11 @@ fn sources(files: &[(&str, &str)]) -> BTreeMap<String, String> {
 }
 
 fn id(path: &str, qualname: &str) -> NodeId {
-    let lang = if path.ends_with(".ts") { Lang::Ts } else { Lang::Py };
+    let lang = if path.rsplit('.').next() == Some("ts") {
+        Lang::Ts
+    } else {
+        Lang::Py
+    };
     NodeId::new(NodeKind::Symbol, lang, path, Some(qualname)).unwrap()
 }
 
@@ -138,11 +140,15 @@ fn a_reference_at_the_callee_span_resolves_the_call() {
             occurrence(at(APP, 10, "run", 0), RUN, 0),
         ],
     );
-    let stats = apply(&mut graph, &[index(vec![lib_document(), app])], &sources(&files()));
+    let stats = apply(
+        &mut graph,
+        &[index(vec![lib_document(), app])],
+        &sources(&files()),
+    );
     assert_eq!(graph.backend, Backend::TreeSitterScip);
     assert_eq!(stats.documents, 2);
     assert_eq!(stats.resolved_sites, 4);
-    assert!(stats.warnings().is_empty());
+    assert_eq!(stats.warnings(), Vec::<String>::new());
     assert_eq!(
         calls(&graph, &main),
         [
@@ -167,8 +173,12 @@ fn a_reference_at_the_callee_span_resolves_the_call() {
             .collect::<Vec<_>>()
     };
     assert_eq!(rest(&graph), rest(&before));
-    assert!(rest(&graph).iter().all(|e| e.origin() == Origin::TreeSitter));
-    let sites = |g: &Graph| g.edges.iter().map(|e| e.count()).sum::<usize>();
+    assert!(
+        rest(&graph)
+            .iter()
+            .all(|e| e.origin() == Origin::TreeSitter)
+    );
+    let sites = |g: &Graph| g.edges.iter().map(Edge::count).sum::<usize>();
     assert_eq!(sites(&graph), sites(&before));
     assert_eq!(graph.nodes, before.nodes);
 }
@@ -181,10 +191,18 @@ fn a_site_the_index_does_not_resolve_stays_heuristic() {
         vec![
             occurrence(at(APP, 4, "run", 0), RUN, 0),
             // Resolved elsewhere, but no definition node in the graph.
-            occurrence(at(APP, 5, "other", 0), "scip-python python os 1 `os`/other().", 0),
+            occurrence(
+                at(APP, 5, "other", 0),
+                "scip-python python os 1 `os`/other().",
+                0,
+            ),
         ],
     );
-    apply(&mut graph, &[index(vec![lib_document(), app])], &sources(&files()));
+    apply(
+        &mut graph,
+        &[index(vec![lib_document(), app])],
+        &sources(&files()),
+    );
     let main = id("app.py", "main");
     assert_eq!(
         calls(&graph, &main),
@@ -210,7 +228,11 @@ fn a_name_shared_by_two_nodes_is_settled_by_the_index() {
         vec![occurrence(at(lib, 5, "run", 0), method, DEFINITION)],
     );
     let app_doc = document("app.py", vec![occurrence(at(app, 4, "run", 0), method, 0)]);
-    apply(&mut graph, &[index(vec![lib_doc, app_doc])], &sources(&files));
+    apply(
+        &mut graph,
+        &[index(vec![lib_doc, app_doc])],
+        &sources(&files),
+    );
     assert_eq!(
         calls(&graph, &main),
         [row("sym:py:lib.py#Svc.run", Confidence::Resolved, 1)]
@@ -226,7 +248,7 @@ fn the_innermost_node_with_the_name_is_the_definition() {
     let inner = graph
         .nodes
         .values()
-        .find(|n| n.label.ends_with(".f"))
+        .find(|n| n.kind == NodeKind::Symbol && n.label != "f")
         .map(|n| n.id.clone())
         .unwrap();
     let doc = document(
@@ -257,7 +279,11 @@ fn a_definition_that_does_not_name_a_node_defines_nothing() {
     let app = document("app.py", vec![occurrence(at(APP, 4, "run", 0), RUN, 0)]);
     apply(&mut graph, &[index(vec![lib, app])], &sources(&files()));
     let main = id("app.py", "main");
-    assert!(calls(&graph, &main).iter().all(|r| r.1 == Some(Confidence::Heuristic)));
+    assert!(
+        calls(&graph, &main)
+            .iter()
+            .all(|r| r.1 == Some(Confidence::Heuristic))
+    );
 }
 
 #[test]
@@ -270,9 +296,17 @@ fn imports_and_definitions_are_not_references() {
             occurrence(at(APP, 5, "other", 0), OTHER, DEFINITION),
         ],
     );
-    apply(&mut graph, &[index(vec![lib_document(), app])], &sources(&files()));
+    apply(
+        &mut graph,
+        &[index(vec![lib_document(), app])],
+        &sources(&files()),
+    );
     let main = id("app.py", "main");
-    assert!(calls(&graph, &main).iter().all(|r| r.1 == Some(Confidence::Heuristic)));
+    assert!(
+        calls(&graph, &main)
+            .iter()
+            .all(|r| r.1 == Some(Confidence::Heuristic))
+    );
 }
 
 #[test]
@@ -282,10 +316,17 @@ fn local_symbols_belong_to_their_document() {
         "lib.py",
         vec![occurrence(at(LIB, 0, "run", 0), "local 1", DEFINITION)],
     );
-    let app = document("app.py", vec![occurrence(at(APP, 4, "run", 0), "local 1", 0)]);
+    let app = document(
+        "app.py",
+        vec![occurrence(at(APP, 4, "run", 0), "local 1", 0)],
+    );
     apply(&mut graph, &[index(vec![lib, app])], &sources(&files()));
     let main = id("app.py", "main");
-    assert!(calls(&graph, &main).iter().all(|r| r.1 == Some(Confidence::Heuristic)));
+    assert!(
+        calls(&graph, &main)
+            .iter()
+            .all(|r| r.1 == Some(Confidence::Heuristic))
+    );
 
     let nested = "def outer():\n    def inner():\n        pass\n    inner()\n";
     let files = [("n.py", nested)];
@@ -325,7 +366,10 @@ fn a_symbol_defined_twice_resolves_to_the_smallest_node_id() {
         .into_iter()
         .filter(|r| r.1 == Some(Confidence::Resolved))
         .collect();
-    assert_eq!(resolved, [row("sym:py:lib.py#run", Confidence::Resolved, 1)]);
+    assert_eq!(
+        resolved,
+        [row("sym:py:lib.py#run", Confidence::Resolved, 1)]
+    );
 }
 
 #[test]
@@ -339,14 +383,14 @@ fn two_references_at_one_span_resolve_to_the_smaller_symbol() {
             occurrence(at(APP, 4, "run", 0), "scip-python python zz 1 `zz`/x().", 0),
         ],
     );
-    apply(&mut graph, &[index(vec![lib_document(), app])], &sources(&files()));
+    apply(
+        &mut graph,
+        &[index(vec![lib_document(), app])],
+        &sources(&files()),
+    );
     let main = id("app.py", "main");
     // OTHER sorts before RUN, whichever comes first: the site resolves to it.
-    assert!(calls(&graph, &main).contains(&row(
-        "sym:py:lib.py#other",
-        Confidence::Resolved,
-        1
-    )));
+    assert!(calls(&graph, &main).contains(&row("sym:py:lib.py#other", Confidence::Resolved, 1)));
 }
 
 #[test]
@@ -428,7 +472,10 @@ fn applying_is_idempotent_and_additive() {
 fn no_indexes_and_no_matches_change_nothing() {
     let mut graph = build(&files());
     let before = graph.clone();
-    assert_eq!(apply(&mut graph, &[], &sources(&files())), PreciseStats::default());
+    assert_eq!(
+        apply(&mut graph, &[], &sources(&files())),
+        PreciseStats::default()
+    );
     assert_eq!(graph, before);
     let unrelated = index(vec![document("lib.py", vec![])]);
     apply(&mut graph, &[unrelated], &sources(&files()));
@@ -456,7 +503,11 @@ fn typescript_references_in_utf16_documents_resolve() {
         "app.ts",
         vec![occurrence(at(app, 3, "run", 0), symbol, 0)],
     ));
-    apply(&mut graph, &[index(vec![lib_doc, app_doc])], &sources(&files));
+    apply(
+        &mut graph,
+        &[index(vec![lib_doc, app_doc])],
+        &sources(&files),
+    );
     let main = id("app.ts", "main");
     assert_eq!(
         calls(&graph, &main),
@@ -471,7 +522,11 @@ fn the_outputs_say_where_a_resolution_came_from() {
     let plain: serde_json::Value = serde_json::from_str(&view(&graph)).unwrap();
     assert_eq!(plain["graph"]["metadata"]["backend"], "tree-sitter");
     let app = document("app.py", vec![occurrence(at(APP, 4, "run", 0), RUN, 0)]);
-    apply(&mut graph, &[index(vec![lib_document(), app])], &sources(&files()));
+    apply(
+        &mut graph,
+        &[index(vec![lib_document(), app])],
+        &sources(&files()),
+    );
     let json: serde_json::Value = serde_json::from_str(&view(&graph)).unwrap();
     assert_eq!(json["graph"]["metadata"]["backend"], "tree-sitter+scip");
     let edges = json["graph"]["edges"].as_array().unwrap();
@@ -483,8 +538,16 @@ fn the_outputs_say_where_a_resolution_came_from() {
             .collect::<Vec<_>>()
     };
     assert_eq!(origin("calls", "resolved"), ["scip"]);
-    assert!(origin("calls", "heuristic").iter().all(|o| o == "tree-sitter"));
-    assert!(origin("imports", "resolved").iter().all(|o| o == "tree-sitter"));
+    assert!(
+        origin("calls", "heuristic")
+            .iter()
+            .all(|o| o == "tree-sitter")
+    );
+    assert!(
+        origin("imports", "resolved")
+            .iter()
+            .all(|o| o == "tree-sitter")
+    );
     let graphml = GraphMl.render(&graph, &View::new(&graph, Level::Symbol, None));
     assert!(graphml.contains("<data key=\"e_origin\">scip</data>"));
 }

@@ -134,8 +134,13 @@ impl<'a> LineIndex<'a> {
         if span.start_line != span.end_line {
             return None;
         }
-        let line = self.lines.get(usize::try_from(span.start_line.checked_sub(1)?).ok()?)?;
-        line.slice(span.start_column.checked_sub(1)?, span.end_column.checked_sub(1)?)
+        let line = self
+            .lines
+            .get(usize::try_from(span.start_line.checked_sub(1)?).ok()?)?;
+        line.slice(
+            span.start_column.checked_sub(1)?,
+            span.end_column.checked_sub(1)?,
+        )
     }
 }
 
@@ -176,6 +181,7 @@ impl<'a> Line<'a> {
         }
         let table = self.table(PositionEncoding::Utf8);
         let (begin, end) = (*table.get(from)?, *table.get(to)?);
-        self.text.get(usize::try_from(begin).ok()?..usize::try_from(end).ok()?)
+        self.text
+            .get(usize::try_from(begin).ok()?..usize::try_from(end).ok()?)
     }
 }

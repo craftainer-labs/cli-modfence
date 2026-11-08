@@ -4,7 +4,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use super::locate::{Files, Resolved, dir_of};
 use super::{
-    Backend, Binding, Confidence, Edge, FileDiagnostic, Finding, Graph, Node, Relation, Site, Suppression,
+    Backend, Binding, Confidence, Edge, FileDiagnostic, Finding, Graph, Node, Relation, Site,
+    Suppression,
 };
 use crate::config::{Config, Severity, Subject};
 use crate::extract::{
@@ -288,7 +289,8 @@ fn short_name(node: &extract::Node) -> String {
 /// without a repeat ordinal. Empty for an id without a qualified name.
 pub(super) fn short_name_of(id: &NodeId) -> String {
     let encoded = id.qualname().unwrap_or_default();
-    let qualified = decode_component(encoded).unwrap_or_else(|| encoded.to_owned());
+    // `NodeId::new` accepts only validly encoded names, so decoding cannot fail.
+    let qualified = decode_component(encoded).unwrap_or_default();
     let last = qualified.rsplit(['.', '~']).next().unwrap_or_default();
     last.split('@').next().unwrap_or_default().to_owned()
 }

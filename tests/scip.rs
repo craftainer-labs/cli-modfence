@@ -508,7 +508,10 @@ fn spans_cover_empty_ranges_several_lines_and_crlf() {
 fn text_from_a_span_is_sliced_by_code_points() {
     let lines = LineIndex::new(LINE);
     assert_eq!(lines.slice(Span::new(1, 5, 1, 8).unwrap()), Some("foo"));
-    assert_eq!(lines.slice(Span::new(1, 2, 1, 3).unwrap()), Some("\u{1f600}"));
+    assert_eq!(
+        lines.slice(Span::new(1, 2, 1, 3).unwrap()),
+        Some("\u{1f600}")
+    );
     let ascii = LineIndex::new("abc\ndef");
     assert_eq!(ascii.slice(Span::new(2, 2, 2, 4).unwrap()), Some("ef"));
     assert_eq!(ascii.slice(Span::new(2, 3, 2, 3).unwrap()), Some(""));
@@ -552,12 +555,20 @@ fn a_very_long_line_converts_in_bounded_time() {
 
 #[test]
 fn strings_from_the_index_are_escaped_where_they_are_printed() {
-    let documents = vec![document("a.py", Wire::UTF8CodeUnitOffsetFromLineStart, vec![])];
+    let documents = vec![document(
+        "a.py",
+        Wire::UTF8CodeUnitOffsetFromLineStart,
+        vec![],
+    )];
     let bytes = index_with("", Some(("scip\u{1b}[31m", "1\n2")), documents);
     let (index, _) = read_index(&bytes, ROOT).expect("reads");
     assert_eq!(index.tool.as_deref(), Some("scip\\u{1b}[31m 1\\n2"));
     let long = "n".repeat(300);
-    let documents = vec![document("a.py", Wire::UTF8CodeUnitOffsetFromLineStart, vec![])];
+    let documents = vec![document(
+        "a.py",
+        Wire::UTF8CodeUnitOffsetFromLineStart,
+        vec![],
+    )];
     let bytes = index_with("", Some((long.as_str(), "")), documents);
     let (index, _) = read_index(&bytes, ROOT).expect("reads");
     assert_eq!(index.tool.map(|tool| tool.len()), Some(100));

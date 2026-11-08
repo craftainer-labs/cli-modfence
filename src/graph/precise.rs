@@ -8,6 +8,7 @@
 //! nodes. It never adds a call site, and it leaves `imports` and `binds` edges
 //! alone.
 
+use std::cmp::Reverse;
 use std::collections::btree_map::Entry;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -158,7 +159,10 @@ fn heuristic_call_sites(graph: &Graph) -> BTreeMap<&str, BTreeSet<Span>> {
     for edge in &graph.edges {
         if edge.relation == Relation::Calls && edge.confidence == Some(Confidence::Heuristic) {
             for site in &edge.sites {
-                sites.entry(site.path.as_str()).or_default().insert(site.span);
+                sites
+                    .entry(site.path.as_str())
+                    .or_default()
+                    .insert(site.span);
             }
         }
     }
@@ -184,13 +188,17 @@ fn file_symbols(graph: &Graph) -> BTreeMap<&str, FileSymbols<'_>> {
 /// A symbol string made unique across documents: a `local` one belongs to its
 /// document alone.
 fn symbol_key(path: &str, symbol: &str) -> SymbolKey {
-    let scope = if symbol.starts_with("local ") { path } else { "" };
+    let scope = if symbol.starts_with("local ") {
+        path
+    } else {
+        ""
+    };
     (scope.to_owned(), symbol.to_owned())
 }
 
 /// The symbol node a definition occurrence at `span` defines: the innermost
 /// node of the file that contains `span` and has the text there as its name
-/// (ties: the smallest id). `None` for definitions the graph has no node for,
+/// (ties: the smallest id, as candidates come in id order). `None` for definitions the graph has no node for,
 /// such as parameters and local variables.
 fn definition_node<'a>(
     lines: &LineIndex<'_>,
@@ -203,9 +211,7 @@ fn definition_node<'a>(
     candidates
         .iter()
         .filter(|(_, outer)| start(*outer) <= start(span) && end(span) <= end(*outer))
-        .max_by(|(a, outer_a), (b, outer_b)| {
-            start(*outer_a).cmp(&start(*outer_b)).then_with(|| b.cmp(a))
-        })
+        .min_by_key(|(_, outer)| Reverse(start(*outer)))
         .map(|(id, _)| *id)
 }
 
@@ -222,7 +228,12 @@ fn fold(graph: &mut Graph, resolved: &BTreeMap<Site, NodeId>) -> usize {
         let heuristic_call =
             edge.relation == Relation::Calls && edge.confidence == Some(Confidence::Heuristic);
         let entry = folded
-            .entry((edge.source.clone(), edge.target.clone(), edge.relation, edge.confidence))
+            .entry((
+                edge.source.clone(),
+                edge.target.clone(),
+                edge.relation,
+                edge.confidence,
+            ))
             .or_default();
         for site in edge.sites {
             match resolved.get(&site) {
