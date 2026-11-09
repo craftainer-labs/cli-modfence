@@ -532,6 +532,34 @@ fn no_indexes_and_no_matches_change_nothing() {
 }
 
 #[test]
+fn typescript_method_calls_through_a_receiver_resolve_at_the_property() {
+    let lib = "export class Svc {\n  runIt() {}\n}\n";
+    let app = "export function main(svc: any) {\n  svc.runIt();\n}\n";
+    let files = [("lib.ts", lib), ("app.ts", app)];
+    let mut graph = build(&files);
+    let main = id("app.ts", "main");
+    assert_eq!(calls(&graph, &main), Vec::<Row>::new());
+    assert_eq!(graph.call_site_count(), 1);
+    let symbol = "scip-typescript npm lib 1.0.0 lib/Svc#runIt().";
+    // The range an indexer emits for a member call is the property token alone.
+    let lib_doc = document(
+        "lib.ts",
+        vec![occurrence(at(lib, 1, "runIt", 0), symbol, DEFINITION)],
+    );
+    let app_doc = document("app.ts", vec![occurrence(at(app, 1, "runIt", 0), symbol, 0)]);
+    let stats = apply(
+        &mut graph,
+        &[index(vec![lib_doc, app_doc])],
+        &sources(&files),
+    );
+    assert_eq!(stats.resolved_sites, 1);
+    assert_eq!(
+        calls(&graph, &main),
+        [row("sym:ts:lib.ts#Svc.runIt", Confidence::Resolved, 1)]
+    );
+}
+
+#[test]
 fn typescript_references_in_utf16_documents_resolve() {
     let lib = "export function run() {}\n";
     let app = "import { run } from \"./lib\";\n\nexport function main() {\n  run();\n}\n";
