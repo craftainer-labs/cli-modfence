@@ -207,27 +207,14 @@ impl<'c> Builder<'c> {
             if let Some(others) = imported.get(&file.path) {
                 scope.extend(others.iter().map(String::as_str));
             }
-            for call in &file.facts.calls {
-                let source = call.caller.clone().unwrap_or_else(|| module.clone());
-                let mut matched = false;
-                for path in &scope {
-                    let found = symbols
-                        .get(path)
-                        .and_then(|names| names.get(call.callee.as_str()));
-                    for target in found.into_iter().flatten() {
-                        matched = true;
-                        let site = (site_of(file, call.span), call.callee.clone());
-                        acc.link_heuristic(source.clone(), target.clone(), Relation::Calls, site);
-                    }
-                }
-                if !matched {
-                    unmatched_calls.push(UnmatchedCall {
-                        site: site_of(file, call.span),
-                        source,
-                        callee: call.callee.clone(),
-                    });
-                }
-            }
+            link_calls(
+                file,
+                &module,
+                &scope,
+                &symbols,
+                &mut acc,
+                &mut unmatched_calls,
+            );
             acc.bind(file, &module, &exports);
         }
         acc.tag(config, &files);
@@ -244,6 +231,39 @@ impl<'c> Builder<'c> {
             findings,
             suppressions,
             unmatched_calls,
+        }
+    }
+}
+
+/// Links each call of `file` to the symbols of the same name in `scope`
+/// (heuristic), and records the calls that match none.
+fn link_calls(
+    file: &FileEntry,
+    module: &NodeId,
+    scope: &BTreeSet<&str>,
+    symbols: &BTreeMap<&str, BTreeMap<String, Vec<NodeId>>>,
+    acc: &mut Assembly,
+    unmatched: &mut Vec<UnmatchedCall>,
+) {
+    for call in &file.facts.calls {
+        let source = call.caller.clone().unwrap_or_else(|| module.clone());
+        let mut matched = false;
+        for path in scope {
+            let found = symbols
+                .get(path)
+                .and_then(|names| names.get(call.callee.as_str()));
+            for target in found.into_iter().flatten() {
+                matched = true;
+                let site = (site_of(file, call.span), call.callee.clone());
+                acc.link_heuristic(source.clone(), target.clone(), Relation::Calls, site);
+            }
+        }
+        if !matched {
+            unmatched.push(UnmatchedCall {
+                site: site_of(file, call.span),
+                source,
+                callee: call.callee.clone(),
+            });
         }
     }
 }
