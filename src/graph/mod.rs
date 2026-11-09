@@ -274,6 +274,19 @@ pub struct Suppression {
     pub reason: Option<String>,
 }
 
+/// A tree-sitter call site that matched no symbol by name, so it sits on no
+/// edge. [`precise::apply`] can still resolve it from a SCIP reference. Kept in
+/// the graph but never written out.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) struct UnmatchedCall {
+    /// The site of the callee.
+    pub(crate) site: Site,
+    /// The calling symbol, or the module for a call at module level.
+    pub(crate) source: NodeId,
+    /// The callee text as written.
+    pub(crate) callee: String,
+}
+
 /// The dependency graph of an analysis.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Graph {
@@ -291,9 +304,25 @@ pub struct Graph {
     pub findings: Vec<Finding>,
     /// Well-formed suppressions, ordered by path and position.
     pub suppressions: Vec<Suppression>,
+    /// Call sites that matched no symbol by name, ordered by site; internal,
+    /// for [`precise::apply`].
+    pub(crate) unmatched_calls: Vec<UnmatchedCall>,
 }
 
 impl Graph {
+    /// Every tree-sitter call site: those on `calls` edges and those that
+    /// matched no symbol. [`precise::apply`] never increases it.
+    #[must_use]
+    pub fn call_site_count(&self) -> usize {
+        let on_edges: usize = self
+            .edges
+            .iter()
+            .filter(|edge| edge.relation == Relation::Calls)
+            .map(Edge::count)
+            .sum();
+        on_edges + self.unmatched_calls.len()
+    }
+
     /// The module that rules judge an endpoint by: a symbol rolls up to its
     /// module, every other node is its own endpoint (ADR 0003, "Rules see
     /// module-level edges"). An id that is not in the graph is returned as is.

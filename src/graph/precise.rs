@@ -2,11 +2,12 @@
 //! 8 and 20).
 //!
 //! Tree-sitter finds the call sites; a SCIP index only says which definition a
-//! reference at a given place refers to. [`apply`] therefore moves a call site
-//! from its heuristic edge to a `resolved` one when the index has a reference at
-//! exactly the site's callee span whose definition is one of the graph's symbol
-//! nodes. It never adds a call site, and it leaves `imports` and `binds` edges
-//! alone.
+//! reference at a given place refers to. [`apply`] therefore resolves a call
+//! site when the index has a reference at exactly the site's callee span whose
+//! definition is one of the graph's symbol nodes: the site leaves its heuristic
+//! edge, or the list of sites that matched no symbol by name (an aliased import,
+//! a method called through a receiver), and joins a `resolved` edge. It never
+//! adds a call site, and it leaves `imports` and `binds` edges alone.
 
 use std::cmp::Reverse;
 use std::collections::btree_map::Entry;
@@ -93,7 +94,7 @@ pub fn apply(
         return stats;
     }
     graph.backend = Backend::TreeSitterScip;
-    let call_sites = heuristic_call_sites(graph);
+    let call_sites = call_site_spans(graph);
     let symbols = file_symbols(graph);
     let mut definitions: BTreeMap<SymbolKey, &NodeId> = BTreeMap::new();
     let mut references: BTreeMap<Site, SymbolKey> = BTreeMap::new();
@@ -153,18 +154,22 @@ pub fn apply(
     stats
 }
 
-/// The spans of the heuristic call sites, by file.
-fn heuristic_call_sites(graph: &Graph) -> BTreeMap<&str, BTreeSet<Span>> {
+/// The spans of the call sites that can still be upgraded, by file: those on
+/// heuristic edges and those that matched no symbol.
+fn call_site_spans(graph: &Graph) -> BTreeMap<&str, BTreeSet<Span>> {
     let mut sites: BTreeMap<&str, BTreeSet<Span>> = BTreeMap::new();
-    for edge in &graph.edges {
-        if edge.relation == Relation::Calls && edge.confidence == Some(Confidence::Heuristic) {
-            for site in &edge.sites {
-                sites
-                    .entry(site.path.as_str())
-                    .or_default()
-                    .insert(site.span);
-            }
-        }
+    let heuristic = graph
+        .edges
+        .iter()
+        .filter(|edge| edge.relation == Relation::Calls)
+        .filter(|edge| edge.confidence == Some(Confidence::Heuristic))
+        .flat_map(|edge| &edge.sites);
+    let unmatched = graph.unmatched_calls.iter().map(|call| &call.site);
+    for site in heuristic.chain(unmatched) {
+        sites
+            .entry(site.path.as_str())
+            .or_default()
+            .insert(site.span);
     }
     sites
 }
@@ -198,8 +203,9 @@ fn symbol_key(path: &str, symbol: &str) -> SymbolKey {
 
 /// The symbol node a definition occurrence at `span` defines: the innermost
 /// node of the file that contains `span` and has the text there as its name
-/// (ties: the smallest id, as candidates come in id order). `None` for definitions the graph has no node for,
-/// such as parameters and local variables.
+/// (ties: the smallest id, as candidates come in id order). `None` for
+/// definitions the graph has no node for, such as parameters and local
+/// variables.
 fn definition_node<'a>(
     lines: &LineIndex<'_>,
     span: Span,
@@ -215,9 +221,10 @@ fn definition_node<'a>(
         .map(|(id, _)| *id)
 }
 
-/// Moves the `resolved` call sites from their heuristic edges to resolved ones,
-/// and returns how many it moved. A site that sits on several heuristic edges
-/// (several nodes share its name) leaves all of them.
+/// Moves the `resolved` call sites from their heuristic edges (or from the
+/// unmatched list) to resolved ones, and returns how many it moved. A site that
+/// sits on several heuristic edges (several nodes share its name) leaves all of
+/// them.
 fn fold(graph: &mut Graph, resolved: &BTreeMap<Site, NodeId>) -> usize {
     if resolved.is_empty() {
         return 0;
@@ -246,6 +253,19 @@ fn fold(graph: &mut Graph, resolved: &BTreeMap<Site, NodeId>) -> usize {
                 _ => entry.push((site, edge.specifier.clone())),
             }
         }
+    }
+    // Call sites that matched no symbol sit on no edge; a reference gives them
+    // one.
+    let (hit, rest): (Vec<_>, Vec<_>) = std::mem::take(&mut graph.unmatched_calls)
+        .into_iter()
+        .partition(|call| resolved.contains_key(&call.site));
+    graph.unmatched_calls = rest;
+    for call in hit {
+        let target = resolved[&call.site].clone();
+        moved
+            .entry((call.source, target))
+            .or_default()
+            .insert(call.site, Some(call.callee));
     }
     let count = moved.values().map(BTreeMap::len).sum();
     for ((source, target), sites) in moved {

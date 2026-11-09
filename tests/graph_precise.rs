@@ -172,6 +172,7 @@ fn a_reference_at_the_callee_span_resolves_the_call() {
             .cloned()
             .collect::<Vec<_>>()
     };
+    assert_eq!(graph.call_site_count(), before.call_site_count());
     assert_eq!(rest(&graph), rest(&before));
     assert!(
         rest(&graph)
@@ -181,6 +182,52 @@ fn a_reference_at_the_callee_span_resolves_the_call() {
     let sites = |g: &Graph| g.edges.iter().map(Edge::count).sum::<usize>();
     assert_eq!(sites(&graph), sites(&before));
     assert_eq!(graph.nodes, before.nodes);
+}
+
+#[test]
+fn sites_that_matched_no_name_are_resolved_too() {
+    let lib = "def run():\n    pass\n";
+    let other = "class Svc:\n    def run_it(self):\n        pass\n";
+    let app = "from lib import run as go\n\n\ndef main(svc):\n    go()\n    svc.run_it()\n";
+    let files = [("lib.py", lib), ("other.py", other), ("app.py", app)];
+    let mut graph = build(&files);
+    let main = id("app.py", "main");
+    // An aliased import and a method through a receiver: no name matches.
+    assert_eq!(calls(&graph, &main), Vec::<Row>::new());
+    assert_eq!(graph.call_site_count(), 2);
+    let run_it = "scip-python python other 0.1 `other`/Svc#run_it().";
+    let lib_doc = document(
+        "lib.py",
+        vec![occurrence(at(lib, 0, "run", 0), RUN, DEFINITION)],
+    );
+    let other_doc = document(
+        "other.py",
+        vec![occurrence(at(other, 1, "run_it", 0), run_it, DEFINITION)],
+    );
+    let app_doc = document(
+        "app.py",
+        vec![
+            occurrence(at(app, 4, "go", 0), RUN, 0),
+            occurrence(at(app, 5, "run_it", 0), run_it, 0),
+            // A reference that is not at any call site adds nothing.
+            occurrence(at(app, 3, "svc", 0), RUN, 0),
+        ],
+    );
+    let documents = vec![lib_doc, other_doc, app_doc];
+    let indexes = [index(documents)];
+    let stats = apply(&mut graph, &indexes, &sources(&files));
+    assert_eq!(stats.resolved_sites, 2);
+    assert_eq!(
+        calls(&graph, &main),
+        [
+            row("sym:py:lib.py#run", Confidence::Resolved, 1),
+            row("sym:py:other.py#Svc.run_it", Confidence::Resolved, 1),
+        ]
+    );
+    assert_eq!(graph.call_site_count(), 2);
+    let once = graph.clone();
+    apply(&mut graph, &indexes, &sources(&files));
+    assert_eq!(graph, once);
 }
 
 #[test]

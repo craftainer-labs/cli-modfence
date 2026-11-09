@@ -29,7 +29,9 @@ Rules:
   confidence or a site.
 - Not here yet: `tsconfig` `paths` aliases, reading `pyproject.toml` and
   `package.json` roots, Rust `crate::` resolution. The JSON output is `src/output/`.
-- `apply` never adds a call site, never touches `imports`, `binds` or
+- `apply` never adds a call site (`Graph::call_site_count` is the same before and
+  after; sites that matched no symbol are kept unserialised in the graph so
+  that a reference can still resolve them), never touches `imports`, `binds` or
   `contains` edges, and is deterministic: a symbol defined at several nodes
   resolves to the smallest id, and the smallest symbol wins when occurrences
   share a span. Its tests are in `tests/graph_precise.rs`.

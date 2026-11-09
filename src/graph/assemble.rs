@@ -5,7 +5,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use super::locate::{Files, Resolved, dir_of};
 use super::{
     Backend, Binding, Confidence, Edge, FileDiagnostic, Finding, Graph, Node, Relation, Site,
-    Suppression,
+    Suppression, UnmatchedCall,
 };
 use crate::config::{Config, Severity, Subject};
 use crate::extract::{
@@ -199,6 +199,7 @@ impl<'c> Builder<'c> {
             }
         }
         let symbols = symbol_names(&files);
+        let mut unmatched_calls = Vec::new();
         let exports = collect_exports(&files, &acc);
         for file in &files {
             let module = module_id(file.lang, &file.path);
@@ -208,14 +209,23 @@ impl<'c> Builder<'c> {
             }
             for call in &file.facts.calls {
                 let source = call.caller.clone().unwrap_or_else(|| module.clone());
+                let mut matched = false;
                 for path in &scope {
                     let found = symbols
                         .get(path)
                         .and_then(|names| names.get(call.callee.as_str()));
                     for target in found.into_iter().flatten() {
+                        matched = true;
                         let site = (site_of(file, call.span), call.callee.clone());
                         acc.link_heuristic(source.clone(), target.clone(), Relation::Calls, site);
                     }
+                }
+                if !matched {
+                    unmatched_calls.push(UnmatchedCall {
+                        site: site_of(file, call.span),
+                        source,
+                        callee: call.callee.clone(),
+                    });
                 }
             }
             acc.bind(file, &module, &exports);
@@ -224,6 +234,7 @@ impl<'c> Builder<'c> {
         diagnostics.sort();
         findings.sort();
         suppressions.sort();
+        unmatched_calls.sort();
         Graph {
             backend: Backend::TreeSitter,
             edges: acc.edges(),
@@ -232,6 +243,7 @@ impl<'c> Builder<'c> {
             diagnostics,
             findings,
             suppressions,
+            unmatched_calls,
         }
     }
 }

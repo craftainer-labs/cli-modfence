@@ -91,12 +91,14 @@ built, with the ingested indexes and the text of the analysed files:
   and joins the `resolved` edge from the same caller to the definition's node,
   whose origin is `scip`. When several occurrences share a span, the one with the
   smallest symbol string wins. A site that nothing resolves stays heuristic.
-- Only sites that already sit on a heuristic `calls` edge can be upgraded. SCIP
-  never adds a call site, so a reference with no tree-sitter call site adds
-  nothing (an Open issue), and a call whose name no in-scope symbol shares has
-  no site to upgrade. `imports` edges are not touched (they are already
-  `resolved` when the target is placed, invariant 6) and `binds` edges stay
-  heuristic: SCIP does not cover the Python-to-Rust boundary.
+- Only existing tree-sitter call sites can be upgraded. That includes the sites
+  that matched no symbol by name and so sit on no edge (an aliased import, a
+  method called through a receiver): the graph keeps them, unwritten, and a
+  resolving reference gives each one a new `resolved` edge. A reference with no
+  tree-sitter call site adds nothing (an Open issue). `imports` edges are not
+  touched (they are already `resolved` when the target is placed, invariant 6)
+  and `binds` edges stay heuristic: SCIP does not cover the Python-to-Rust
+  boundary.
 - Positions are converted from each document's declared encoding to code points
   (invariant 20); a position that does not exist in the source (a missing line,
   an offset past the end of its line or inside a character) is counted as stale
@@ -231,8 +233,9 @@ points, ends exclusive. SARIF output sets `columnKind` to
 20. SCIP positions are converted from each document's declared position
     encoding to code points before a reference is matched to a call site.
 21. `apply` never adds a call site and never changes an `imports`, `binds` or
-    `contains` edge: the sites of all call edges together are the same before
-    and after.
+    `contains` edge: the call sites on `calls` edges plus the sites that matched
+    no symbol are the same in number before and after. It can add a `calls`
+    edge, for a site that existed.
 22. Strings that come from an index (the tool name, a parse error, the project
     root) are escaped and truncated before they can be printed.
 
