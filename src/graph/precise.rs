@@ -217,7 +217,7 @@ fn definition_node<'a>(
     candidates
         .iter()
         .filter(|(_, outer)| start(*outer) <= start(span) && end(span) <= end(*outer))
-        .min_by_key(|(_, outer)| Reverse(start(*outer)))
+        .min_by_key(|(_, outer)| (Reverse(start(*outer)), end(*outer)))
         .map(|(id, _)| *id)
 }
 
