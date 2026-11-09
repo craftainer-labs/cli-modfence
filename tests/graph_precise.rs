@@ -546,7 +546,10 @@ fn typescript_method_calls_through_a_receiver_resolve_at_the_property() {
         "lib.ts",
         vec![occurrence(at(lib, 1, "runIt", 0), symbol, DEFINITION)],
     );
-    let app_doc = document("app.ts", vec![occurrence(at(app, 1, "runIt", 0), symbol, 0)]);
+    let app_doc = document(
+        "app.ts",
+        vec![occurrence(at(app, 1, "runIt", 0), symbol, 0)],
+    );
     let stats = apply(
         &mut graph,
         &[index(vec![lib_doc, app_doc])],
@@ -555,7 +558,7 @@ fn typescript_method_calls_through_a_receiver_resolve_at_the_property() {
     assert_eq!(stats.resolved_sites, 1);
     assert_eq!(
         calls(&graph, &main),
-        [row("sym:ts:lib.ts#Svc.runIt", Confidence::Resolved, 1)]
+        [row("sym:ts:lib.ts#Svc~runIt", Confidence::Resolved, 1)]
     );
 }
 
