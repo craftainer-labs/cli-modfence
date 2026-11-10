@@ -69,11 +69,7 @@ pub(super) fn ingest(
         Ok(located) => located,
         Err(error) => return Err(Failure::io(shown(root), &error)),
     };
-    let paths = if explicit {
-        common.scip.clone()
-    } else {
-        found
-    };
+    let paths = if explicit { common.scip.clone() } else { found };
     if paths.is_empty() {
         writeln!(err, "warning: {NONE_FOUND}")?;
         return Ok(false);
