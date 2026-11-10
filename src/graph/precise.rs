@@ -291,23 +291,21 @@ fn fold(graph: &mut Graph, resolved: &BTreeMap<Site, NodeId>) -> usize {
     // The specifier of an edge is the callee at its first site, whichever site
     // that is after the merge; every site keeps the callee it was read with. An
     // edge that lost every site goes with them.
-    edges.extend(
-        calls
-            .into_iter()
-            .filter_map(|((source, target, relation, confidence), mut sites)| {
-                sites.sort();
-                sites.dedup_by(|a, b| a.0 == b.0);
-                let specifier = sites.first().and_then(|(_, specifier)| specifier.clone());
-                (!sites.is_empty()).then(|| Edge {
-                    source,
-                    target,
-                    relation,
-                    confidence,
-                    specifier,
-                    sites: sites.into_iter().map(|(site, _)| site).collect(),
-                })
-            }),
-    );
+    edges.extend(calls.into_iter().filter_map(
+        |((source, target, relation, confidence), mut sites)| {
+            sites.sort();
+            sites.dedup_by(|a, b| a.0 == b.0);
+            let specifier = sites.first().and_then(|(_, specifier)| specifier.clone());
+            (!sites.is_empty()).then(|| Edge {
+                source,
+                target,
+                relation,
+                confidence,
+                specifier,
+                sites: sites.into_iter().map(|(site, _)| site).collect(),
+            })
+        },
+    ));
     edges.sort_by(by_key);
     graph.edges = edges;
     count

@@ -652,7 +652,8 @@ mod unreadable {
 // project is a scratch directory.
 
 const LIB: &str = "def run():\n    pass\n\n\ndef other():\n    pass\n";
-const APP: &str = "from lib import run, other\n\n\ndef main():\n    run()\n    other()\n    run()\n";
+const APP: &str =
+    "from lib import run, other\n\n\ndef main():\n    run()\n    other()\n    run()\n";
 const RUN: &str = "scip-python python lib 0.1 `lib`/run().";
 const CONFIG: &str = "version = 1\n\n[[rule]]\nid = \"no-calls\"\nfrom = { path = \"app.py\" }\nto = { path = \"lib.py\" }\neffect = \"forbid\"\nkinds = [\"calls\"]\n";
 
@@ -765,7 +766,15 @@ fn graph_and_trace_take_the_flags() {
     assert_eq!(graph.code, 0, "{}", graph.err);
     let value: serde_json::Value = serde_json::from_str(&graph.out).unwrap();
     assert_eq!(value["graph"]["metadata"]["backend"], "tree-sitter+scip");
-    let args = ["trace", "--format", "json", "--precise", "--scip", &index, "path=lib.py"];
+    let args = [
+        "trace",
+        "--format",
+        "json",
+        "--precise",
+        "--scip",
+        &index,
+        "path=lib.py",
+    ];
     let trace = in_project(&dir, &args);
     assert_eq!(trace.code, 0, "{}", trace.err);
     let value: serde_json::Value = serde_json::from_str(&trace.out).unwrap();
@@ -839,7 +848,11 @@ fn an_index_with_nothing_usable_leaves_the_run_on_tree_sitter() {
     assert_eq!(run.code, 0, "{}", run.err);
     assert!(run.err.contains("outside the analysis root"), "{}", run.err);
     assert!(run.err.contains("no usable SCIP documents"), "{}", run.err);
-    assert!(run.err.contains("call edges were not checked"), "{}", run.err);
+    assert!(
+        run.err.contains("call edges were not checked"),
+        "{}",
+        run.err
+    );
 
     let only_broken = project("precise-only-broken");
     write_index(&only_broken, ".modfence/scip/bad.scip", &[0xff; 8]);
@@ -854,7 +867,11 @@ fn text_from_an_index_is_escaped_where_it_is_printed() {
     let bytes = wire_index("", Some("scip\u{1b}[31m\nfake: error"), resolving());
     let index = write_index(&dir, "index.scip", &bytes);
     let run = in_project(&dir, &["check", "--scip", &index]);
-    assert!(run.err.contains("scip\\u{1b}[31m\\nfake: error"), "{:?}", run.err);
+    assert!(
+        run.err.contains("scip\\u{1b}[31m\\nfake: error"),
+        "{:?}",
+        run.err
+    );
     assert!(!run.err.contains('\u{1b}'), "{:?}", run.err);
     assert!(!run.err.contains("\nfake: error"), "{:?}", run.err);
 }

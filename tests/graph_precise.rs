@@ -634,7 +634,8 @@ fn the_outputs_say_where_a_resolution_came_from() {
 #[test]
 fn a_merged_edge_names_the_callee_at_its_first_site() {
     let lib = "def run():\n    pass\n";
-    let app = "from lib import run\nfrom lib import run as go\n\n\ndef main():\n    go()\n    run()\n";
+    let app =
+        "from lib import run\nfrom lib import run as go\n\n\ndef main():\n    go()\n    run()\n";
     let files = [("lib.py", lib), ("app.py", app)];
     let defined = || {
         document(
@@ -662,11 +663,19 @@ fn a_merged_edge_names_the_callee_at_its_first_site() {
     apply(&mut graph, std::slice::from_ref(&by_name), &sources(&files));
     assert_eq!(specifier(&graph), (1, "run".to_owned()));
     // The earlier site is now the first: its callee names the edge.
-    apply(&mut graph, std::slice::from_ref(&by_alias), &sources(&files));
+    apply(
+        &mut graph,
+        std::slice::from_ref(&by_alias),
+        &sources(&files),
+    );
     assert_eq!(specifier(&graph), (2, "go".to_owned()));
 
     let mut graph = build(&files);
-    apply(&mut graph, std::slice::from_ref(&by_alias), &sources(&files));
+    apply(
+        &mut graph,
+        std::slice::from_ref(&by_alias),
+        &sources(&files),
+    );
     assert_eq!(specifier(&graph), (1, "go".to_owned()));
     apply(&mut graph, std::slice::from_ref(&by_name), &sources(&files));
     assert_eq!(specifier(&graph), (2, "go".to_owned()));

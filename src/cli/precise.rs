@@ -14,6 +14,12 @@ use crate::scip::{self, Error};
 /// Where bare `--precise` looks for indexes, below the analysis root.
 const INDEX_DIR: &str = ".modfence/scip";
 
+/// The warning for a bare `--precise` with no index to read.
+const NONE_FOUND: &str = "no SCIP indexes in .modfence/scip; call edges were not checked";
+
+/// The warning for indexes that held no document of the analysis.
+const NOT_USABLE: &str = "no usable SCIP documents; call edges were not checked";
+
 /// Whether the command line asks for SCIP: `--precise`, or any `--scip`.
 pub(super) fn wanted(common: &Common) -> bool {
     common.precise || !common.scip.is_empty()
@@ -47,10 +53,7 @@ pub(super) fn ingest(
         discovered(root)
     };
     if paths.is_empty() {
-        writeln!(
-            err,
-            "warning: no SCIP indexes in {INDEX_DIR}; call edges were not checked"
-        )?;
+        writeln!(err, "warning: {NONE_FOUND}")?;
         return Ok(false);
     }
     let mut indexes = Vec::new();
@@ -71,10 +74,7 @@ pub(super) fn ingest(
         }
     }
     if indexes.iter().all(|index| index.documents.is_empty()) {
-        writeln!(
-            err,
-            "warning: no usable SCIP documents; call edges were not checked"
-        )?;
+        writeln!(err, "warning: {NOT_USABLE}")?;
         return Ok(false);
     }
     for line in precise::apply(graph, &indexes, sources).warnings() {
@@ -110,4 +110,3 @@ fn failure(path: &Path, error: &Error) -> Failure {
         message: format!("{}: {error}", path.display()),
     }
 }
-
