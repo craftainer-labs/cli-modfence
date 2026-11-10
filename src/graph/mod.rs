@@ -24,6 +24,7 @@
 
 mod assemble;
 mod locate;
+pub mod precise;
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -83,6 +84,50 @@ impl Confidence {
     }
 }
 
+/// Which backend produced an edge's current confidence (the `origin` in the
+/// JSON output).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Origin {
+    /// The tree-sitter extractors and the core's resolution.
+    TreeSitter,
+    /// A SCIP index (ADR 0003, invariants 7 and 8).
+    Scip,
+}
+
+impl Origin {
+    /// The `origin` value in the JSON output.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::TreeSitter => "tree-sitter",
+            Self::Scip => "scip",
+        }
+    }
+}
+
+/// The backend a graph was built with (`graph.metadata.backend` in the JSON
+/// output).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Backend {
+    /// Tree-sitter only.
+    #[default]
+    TreeSitter,
+    /// Tree-sitter, with at least one SCIP index ingested by
+    /// [`precise::apply`].
+    TreeSitterScip,
+}
+
+impl Backend {
+    /// The `backend` value in the JSON output.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::TreeSitter => "tree-sitter",
+            Self::TreeSitterScip => "tree-sitter+scip",
+        }
+    }
+}
+
 /// Where an edge comes from in the source: an import statement or a call.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Site {
@@ -120,6 +165,17 @@ impl Edge {
     #[must_use]
     pub fn count(&self) -> usize {
         self.sites.len()
+    }
+
+    /// Which backend gave the edge its confidence. Only a SCIP match makes a
+    /// call `resolved` (ADR 0003, invariant 7), so a resolved `calls` edge is
+    /// the one origin `scip` there is; every other edge is tree-sitter's.
+    #[must_use]
+    pub const fn origin(&self) -> Origin {
+        match (self.relation, self.confidence) {
+            (Relation::Calls, Some(Confidence::Resolved)) => Origin::Scip,
+            _ => Origin::TreeSitter,
+        }
     }
 }
 
@@ -218,9 +274,24 @@ pub struct Suppression {
     pub reason: Option<String>,
 }
 
+/// A tree-sitter call site that matched no symbol by name, so it sits on no
+/// edge. [`precise::apply`] can still resolve it from a SCIP reference. Kept in
+/// the graph but never written out.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) struct UnmatchedCall {
+    /// The site of the callee.
+    pub(crate) site: Site,
+    /// The calling symbol, or the module for a call at module level.
+    pub(crate) source: NodeId,
+    /// The callee text as written.
+    pub(crate) callee: String,
+}
+
 /// The dependency graph of an analysis.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Graph {
+    /// The backend: tree-sitter, or tree-sitter with SCIP ingested.
+    pub backend: Backend,
     /// Every node, by id.
     pub nodes: BTreeMap<NodeId, Node>,
     /// Every edge, ordered by source, target, relation and confidence.
@@ -233,9 +304,25 @@ pub struct Graph {
     pub findings: Vec<Finding>,
     /// Well-formed suppressions, ordered by path and position.
     pub suppressions: Vec<Suppression>,
+    /// Call sites that matched no symbol by name, ordered by site; internal,
+    /// for [`precise::apply`].
+    pub(crate) unmatched_calls: Vec<UnmatchedCall>,
 }
 
 impl Graph {
+    /// Every tree-sitter call site: those on `calls` edges and those that
+    /// matched no symbol. [`precise::apply`] never increases it.
+    #[must_use]
+    pub fn call_site_count(&self) -> usize {
+        let on_edges: usize = self
+            .edges
+            .iter()
+            .filter(|edge| edge.relation == Relation::Calls)
+            .map(Edge::count)
+            .sum();
+        on_edges + self.unmatched_calls.len()
+    }
+
     /// The module that rules judge an endpoint by: a symbol rolls up to its
     /// module, every other node is its own endpoint (ADR 0003, "Rules see
     /// module-level edges"). An id that is not in the graph is returned as is.

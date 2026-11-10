@@ -13,7 +13,10 @@ NC6d. It starts no process and opens no connection (NFR-0002).
   generated types and `protobuf` to parse.
 - `position.rs`: `PositionEncoding`, `RawRange` (0-based, as SCIP states it)
   and `LineIndex::span`, which converts a range to a `extract::Span` (1-based,
-  code points) using the source text (ADR 0003, invariant 20).
+  code points) using the source text (ADR 0003, invariant 20); `slice` is the
+  text a single-line span covers. Conversion is a bisection of one table per
+  line and encoding, built on first use (none for an ASCII line), so a very
+  long line costs one pass, not one per occurrence.
 - `path.rs`: which document paths are safe, and how the index's
   `project_root` becomes a prefix for them. Private.
 
@@ -36,6 +39,9 @@ Rules:
 - `LineIndex::span` returns `None` for a line that does not exist, an offset
   past the end of its line, and an offset inside a character. The caller counts
   these as a sign that the index does not match the source (stale).
+- Strings from the index that can be printed (the tool name, a parse error, the
+  project root) are escaped and truncated here (`printable`); do not print an
+  index's text any other way.
 - Output order is the index's order; the reader sorts nothing and uses no hash
   iteration.
 - A file over `MAX_INDEX_BYTES` (512 MiB) is an error, not a reason to read it.

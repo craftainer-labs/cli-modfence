@@ -216,6 +216,7 @@ pub fn incident(graph: &Graph, selected: &BTreeSet<NodeId>) -> Graph {
         .cloned()
         .collect();
     Graph {
+        backend: graph.backend,
         nodes,
         edges,
         languages,

@@ -162,8 +162,8 @@ formats (DOT, Mermaid, HTML) draw the view and never the graph directly.
   its own.
 - The JSON document has `metadata.tool.version` from `CARGO_PKG_VERSION`, which
   the release stamps; tests compare with the version replaced. Contains edges
-  have empty metadata; every other edge has `confidence`, `origin`
-  (`tree-sitter` until SCIP), `count`, `specifier` and the first `site`. Node
+  have empty metadata; `metadata.backend` is `Graph::backend`; every other edge has `confidence`, `origin`
+  (`Edge::origin`: `scip` for a resolved `calls` edge, else `tree-sitter`), `count`, `specifier` and the first `site`. Node
   tags are arrays, and a node without tags has no `tags` key.
 - Golden files are `tests/golden/*.graph.json`; the `graph-json-schema` hook in
   `.pre-commit-config.yaml` validates them, and `schema/examples/`, against the

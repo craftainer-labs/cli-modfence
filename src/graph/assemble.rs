@@ -4,12 +4,13 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use super::locate::{Files, Resolved, dir_of};
 use super::{
-    Binding, Confidence, Edge, FileDiagnostic, Finding, Graph, Node, Relation, Site, Suppression,
+    Backend, Binding, Confidence, Edge, FileDiagnostic, Finding, Graph, Node, Relation, Site,
+    Suppression, UnmatchedCall,
 };
 use crate::config::{Config, Severity, Subject};
 use crate::extract::{
     self, DiagnosticCode, FileFacts, Lang, NodeId, NodeKind, Parsed, SourceFile, Span, Tags,
-    merge_tags,
+    decode_component, merge_tags,
 };
 
 /// Placeholder for an external package whose name is empty (`import ""`).
@@ -198,6 +199,7 @@ impl<'c> Builder<'c> {
             }
         }
         let symbols = symbol_names(&files);
+        let mut unmatched_calls = Vec::new();
         let exports = collect_exports(&files, &acc);
         for file in &files {
             let module = module_id(file.lang, &file.path);
@@ -205,31 +207,63 @@ impl<'c> Builder<'c> {
             if let Some(others) = imported.get(&file.path) {
                 scope.extend(others.iter().map(String::as_str));
             }
-            for call in &file.facts.calls {
-                let source = call.caller.clone().unwrap_or_else(|| module.clone());
-                for path in &scope {
-                    let found = symbols
-                        .get(path)
-                        .and_then(|names| names.get(call.callee.as_str()));
-                    for target in found.into_iter().flatten() {
-                        let site = (site_of(file, call.span), call.callee.clone());
-                        acc.link_heuristic(source.clone(), target.clone(), Relation::Calls, site);
-                    }
-                }
-            }
+            link_calls(
+                file,
+                &module,
+                &scope,
+                &symbols,
+                &mut acc,
+                &mut unmatched_calls,
+            );
             acc.bind(file, &module, &exports);
         }
         acc.tag(config, &files);
         diagnostics.sort();
         findings.sort();
         suppressions.sort();
+        unmatched_calls.sort();
         Graph {
+            backend: Backend::TreeSitter,
             edges: acc.edges(),
             nodes: acc.nodes,
             languages: files.iter().map(|file| file.lang).collect(),
             diagnostics,
             findings,
             suppressions,
+            unmatched_calls,
+        }
+    }
+}
+
+/// Links each call of `file` to the symbols of the same name in `scope`
+/// (heuristic), and records the calls that match none.
+fn link_calls(
+    file: &FileEntry,
+    module: &NodeId,
+    scope: &BTreeSet<&str>,
+    symbols: &BTreeMap<&str, BTreeMap<String, Vec<NodeId>>>,
+    acc: &mut Assembly,
+    unmatched: &mut Vec<UnmatchedCall>,
+) {
+    for call in &file.facts.calls {
+        let source = call.caller.clone().unwrap_or_else(|| module.clone());
+        let mut matched = false;
+        for path in scope {
+            let found = symbols
+                .get(path)
+                .and_then(|names| names.get(call.callee.as_str()));
+            for target in found.into_iter().flatten() {
+                matched = true;
+                let site = (site_of(file, call.span), call.callee.clone());
+                acc.link_heuristic(source.clone(), target.clone(), Relation::Calls, site);
+            }
+        }
+        if !matched {
+            unmatched.push(UnmatchedCall {
+                site: site_of(file, call.span),
+                source,
+                callee: call.callee.clone(),
+            });
         }
     }
 }
@@ -280,7 +314,15 @@ fn symbol_names(files: &[FileEntry]) -> BTreeMap<&str, BTreeMap<String, Vec<Node
 }
 
 fn short_name(node: &extract::Node) -> String {
-    let qualified = node.display_qualname().unwrap_or_default();
+    short_name_of(&node.id)
+}
+
+/// The short name of a symbol id: the last component of its qualified name,
+/// without a repeat ordinal. Empty for an id without a qualified name.
+pub(super) fn short_name_of(id: &NodeId) -> String {
+    let encoded = id.qualname().unwrap_or_default();
+    // `NodeId::new` accepts only validly encoded names, so decoding cannot fail.
+    let qualified = decode_component(encoded).unwrap_or_default();
     let last = qualified.rsplit(['.', '~']).next().unwrap_or_default();
     last.split('@').next().unwrap_or_default().to_owned()
 }

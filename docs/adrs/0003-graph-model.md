@@ -76,15 +76,40 @@ the resulting `index.scip` there, and refuses to run if it would overwrite an
 unreadable index is a warning naming the language and leaves that language on
 the tree-sitter backend; the run still succeeds.
 
-**How SCIP feeds the graph.** For each SCIP document, definition
-occurrences (role `Definition`) are matched to our symbol nodes by file and
-range overlap. A reference occurrence at the same span as a tree-sitter call
-site's callee resolves that call: the edge's target becomes the matched
-definition's node, its `confidence` becomes `resolved` and its `origin`
-`scip`. SCIP does not say whether a reference is a call, so a reference with
-no tree-sitter call site adds nothing in v1 (an Open issue). SCIP positions
-are converted using each document's declared encoding. SCIP does not cover
-the Python-to-Rust boundary, so `binds` edges stay heuristic.
+**How SCIP feeds the graph.** `graph::precise::apply` runs after the graph is
+built, with the ingested indexes and the text of the analysed files:
+
+- Definitions. A definition occurrence (role `Definition`) maps its symbol
+  string to a symbol node when its range lies inside the node's span and the
+  text there is the node's short name; the innermost such node wins. Occurrences
+  that fit no node (parameters, local variables) define nothing. A symbol
+  defined at several nodes resolves to the one with the smallest id and is
+  counted. A `local` symbol belongs to its document alone.
+- References. A reference occurrence (neither `Definition` nor `Import`) at
+  exactly the span of a tree-sitter call site's callee resolves that site when
+  its symbol maps to a node. The site then leaves every heuristic edge it was on
+  and joins the `resolved` edge from the same caller to the definition's node,
+  whose origin is `scip`. When several occurrences share a span, the one with the
+  smallest symbol string wins. A site that nothing resolves stays heuristic.
+- Only existing tree-sitter call sites can be upgraded. That includes the sites
+  that matched no symbol by name and so sit on no edge (an aliased import, a
+  method called through a receiver): the graph keeps them, unwritten, and a
+  resolving reference gives each one a new `resolved` edge. A reference with no
+  tree-sitter call site adds nothing (an Open issue). `imports` edges are not
+  touched (they are already `resolved` when the target is placed, invariant 6)
+  and `binds` edges stay heuristic: SCIP does not cover the Python-to-Rust
+  boundary.
+- Positions are converted from each document's declared encoding to code points
+  (invariant 20); a position that does not exist in the source (a missing line,
+  an offset past the end of its line or inside a character) is counted as stale
+  evidence and skipped. Documents with the same path (the first wins) or a path
+  that matches no analysed file are counted. Counts are reported on standard
+  error as warnings; the run still succeeds (invariant 18).
+- `graph.metadata.backend` is `tree-sitter+scip` when at least one index was
+  ingested, and an edge's `origin` is `scip` exactly for resolved `calls` edges.
+  A staleness check beyond positions is not possible from the index alone: a
+  stale index whose offsets still fall on the same spans resolves wrongly, which
+  is why `--run-indexers` or a fresh index is the recommended source.
 
 **Node kinds.** `package` (a directory with Python modules, a TypeScript
 package directory, or a Rust crate), `module` (one per source file; a Rust
@@ -207,6 +232,12 @@ points, ends exclusive. SARIF output sets `columnKind` to
     in byte order; a node with no tags has no `tags` key.
 20. SCIP positions are converted from each document's declared position
     encoding to code points before a reference is matched to a call site.
+21. `apply` never adds a call site and never changes an `imports`, `binds` or
+    `contains` edge: the call sites on `calls` edges plus the sites that matched
+    no symbol are the same in number before and after. It can add a `calls`
+    edge, for a site that existed.
+22. Strings that come from an index (the tool name, a parse error, the project
+    root) are escaped and truncated before they can be printed.
 
 ## Decisions (G-api)
 

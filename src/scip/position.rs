@@ -1,5 +1,7 @@
 //! SCIP positions to code-point spans (ADR 0003, invariant 20).
 
+use std::cell::OnceCell;
+
 use crate::extract::Span;
 
 /// How a document counts the `character` of its ranges (`PositionEncoding` in
@@ -16,6 +18,15 @@ pub enum PositionEncoding {
 }
 
 impl PositionEncoding {
+    /// The index of this encoding in a line's offset tables.
+    const fn slot(self) -> usize {
+        match self {
+            Self::Utf8 => 0,
+            Self::Utf16 => 1,
+            Self::Utf32 => 2,
+        }
+    }
+
     /// How many offset units `c` takes in this encoding.
     const fn width(self, c: char) -> usize {
         match self {
@@ -65,9 +76,23 @@ impl RawRange {
 /// The lines of one source file, for converting [`RawRange`]s. Lines end at
 /// `\n` only, as SCIP defines (a lone `\r`, U+2028 and U+2029 do not end a
 /// line); a `\r` before the `\n` is stripped and is not part of the line.
+///
+/// Converting is cheap however long a line is: an ASCII line needs no table,
+/// and any other line gets one table of its character boundaries per encoding,
+/// built on first use and searched by bisection.
 #[derive(Debug, Clone)]
 pub struct LineIndex<'a> {
-    lines: Vec<&'a str>,
+    lines: Vec<Line<'a>>,
+}
+
+/// One line and its offset tables.
+#[derive(Debug, Clone)]
+struct Line<'a> {
+    text: &'a str,
+    ascii: bool,
+    /// Per encoding, the offset of every character boundary (the line's start,
+    /// then the end of each character), built on first use.
+    boundaries: [OnceCell<Vec<u32>>; 3],
 }
 
 impl<'a> LineIndex<'a> {
@@ -78,6 +103,11 @@ impl<'a> LineIndex<'a> {
             lines: source
                 .split('\n')
                 .map(|line| line.strip_suffix('\r').unwrap_or(line))
+                .map(|text| Line {
+                    text,
+                    ascii: text.is_ascii(),
+                    boundaries: [OnceCell::new(), OnceCell::new(), OnceCell::new()],
+                })
                 .collect(),
         }
     }
@@ -91,30 +121,67 @@ impl<'a> LineIndex<'a> {
         let last = self.lines.get(usize::try_from(range.end_line).ok()?)?;
         Span::new(
             range.start_line.checked_add(1)?,
-            column(first, range.start_character, encoding)?,
+            first.column(range.start_character, encoding)?,
             range.end_line.checked_add(1)?,
-            column(last, range.end_character, encoding)?,
+            last.column(range.end_character, encoding)?,
+        )
+    }
+
+    /// The text a single-line `span` covers, or `None` for a span over several
+    /// lines or outside the source.
+    #[must_use]
+    pub fn slice(&self, span: Span) -> Option<&'a str> {
+        if span.start_line != span.end_line {
+            return None;
+        }
+        let line = self
+            .lines
+            .get(usize::try_from(span.start_line.checked_sub(1)?).ok()?)?;
+        line.slice(
+            span.start_column.checked_sub(1)?,
+            span.end_column.checked_sub(1)?,
         )
     }
 }
 
-/// The 1-based code-point column of offset `units` in `line`.
-fn column(line: &str, units: u32, encoding: PositionEncoding) -> Option<u32> {
-    let units = usize::try_from(units).ok()?;
-    let (mut seen, mut points) = (0_usize, 0_usize);
-    for c in line.chars() {
-        if seen == units {
-            break;
-        }
-        seen += encoding.width(c);
-        points += 1;
-        if seen > units {
-            return None;
-        }
+impl<'a> Line<'a> {
+    /// The offsets of the character boundaries in `encoding`, built once.
+    fn table(&self, encoding: PositionEncoding) -> &[u32] {
+        self.boundaries[encoding.slot()].get_or_init(|| {
+            let mut seen = 0_u32;
+            let mut table = vec![0];
+            for c in self.text.chars() {
+                seen = seen.saturating_add(u32::try_from(encoding.width(c)).unwrap_or(u32::MAX));
+                table.push(seen);
+            }
+            table
+        })
     }
-    if seen == units {
+
+    /// The 1-based code-point column of offset `units`, or `None` when it lies
+    /// past the end of the line or inside a character.
+    fn column(&self, units: u32, encoding: PositionEncoding) -> Option<u32> {
+        let points = if self.ascii {
+            if usize::try_from(units).ok()? > self.text.len() {
+                return None;
+            }
+            usize::try_from(units).ok()?
+        } else {
+            self.table(encoding).binary_search(&units).ok()?
+        };
         u32::try_from(points + 1).ok()
-    } else {
-        None
+    }
+
+    /// The text between the code-point indices `from` and `to` (0-based, the
+    /// end exclusive).
+    fn slice(&self, from: u32, to: u32) -> Option<&'a str> {
+        let (from, to) = (usize::try_from(from).ok()?, usize::try_from(to).ok()?);
+        if self.ascii {
+            return self.text.get(from..to);
+        }
+        let table = self.table(PositionEncoding::Utf8);
+        let (begin, end) = (*table.get(from)?, *table.get(to)?);
+        self.text
+            .get(usize::try_from(begin).ok()?..usize::try_from(end).ok()?)
     }
 }
