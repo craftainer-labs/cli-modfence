@@ -20,15 +20,34 @@ const NONE_FOUND: &str = "no SCIP indexes in .modfence/scip; call edges were not
 /// The warning for indexes that held no document of the analysis.
 const NOT_USABLE: &str = "no usable SCIP documents; call edges were not checked";
 
-/// Whether the command line asks for SCIP: `--precise`, or any `--scip`.
-pub(super) fn wanted(common: &Common) -> bool {
-    common.precise || !common.scip.is_empty()
+/// The text of the analysed files, kept only when the command line asks for
+/// SCIP (`--precise`, or any `--scip`), to convert the indexes' positions.
+pub(super) struct Sources {
+    wanted: bool,
+    texts: BTreeMap<String, String>,
+}
+
+impl Sources {
+    /// Keeps files when `common` asks for SCIP.
+    pub(super) fn new(common: &Common) -> Self {
+        Self {
+            wanted: common.precise || !common.scip.is_empty(),
+            texts: BTreeMap::new(),
+        }
+    }
+
+    /// Remembers the text of `path`, if SCIP was asked for.
+    pub(super) fn add(&mut self, path: &str, text: &str) {
+        if self.wanted {
+            self.texts.insert(path.to_owned(), text.to_owned());
+        }
+    }
 }
 
 /// Reads the indexes the command line names (or, for a bare `--precise`, those
 /// in `.modfence/scip/`) and upgrades `graph` with them. Returns whether call
-/// edges were checked: when no index could be used the run stays on tree-sitter
-/// with a warning.
+/// edges were checked: false without SCIP flags, and when no index could be
+/// used, in which case the run stays on tree-sitter with a warning.
 ///
 /// A `--scip` file that cannot be read exits 74 and one that is not a SCIP
 /// index exits 2. The same problem with a file found in `.modfence/scip/` is a
@@ -38,10 +57,13 @@ pub(super) fn wanted(common: &Common) -> bool {
 pub(super) fn ingest(
     common: &Common,
     root: &Path,
-    sources: &BTreeMap<String, String>,
+    sources: &Sources,
     graph: &mut Graph,
     err: &mut impl Write,
 ) -> Result<bool, Failure> {
+    if !sources.wanted {
+        return Ok(false);
+    }
     let analysis_root = fs::canonicalize(root)
         .unwrap_or_default()
         .to_string_lossy()
@@ -77,7 +99,7 @@ pub(super) fn ingest(
         writeln!(err, "warning: {NOT_USABLE}")?;
         return Ok(false);
     }
-    for line in precise::apply(graph, &indexes, sources).warnings() {
+    for line in precise::apply(graph, &indexes, &sources.texts).warnings() {
         writeln!(err, "warning: {line}")?;
     }
     Ok(true)

@@ -1,7 +1,6 @@
 //! The subcommands: load the configuration, walk and extract, then check or
 //! print.
 
-use std::collections::BTreeMap;
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -122,16 +121,13 @@ fn analyse(common: &Common, err: &mut impl Write) -> Result<(Config, Graph, bool
     let extractors: [&dyn Extractor; 2] = [&PythonExtractor, &TsExtractor];
     let wanted = |path: &str| extractors.iter().any(|extractor| extractor.handles(path));
     let files = walker::walk(&root, &config, wanted)?;
-    let wanted = precise::wanted(common);
-    let mut sources = BTreeMap::new();
+    let mut sources = precise::Sources::new(common);
     let mut builder = Builder::new(&config);
     for path in &files {
         let full = root.join(path);
         let bytes = fs::read(&full).map_err(failed("read", &full))?;
         let decoded = String::from_utf8_lossy(&bytes);
-        if wanted {
-            sources.insert(path.clone(), decoded.to_string());
-        }
+        sources.add(path, &decoded);
         let file = SourceFile {
             path,
             text: &decoded,
@@ -147,6 +143,6 @@ fn analyse(common: &Common, err: &mut impl Write) -> Result<(Config, Graph, bool
     for diagnostic in &graph.diagnostics {
         writeln!(err, "{}", text::diagnostic(diagnostic))?;
     }
-    let checked = wanted && precise::ingest(common, &root, &sources, &mut graph, err)?;
+    let checked = precise::ingest(common, &root, &sources, &mut graph, err)?;
     Ok((config, graph, checked))
 }
