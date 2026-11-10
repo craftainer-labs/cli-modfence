@@ -64,15 +64,15 @@ pub(super) fn ingest(
     if !sources.wanted {
         return Ok(false);
     }
-    let analysis_root = fs::canonicalize(root)
-        .map_err(|error| Failure::io(shown(root), &error))?
-        .to_string_lossy()
-        .replace('\\', "/");
     let explicit = !common.scip.is_empty();
+    let (analysis_root, found) = match locate(root, !explicit) {
+        Ok(located) => located,
+        Err(error) => return Err(Failure::io(shown(root), &error)),
+    };
     let paths = if explicit {
         common.scip.clone()
     } else {
-        discovered(root)?
+        found
     };
     if paths.is_empty() {
         writeln!(err, "warning: {NONE_FOUND}")?;
@@ -106,26 +106,28 @@ pub(super) fn ingest(
     Ok(true)
 }
 
-/// The `*.scip` files of `.modfence/scip/`, in file-name order. A missing
-/// directory holds none; any other read error is an I/O failure.
-fn discovered(root: &Path) -> Result<Vec<PathBuf>, Failure> {
-    let dir = root.join(INDEX_DIR);
-    let entries = match fs::read_dir(&dir) {
-        Ok(entries) => entries,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
-        Err(error) => return Err(Failure::io(shown(&dir), &error)),
-    };
+/// The canonical analysis root (with `/` separators) and, when `discover` is
+/// set, the `*.scip` files of `.modfence/scip/` in file-name order. A missing
+/// directory holds none; any other read error is returned.
+fn locate(root: &Path, discover: bool) -> std::io::Result<(String, Vec<PathBuf>)> {
+    let analysis_root = fs::canonicalize(root)?.to_string_lossy().replace('\\', "/");
     let mut found = Vec::new();
-    for entry in entries {
-        let path = entry
-            .map_err(|error| Failure::io(shown(&dir), &error))?
-            .path();
-        if path.extension().is_some_and(|ext| ext == "scip") {
-            found.push(path);
+    if discover {
+        match fs::read_dir(root.join(INDEX_DIR)) {
+            Ok(entries) => {
+                for entry in entries {
+                    let path = entry?.path();
+                    if path.extension().is_some_and(|ext| ext == "scip") {
+                        found.push(path);
+                    }
+                }
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error),
         }
     }
     found.sort();
-    Ok(found)
+    Ok((analysis_root, found))
 }
 
 /// A path safe to print: control characters escaped, so a file name cannot

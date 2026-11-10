@@ -856,7 +856,11 @@ fn an_index_with_nothing_usable_leaves_the_run_on_tree_sitter() {
 
     // Right root, but the only document is for a file the run never analysed.
     let stale = project("precise-stale");
-    let bytes = wire_index(&root_uri(&stale), None, vec![wire_document("nope.py", vec![])]);
+    let bytes = wire_index(
+        &root_uri(&stale),
+        None,
+        vec![wire_document("nope.py", vec![])],
+    );
     let index = write_index(&stale, "index.scip", &bytes);
     let run = in_project(&stale, &["check", "--scip", &index]);
     assert_eq!(run.code, 0, "{}", run.err);
@@ -872,6 +876,17 @@ fn an_index_with_nothing_usable_leaves_the_run_on_tree_sitter() {
     let run = in_project(&only_broken, &["check", "--precise"]);
     assert_eq!(run.code, 0, "{}", run.err);
     assert!(run.err.contains("no usable SCIP documents"), "{}", run.err);
+}
+
+#[test]
+fn an_unreadable_index_directory_exits_74() {
+    let dir = project("precise-dir-is-file");
+    // `.modfence/scip` is a file, so listing it fails with something other
+    // than "not found".
+    write_index(&dir, ".modfence/scip", b"x");
+    let run = in_project(&dir, &["check", "--precise"]);
+    assert_eq!(run.code, 74, "{}", run.err);
+    assert!(!run.err.contains("no SCIP indexes"), "{}", run.err);
 }
 
 #[test]
