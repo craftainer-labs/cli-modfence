@@ -34,5 +34,9 @@ Rules:
   that a reference can still resolve them), never touches `imports`, `binds` or
   `contains` edges, and is deterministic: a symbol defined at several nodes
   resolves to the smallest id, and the smallest symbol wins when occurrences
-  share a span. Its tests are in `tests/graph_precise.rs`.
+  share a span. Documents with one path are read once, the first in the order
+  the caller gives the indexes winning (the repeats are counted and warned
+  about). `PreciseStats::unmatched_definitions` counts definitions that map to
+  no node; it is a statistic, not a warning, because parameters and locals
+  always land there. Its tests are in `tests/graph_precise.rs`.
 - Tests are in `tests/graph.rs`; do not add `#[cfg(test)]` modules here.

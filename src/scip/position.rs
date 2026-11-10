@@ -175,6 +175,9 @@ impl<'a> Line<'a> {
     /// The text between the code-point indices `from` and `to` (0-based, the
     /// end exclusive).
     fn slice(&self, from: u32, to: u32) -> Option<&'a str> {
+        if to < from {
+            return None;
+        }
         let (from, to) = (usize::try_from(from).ok()?, usize::try_from(to).ok()?);
         if self.ascii {
             return self.text.get(from..to);

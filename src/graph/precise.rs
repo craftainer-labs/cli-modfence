@@ -9,7 +9,7 @@
 //! a method called through a receiver), and joins a `resolved` edge. It never
 //! adds a call site, and it leaves `imports` and `binds` edges alone.
 
-use std::cmp::Reverse;
+use std::cmp::{Ordering, Reverse};
 use std::collections::btree_map::Entry;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -31,6 +31,11 @@ pub struct PreciseStats {
     /// Occurrences whose position does not exist in the source: a sign that the
     /// index is stale.
     pub stale_occurrences: usize,
+    /// Definition occurrences that map to no symbol node: the text at the range
+    /// is not the name of a node that contains it. Parameters and local
+    /// variables always land here, so a large count is normal and is not a
+    /// warning.
+    pub unmatched_definitions: usize,
     /// Symbols defined at more than one node; the node with the smallest id wins.
     pub conflicting_symbols: usize,
     /// Call sites moved to `resolved` edges.
@@ -81,6 +86,9 @@ type FileSymbols<'a> = BTreeMap<String, Vec<(&'a NodeId, Span)>>;
 /// root-relative path to the file's text, which converts SCIP positions.
 ///
 /// Sets [`Graph::backend`] to `tree-sitter+scip` when `indexes` is not empty.
+/// Documents with the same path are read once: the first in `indexes` order
+/// wins and the repeats are counted (the caller fixes the order: command-line
+/// order for `--scip`, file-name order for a directory).
 /// Idempotent for the same indexes; with others it only adds. Deterministic: the
 /// result does not depend on hash order, and a symbol defined at several nodes
 /// resolves to the smallest id.
@@ -119,6 +127,7 @@ pub fn apply(
             };
             if occurrence.is_definition() {
                 let Some(node) = here.and_then(|names| definition_node(&lines, span, names)) else {
+                    stats.unmatched_definitions += 1;
                     continue;
                 };
                 let key = symbol_key(&document.path, &occurrence.symbol);
@@ -229,12 +238,17 @@ fn fold(graph: &mut Graph, resolved: &BTreeMap<Site, NodeId>) -> usize {
     if resolved.is_empty() {
         return 0;
     }
-    let mut folded: BTreeMap<EdgeKey, Vec<(Site, Option<String>)>> = BTreeMap::new();
+    // Only `calls` edges change: every other edge keeps its place untouched.
+    let mut edges = Vec::with_capacity(graph.edges.len());
+    let mut calls: BTreeMap<EdgeKey, Vec<(Site, Option<String>)>> = BTreeMap::new();
     let mut moved: BTreeMap<(NodeId, NodeId), BTreeMap<Site, Option<String>>> = BTreeMap::new();
     for edge in std::mem::take(&mut graph.edges) {
-        let heuristic_call =
-            edge.relation == Relation::Calls && edge.confidence == Some(Confidence::Heuristic);
-        let entry = folded
+        if edge.relation != Relation::Calls {
+            edges.push(edge);
+            continue;
+        }
+        let heuristic = edge.confidence == Some(Confidence::Heuristic);
+        let entry = calls
             .entry((
                 edge.source.clone(),
                 edge.target.clone(),
@@ -244,7 +258,7 @@ fn fold(graph: &mut Graph, resolved: &BTreeMap<Site, NodeId>) -> usize {
             .or_default();
         for site in edge.sites {
             match resolved.get(&site) {
-                Some(target) if heuristic_call => {
+                Some(target) if heuristic => {
                     moved
                         .entry((edge.source.clone(), target.clone()))
                         .or_default()
@@ -269,30 +283,40 @@ fn fold(graph: &mut Graph, resolved: &BTreeMap<Site, NodeId>) -> usize {
     }
     let count = moved.values().map(BTreeMap::len).sum();
     for ((source, target), sites) in moved {
-        folded
+        calls
             .entry((source, target, Relation::Calls, Some(Confidence::Resolved)))
             .or_default()
             .extend(sites);
     }
-    // An edge that lost every site goes with them; `contains` edges never had
-    // any and stay.
-    graph.edges = folded
-        .into_iter()
-        .filter_map(|((source, target, relation, confidence), mut sites)| {
-            sites.sort();
-            sites.dedup_by(|a, b| a.0 == b.0);
-            let keeps = relation == Relation::Contains || !sites.is_empty();
-            keeps.then(|| Edge {
-                source,
-                target,
-                relation,
-                confidence,
-                specifier: sites.first().and_then(|(_, specifier)| specifier.clone()),
-                sites: sites.into_iter().map(|(site, _)| site).collect(),
-            })
-        })
-        .collect();
+    // The specifier of an edge is the callee at its first site, whichever site
+    // that is after the merge; every site keeps the callee it was read with. An
+    // edge that lost every site goes with them.
+    edges.extend(
+        calls
+            .into_iter()
+            .filter_map(|((source, target, relation, confidence), mut sites)| {
+                sites.sort();
+                sites.dedup_by(|a, b| a.0 == b.0);
+                let specifier = sites.first().and_then(|(_, specifier)| specifier.clone());
+                (!sites.is_empty()).then(|| Edge {
+                    source,
+                    target,
+                    relation,
+                    confidence,
+                    specifier,
+                    sites: sites.into_iter().map(|(site, _)| site).collect(),
+                })
+            }),
+    );
+    edges.sort_by(by_key);
+    graph.edges = edges;
     count
+}
+
+/// Orders edges by source, target, relation and confidence, as the builder does.
+fn by_key(a: &Edge, b: &Edge) -> Ordering {
+    let left = (&a.source, &a.target, a.relation, a.confidence);
+    left.cmp(&(&b.source, &b.target, b.relation, b.confidence))
 }
 
 /// The fold key of an edge: source, target, relation and confidence.

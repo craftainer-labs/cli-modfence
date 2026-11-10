@@ -527,6 +527,15 @@ fn text_from_a_span_is_sliced_by_code_points() {
         end_column: 1,
     };
     assert_eq!(ascii.slice(zero), None);
+    // A span that ends before it starts is not text, ASCII or not.
+    let reversed = Span {
+        start_line: 1,
+        start_column: 3,
+        end_line: 1,
+        end_column: 2,
+    };
+    assert_eq!(ascii.slice(reversed), None);
+    assert_eq!(lines.slice(reversed), None);
 }
 
 #[test]

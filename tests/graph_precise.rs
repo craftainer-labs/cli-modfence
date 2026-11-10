@@ -324,7 +324,8 @@ fn a_definition_that_does_not_name_a_node_defines_nothing() {
         ],
     );
     let app = document("app.py", vec![occurrence(at(APP, 4, "run", 0), RUN, 0)]);
-    apply(&mut graph, &[index(vec![lib, app])], &sources(&files()));
+    let stats = apply(&mut graph, &[index(vec![lib, app])], &sources(&files()));
+    assert_eq!(stats.unmatched_definitions, 2);
     let main = id("app.py", "main");
     assert!(
         calls(&graph, &main)
@@ -628,4 +629,45 @@ fn the_outputs_say_where_a_resolution_came_from() {
     );
     let graphml = GraphMl.render(&graph, &View::new(&graph, Level::Symbol, None));
     assert!(graphml.contains("<data key=\"e_origin\">scip</data>"));
+}
+
+#[test]
+fn a_merged_edge_names_the_callee_at_its_first_site() {
+    let lib = "def run():\n    pass\n";
+    let app = "from lib import run\nfrom lib import run as go\n\n\ndef main():\n    go()\n    run()\n";
+    let files = [("lib.py", lib), ("app.py", app)];
+    let defined = || {
+        document(
+            "lib.py",
+            vec![occurrence(at(lib, 0, "run", 0), RUN, DEFINITION)],
+        )
+    };
+    // `run()` sits on a heuristic edge; `go()` on none (an alias).
+    let by_name = index(vec![
+        defined(),
+        document("app.py", vec![occurrence(at(app, 6, "run", 0), RUN, 0)]),
+    ]);
+    let by_alias = index(vec![
+        defined(),
+        document("app.py", vec![occurrence(at(app, 5, "go", 0), RUN, 0)]),
+    ]);
+    let specifier = |graph: &Graph| {
+        let resolved = |e: &&modfence::graph::Edge| {
+            e.relation == Relation::Calls && e.confidence == Some(Confidence::Resolved)
+        };
+        let edge = graph.edges.iter().find(resolved).unwrap();
+        (edge.count(), edge.specifier.clone().unwrap())
+    };
+    let mut graph = build(&files);
+    apply(&mut graph, std::slice::from_ref(&by_name), &sources(&files));
+    assert_eq!(specifier(&graph), (1, "run".to_owned()));
+    // The earlier site is now the first: its callee names the edge.
+    apply(&mut graph, std::slice::from_ref(&by_alias), &sources(&files));
+    assert_eq!(specifier(&graph), (2, "go".to_owned()));
+
+    let mut graph = build(&files);
+    apply(&mut graph, std::slice::from_ref(&by_alias), &sources(&files));
+    assert_eq!(specifier(&graph), (1, "go".to_owned()));
+    apply(&mut graph, std::slice::from_ref(&by_name), &sources(&files));
+    assert_eq!(specifier(&graph), (2, "go".to_owned()));
 }
