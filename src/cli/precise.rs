@@ -65,14 +65,14 @@ pub(super) fn ingest(
         return Ok(false);
     }
     let analysis_root = fs::canonicalize(root)
-        .unwrap_or_default()
+        .map_err(|error| Failure::io(shown(root), &error))?
         .to_string_lossy()
         .replace('\\', "/");
     let explicit = !common.scip.is_empty();
     let paths = if explicit {
         common.scip.clone()
     } else {
-        discovered(root)
+        discovered(root)?
     };
     if paths.is_empty() {
         writeln!(err, "warning: {NONE_FOUND}")?;
@@ -82,7 +82,7 @@ pub(super) fn ingest(
     for path in &paths {
         match scip::load(path, &analysis_root) {
             Ok((index, stats)) => {
-                let name = path.display().to_string();
+                let name = shown(path);
                 if let Some(tool) = &index.tool {
                     writeln!(err, "note: read SCIP index {name} from {tool}")?;
                 }
@@ -92,30 +92,46 @@ pub(super) fn ingest(
                 indexes.push(index);
             }
             Err(error) if explicit => return Err(failure(path, &error)),
-            Err(error) => writeln!(err, "warning: {}: {error}; skipped", path.display())?,
+            Err(error) => writeln!(err, "warning: {}: {error}; skipped", shown(path))?,
         }
     }
-    if indexes.iter().all(|index| index.documents.is_empty()) {
+    let stats = precise::apply(graph, &indexes, &sources.texts);
+    for line in stats.warnings() {
+        writeln!(err, "warning: {line}")?;
+    }
+    if stats.documents == 0 {
         writeln!(err, "warning: {NOT_USABLE}")?;
         return Ok(false);
-    }
-    for line in precise::apply(graph, &indexes, &sources.texts).warnings() {
-        writeln!(err, "warning: {line}")?;
     }
     Ok(true)
 }
 
-/// The `*.scip` files of `.modfence/scip/`, in file-name order.
-fn discovered(root: &Path) -> Vec<PathBuf> {
-    let mut found: Vec<PathBuf> = fs::read_dir(root.join(INDEX_DIR))
-        .into_iter()
-        .flatten()
-        .flatten()
-        .map(|entry| entry.path())
-        .filter(|path| path.extension().is_some_and(|ext| ext == "scip"))
-        .collect();
+/// The `*.scip` files of `.modfence/scip/`, in file-name order. A missing
+/// directory holds none; any other read error is an I/O failure.
+fn discovered(root: &Path) -> Result<Vec<PathBuf>, Failure> {
+    let dir = root.join(INDEX_DIR);
+    let entries = match fs::read_dir(&dir) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(error) => return Err(Failure::io(shown(&dir), &error)),
+    };
+    let mut found = Vec::new();
+    for entry in entries {
+        let path = entry
+            .map_err(|error| Failure::io(shown(&dir), &error))?
+            .path();
+        if path.extension().is_some_and(|ext| ext == "scip") {
+            found.push(path);
+        }
+    }
     found.sort();
-    found
+    Ok(found)
+}
+
+/// A path safe to print: control characters escaped, so a file name cannot
+/// forge diagnostic lines or terminal escapes.
+fn shown(path: &Path) -> String {
+    scip::printable(&path.display().to_string(), 500)
 }
 
 /// A `--scip` file that failed: exit 74 when it cannot be read, 2 when it is
@@ -129,6 +145,6 @@ fn failure(path: &Path, error: &Error) -> Failure {
     };
     Failure {
         code,
-        message: format!("{}: {error}", path.display()),
+        message: format!("{}: {error}", shown(path)),
     }
 }

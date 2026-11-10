@@ -854,6 +854,19 @@ fn an_index_with_nothing_usable_leaves_the_run_on_tree_sitter() {
         run.err
     );
 
+    // Right root, but the only document is for a file the run never analysed.
+    let stale = project("precise-stale");
+    let bytes = wire_index(&root_uri(&stale), None, vec![wire_document("nope.py", vec![])]);
+    let index = write_index(&stale, "index.scip", &bytes);
+    let run = in_project(&stale, &["check", "--scip", &index]);
+    assert_eq!(run.code, 0, "{}", run.err);
+    assert!(run.err.contains("no usable SCIP documents"), "{}", run.err);
+    assert!(
+        run.err.contains("call edges were not checked"),
+        "{}",
+        run.err
+    );
+
     let only_broken = project("precise-only-broken");
     write_index(&only_broken, ".modfence/scip/bad.scip", &[0xff; 8]);
     let run = in_project(&only_broken, &["check", "--precise"]);
