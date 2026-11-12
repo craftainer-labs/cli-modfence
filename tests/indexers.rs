@@ -294,17 +294,16 @@ exit "${MODFENCE_EXIT:-0}"
     }
 
     #[test]
-    fn a_bad_index_from_an_indexer_is_skipped_and_an_old_one_is_not_read() {
+    fn a_bad_index_from_an_indexer_exits_2_and_an_old_one_is_not_read() {
         let setup = setup("bad", &["scip-python"]);
         write(&setup.indexes.join("scip-python.scip"), &[0xff; 8], 0o644);
         let output = setup.run(&["check", "--run-indexers"]);
-        assert_eq!(code(&output), 0, "{}", err(&output));
+        assert_eq!(code(&output), 2, "{}", err(&output));
         assert!(
             err(&output).contains("python.scip: not a SCIP index"),
             "{}",
             err(&output)
         );
-        assert!(err(&output).contains("skipped"));
         // An index from an earlier run is removed before the indexer runs.
         let old = setup.project.join(".modfence/scip/python.scip");
         write(&old, &[0xff; 8], 0o644);

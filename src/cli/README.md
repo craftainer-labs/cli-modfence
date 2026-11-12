@@ -93,9 +93,11 @@ Rules:
     `PATH` is searched by modfence itself (absolute entries only) and each
     command line is printed as `note: running ...` before it runs. No shell, the
     environment is inherited, there is no timeout, and the indexer's standard
-    output goes to standard error. A missing indexer, a failure, no output or a
-    bad index is a warning that leaves that language on tree-sitter, and never
-    changes the exit status; an index left by an earlier run is removed first.
+    output goes to standard error. A missing indexer, a failure or no output
+    is a warning that leaves that language on tree-sitter and does not change
+    the exit status; an index that an indexer wrote but that cannot be read
+    exits like a broken `--scip` file (74, or 2 when it is not an index). An
+    index left by an earlier run is removed first.
     Unix only: elsewhere it warns and runs nothing (CVE-2024-24576).
   - There are no `modfence.toml` keys for any of this.
 - Tests are in `tests/cli.rs` (fixtures in `tests/fixtures/cli/`),

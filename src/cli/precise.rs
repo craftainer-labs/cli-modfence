@@ -62,7 +62,7 @@ impl Sources {
 /// A file that cannot be read exits 74 and one that is not a SCIP index exits
 /// 2, whether it was named with `--scip` or found in `.modfence/scip/`. With
 /// `--run-indexers` the indexers run first and the indexes they wrote are read
-/// after the named ones; a bad one of those is a warning. Indexes are applied
+/// after the named ones, with the same exit codes. Indexes are applied
 /// in command-line order, or in file-name order for the directory; the first of
 /// two documents with one path wins.
 pub(super) fn ingest(
@@ -81,13 +81,13 @@ pub(super) fn ingest(
         Ok(located) => located,
         Err(error) => return Err(Failure::io(shown(root), &error)),
     };
-    // Files named with `--scip` and found in the directory must be good; what
-    // an indexer just wrote is not trusted that far (ADR 0003, invariant 18).
+    // Every index must be good, whoever wrote it: a broken one exits like a
+    // broken `--scip` file (ADR 0003, invariant 18).
     let named = if explicit { common.scip.clone() } else { found };
-    let mut paths: Vec<(PathBuf, bool)> = named.into_iter().map(|path| (path, true)).collect();
+    let mut paths = named;
     if common.run_indexers {
         let produced = run_indexers(Path::new(&analysis_root), &graph.languages, err)?;
-        paths.extend(produced.into_iter().map(|path| (path, false)));
+        paths.extend(produced);
     }
     if paths.is_empty() {
         let warning = if common.run_indexers {
@@ -99,7 +99,7 @@ pub(super) fn ingest(
         return Ok(false);
     }
     let mut indexes = Vec::new();
-    for (path, strict) in &paths {
+    for path in &paths {
         match scip::load(path, &analysis_root) {
             Ok((index, stats)) => {
                 let name = shown(path);
@@ -111,8 +111,7 @@ pub(super) fn ingest(
                 }
                 indexes.push(index);
             }
-            Err(error) if *strict => return Err(failure(path, &error)),
-            Err(error) => writeln!(err, "warning: {}: {error}; skipped", shown(path))?,
+            Err(error) => return Err(failure(path, &error)),
         }
     }
     let stats = precise::apply(graph, &indexes, &sources.texts);
@@ -152,7 +151,8 @@ fn locate(root: &Path, discover: bool) -> std::io::Result<(String, Vec<PathBuf>)
 
 /// Runs the indexers for the languages analysed and returns the indexes they
 /// wrote. A missing indexer, a failure or an empty result is a warning and
-/// leaves that language on tree-sitter; nothing here changes the exit status.
+/// leaves that language on tree-sitter; nothing here changes the exit status
+/// (an index that is written but broken does, when it is read).
 /// An index left by an earlier run is removed first, so it cannot pass for this
 /// run's. modfence writes only below `.modfence/`.
 #[cfg(unix)]
