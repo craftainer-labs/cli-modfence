@@ -33,7 +33,7 @@ pub struct Invocation {
 /// to infer it.
 ///
 /// The flags are those of ADR 0003's table, checked against the indexers'
-/// documentation; the real binaries are exercised by NC6e.
+/// documentation; no real indexer is run by the tests.
 #[must_use]
 pub fn plan(
     languages: &BTreeSet<Lang>,
