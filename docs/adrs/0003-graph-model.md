@@ -67,9 +67,9 @@ of scope.
   only mode in which anything started by modfence may use the network, and
   only because the user's indexer decides to (NFR-0002).
 
-| Language | Indexer on `PATH` | Invocation (NC6 verifies the flags) |
+| Language | Indexer on `PATH` | Invocation (as implemented in NC6d; the flags are taken from the indexers' documentation and are checked against the real binaries by NC6e) |
 | --- | --- | --- |
-| `py` | `scip-python` | `scip-python index . --project-name <name>` |
+| `py` | `scip-python` | `scip-python index . --project-name=<name> --output <file>` |
 | `ts` (including JavaScript) | `scip-typescript` | `scip-typescript index`, plus `--infer-tsconfig` when the project has no `tsconfig.json`, and `--output` |
 | `rs` | `rust-analyzer` | `rust-analyzer scip <dir> --output <file>` |
 
@@ -77,9 +77,11 @@ An indexer runs only for a language that has files in the analysis, from the
 analysis root (or the package root for monorepos), and writes its index below
 `.modfence/scip/`. If an indexer cannot redirect its output, modfence moves
 the resulting `index.scip` there, and refuses to run if it would overwrite an
-`index.scip` it did not create. A missing indexer, a non-zero exit or an
-unreadable index is a warning naming the language and leaves that language on
-the tree-sitter backend; the run still succeeds.
+`index.scip` it did not create. A missing indexer, a non-zero exit or no
+output is a warning naming the language and leaves that language on the
+tree-sitter backend; the run still succeeds. An index that is written but
+corrupt or oversized exits 2, like a broken file named with `--scip` (74 when
+it cannot be read).
 
 **How SCIP feeds the graph.** `graph::precise::apply` runs after the graph is
 built, with the ingested indexes and the text of the analysed files:
@@ -231,8 +233,10 @@ points, ends exclusive. SARIF output sets `columnKind` to
     that it moves there), and a pre-existing `index.scip` it did not create is
     never overwritten. What an indexer itself writes is outside this
     guarantee (see Consequences).
-18. A failed or missing indexer is a warning and leaves that language on
-    tree-sitter; it never changes the exit status on its own.
+18. A failed or missing indexer, or one that writes nothing, is a warning
+    and leaves that language on tree-sitter; it never changes the exit status
+    on its own. A broken index file, however it got there, exits as `--scip`
+    does.
 19. Every node's `tags` value is a non-empty array of unique strings sorted
     in byte order; a node with no tags has no `tags` key.
 20. SCIP positions are converted from each document's declared position

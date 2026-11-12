@@ -46,6 +46,13 @@ pub(super) struct Common {
     /// directory. Implies `--precise`.
     #[arg(long, value_name = "FILE")]
     pub(super) scip: Vec<PathBuf>,
+    /// Run the SCIP indexers found on `PATH` (`scip-python`,
+    /// `scip-typescript`, `rust-analyzer`) for the languages analysed, write
+    /// their indexes to `.modfence/scip/` and read them. Implies `--precise`.
+    /// Runs code from the analysed repository; see the README before using it
+    /// on code you do not trust.
+    #[arg(long)]
+    pub(super) run_indexers: bool,
 }
 
 /// The output formats of `check`.

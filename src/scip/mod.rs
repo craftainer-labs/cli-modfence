@@ -5,6 +5,7 @@
 mod path;
 mod position;
 mod read;
+pub mod run;
 
 pub use position::{LineIndex, PositionEncoding, RawRange};
 pub use read::{MAX_INDEX_BYTES, check_size, load, read_index};

@@ -86,6 +86,22 @@ Rules:
     index is escaped before it is printed (`scip::printable`).
   - Of two documents with one path, the first read wins (so command-line order
     decides); the repeat is counted in a warning.
+  - `--run-indexers` (implies `--precise`) runs `scip-python`,
+    `scip-typescript` and `rust-analyzer` for the languages analysed, writing
+    `.modfence/scip/python.scip`, `typescript.scip` and `rust.scip`, then reads
+    those (after any `--scip` files). The command lines are `scip::run::plan`'s;
+    `PATH` is searched by modfence itself (absolute entries only) and each
+    command line is printed as `note: running ...` before it runs. No shell, the
+    environment is inherited, there is no timeout, and the indexer's standard
+    output goes to standard error. A missing indexer, a failure or no output
+    is a warning that leaves that language on tree-sitter and does not change
+    the exit status; an index that an indexer wrote but that cannot be read
+    exits like a broken `--scip` file (74, or 2 when it is not an index). An
+    index left by an earlier run is removed first.
+    Unix only: elsewhere it warns and runs nothing (CVE-2024-24576).
   - There are no `modfence.toml` keys for any of this.
-- Tests are in `tests/cli.rs` (fixtures in `tests/fixtures/cli/`); do not add
+- Tests are in `tests/cli.rs` (fixtures in `tests/fixtures/cli/`),
+  `tests/indexers.rs` (`--run-indexers` with fake indexers on `PATH`) and
+  `tests/offline.rs` (the binary under `unshare -n`, NFR-0002; falls back to `sudo -n unshare -n`,
+  and `MODFENCE_SKIP_SANDBOX` skips it); do not add
   `#[cfg(test)]` modules here.

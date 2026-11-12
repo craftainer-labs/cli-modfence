@@ -17,6 +17,9 @@ NC6d. It starts no process and opens no connection (NFR-0002).
   text a single-line span covers. Conversion is a bisection of one table per
   line and encoding, built on first use (none for an ASCII line), so a very
   long line costs one pass, not one per occurrence.
+- `run.rs`: the one place modfence starts another program (`--run-indexers`): `plan` (the
+  invocations), `project_name`, `resolve` (a `PATH` search over absolute entries), `command_line`
+  (the quoted line shown before a run) and `spawn` (no shell, inherited environment).
 - `path.rs`: which document paths are safe, and how the index's
   `project_root` becomes a prefix for them. Private.
 
