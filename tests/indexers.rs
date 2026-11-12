@@ -323,6 +323,21 @@ exit "${MODFENCE_EXIT:-0}"
     }
 
     #[test]
+    fn an_old_index_that_cannot_be_removed_is_not_trusted() {
+        let setup = setup("stuck", &["scip-python"]);
+        // A directory where the index goes cannot be removed as a file.
+        std::fs::create_dir_all(setup.project.join(".modfence/scip/python.scip")).unwrap();
+        let output = setup.run(&["check", "--run-indexers"]);
+        assert_eq!(code(&output), 0, "{}", err(&output));
+        assert!(
+            err(&output).contains("warning: cannot remove"),
+            "{}",
+            err(&output)
+        );
+        assert!(!err(&output).contains("note: running"), "{}", err(&output));
+    }
+
+    #[test]
     fn a_project_without_python_or_typescript_runs_no_indexer() {
         let setup = setup("empty", &["scip-python", "scip-typescript"]);
         std::fs::remove_file(setup.project.join("lib.py")).unwrap();

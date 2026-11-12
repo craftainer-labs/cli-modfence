@@ -99,11 +99,7 @@ pub fn project_name(root: &Path) -> String {
         });
     let allowed = |c: char| c.is_ascii_alphanumeric() || "._-".contains(c);
     let usable =
-        |name: &str| {
-            !name.is_empty()
-                && !name.starts_with(['-', '.'])
-                && name.chars().all(allowed)
-        };
+        |name: &str| !name.is_empty() && !name.starts_with(['-', '.']) && name.chars().all(allowed);
     if let Some(name) = declared.filter(|name| usable(name)) {
         return name;
     }
