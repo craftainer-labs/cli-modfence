@@ -11,3 +11,7 @@ ignore:
   # package.json and lockfile.
   - .github/workflows/a11y.yml
   - tests/a11y/
+
+  # The workflow that regenerates the real SCIP indexes in tests/fixtures/scip/
+  # (src/scip/README.md); manual, read-only.
+  - .github/workflows/scip-fixtures.yml

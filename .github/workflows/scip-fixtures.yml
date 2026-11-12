@@ -1,0 +1,66 @@
+# Regenerates the real SCIP indexes committed in tests/fixtures/scip/ (NC6e) with
+# the pinned indexers, and uploads them as an artifact. Instance-owned. Manual
+# only and read-only: it pushes nothing and opens no PR, so a person reviews the
+# files and commits them. It downloads the indexers from npm and rustup, so it
+# needs the network; modfence itself never does (NFR-0002).
+name: SCIP fixtures
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/workflows/scip-fixtures.yml
+      - tests/fixtures/scip/**
+
+permissions: {}
+
+jobs:
+  generate:
+    # renovate: datasource=github-runners depName=ubuntu
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-24.04' }}
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    env:
+      # Bumped by hand with the versions recorded in tests/fixtures/scip/README.md.
+      SCIP_TYPESCRIPT_VERSION: "0.6.2"
+      SCIP_PYTHON_VERSION: "0.6.8"
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # rust-toolchain.toml names the compiler; rustup 1.28 installs it only
+      # when asked to. rust-analyzer is a component of that toolchain.
+      - name: Install the pinned Rust toolchain and rust-analyzer
+        run: |
+          rustup toolchain install
+          rustup component add rust-analyzer
+
+      - name: Build modfence
+        run: cargo build --release --locked
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+
+      - name: Install the pinned indexers
+        run: |
+          npm install --prefix "$RUNNER_TEMP/indexers" --ignore-scripts --no-audit --no-fund \
+            "@sourcegraph/scip-typescript@${SCIP_TYPESCRIPT_VERSION}" \
+            "@sourcegraph/scip-python@${SCIP_PYTHON_VERSION}"
+          echo "$RUNNER_TEMP/indexers/node_modules/.bin" >> "$GITHUB_PATH"
+
+      - name: Generate the indexes
+        run: bash tests/fixtures/scip/generate.sh target/release/modfence "$RUNNER_TEMP/scip-out"
+
+      - name: Upload the indexes and the evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: scip-fixtures
+          path: ${{ runner.temp }}/scip-out/
+          if-no-files-found: ignore
+          retention-days: 14
