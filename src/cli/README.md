@@ -74,8 +74,9 @@ Rules:
     one that is not a SCIP index, or is over the size cap, exits 2.
   - Bare `--precise` reads the `*.scip` files in `.modfence/scip/` below the
     analysis root, in file-name order. None there is a warning, and the run
-    goes on as without `--precise`. A broken file there is a warning and is
-    skipped, not an exit status.
+    goes on as without `--precise`. A broken file there exits like a broken
+    `--scip` file: 74 when it cannot be read, 2 when it is not an index or is
+    over the size cap. Files without the `.scip` extension are ignored.
   - Call edges count as checked (`rules::check`'s `precise`, SARIF's
     `callEdgesChecked`) only when at least one document of an index was used.
     An index with none (its root is outside the analysis root, say) is a

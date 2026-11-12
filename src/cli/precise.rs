@@ -49,9 +49,8 @@ impl Sources {
 /// edges were checked: false without SCIP flags, and when no index could be
 /// used, in which case the run stays on tree-sitter with a warning.
 ///
-/// A `--scip` file that cannot be read exits 74 and one that is not a SCIP
-/// index exits 2. The same problem with a file found in `.modfence/scip/` is a
-/// warning and the file is skipped. Indexes are applied in command-line order,
+/// A file that cannot be read exits 74 and one that is not a SCIP index exits
+/// 2, whether it was named with `--scip` or found in `.modfence/scip/`. Indexes are applied in command-line order,
 /// or in file-name order for the directory; the first of two documents with
 /// one path wins.
 pub(super) fn ingest(
@@ -87,8 +86,7 @@ pub(super) fn ingest(
                 }
                 indexes.push(index);
             }
-            Err(error) if explicit => return Err(failure(path, &error)),
-            Err(error) => writeln!(err, "warning: {}: {error}; skipped", shown(path))?,
+            Err(error) => return Err(failure(path, &error)),
         }
     }
     let stats = precise::apply(graph, &indexes, &sources.texts);
@@ -132,7 +130,7 @@ fn shown(path: &Path) -> String {
     scip::printable(&path.display().to_string(), 500)
 }
 
-/// A `--scip` file that failed: exit 74 when it cannot be read, 2 when it is
+/// An index file that failed: exit 74 when it cannot be read, 2 when it is
 /// not an index (or too large to be read as one). The message escapes whatever
 /// came from the index (`scip::Error`'s `Display`).
 fn failure(path: &Path, error: &Error) -> Failure {

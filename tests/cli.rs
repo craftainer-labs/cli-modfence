@@ -824,24 +824,31 @@ fn bare_precise_reads_the_index_directory() {
         assert!(run.err.contains("no SCIP indexes in .modfence/scip"));
         assert!(run.err.contains("call edges were not checked"));
     }
-    // A good index, a broken one and a file that is not an index.
+    // A good index and a file that is not an index (ignored: no `.scip`).
     let bytes = wire_index("", None, resolving());
     write_index(&dir, ".modfence/scip/a.scip", &bytes);
-    write_index(&dir, ".modfence/scip/z.scip", &[0xff; 8]);
     write_index(&dir, ".modfence/scip/notes.txt", b"not an index");
     let run = in_project(&dir, &["check", "--precise"]);
     assert_eq!(run.code, 1, "{}", run.err);
-    assert!(run.err.contains("z.scip: not a SCIP index"), "{}", run.err);
-    assert!(run.err.contains("skipped"), "{}", run.err);
     assert!(!run.err.contains("notes.txt"), "{}", run.err);
     assert!(!run.err.contains("no SCIP indexes"), "{}", run.err);
+    // A broken `.scip` file exits 2, like a broken `--scip` file.
+    write_index(&dir, ".modfence/scip/z.scip", &[0xff; 8]);
+    let run = in_project(&dir, &["check", "--precise"]);
+    assert_eq!(run.code, 2, "{}", run.err);
+    assert!(run.err.contains("z.scip: not a SCIP index"), "{}", run.err);
+    // One that cannot be read exits 74.
+    std::fs::remove_file(dir.join(".modfence/scip/z.scip")).unwrap();
+    std::fs::create_dir_all(dir.join(".modfence/scip/x.scip")).unwrap();
+    let run = in_project(&dir, &["check", "--precise"]);
+    assert_eq!(run.code, 74, "{}", run.err);
+    assert!(run.err.contains("x.scip: "), "{}", run.err);
 }
 
 #[test]
 fn an_index_with_nothing_usable_leaves_the_run_on_tree_sitter() {
     let dir = project("precise-unusable");
-    // Its root is somewhere else, so all its documents are ignored; and the
-    // only file in the directory is broken.
+    // Its root is somewhere else, so all its documents are ignored.
     let bytes = wire_index("file:///elsewhere", None, resolving());
     let index = write_index(&dir, "index.scip", &bytes);
     let run = in_project(&dir, &["check", "--scip", &index]);
@@ -870,12 +877,6 @@ fn an_index_with_nothing_usable_leaves_the_run_on_tree_sitter() {
         "{}",
         run.err
     );
-
-    let only_broken = project("precise-only-broken");
-    write_index(&only_broken, ".modfence/scip/bad.scip", &[0xff; 8]);
-    let run = in_project(&only_broken, &["check", "--precise"]);
-    assert_eq!(run.code, 0, "{}", run.err);
-    assert!(run.err.contains("no usable SCIP documents"), "{}", run.err);
 }
 
 #[test]
