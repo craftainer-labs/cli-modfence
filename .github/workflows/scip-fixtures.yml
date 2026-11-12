@@ -21,10 +21,6 @@ jobs:
     timeout-minutes: 30
     permissions:
       contents: read
-    env:
-      # Bumped by hand with the versions recorded in tests/fixtures/scip/README.md.
-      SCIP_TYPESCRIPT_VERSION: "0.6.2"
-      SCIP_PYTHON_VERSION: "0.6.8"
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -46,15 +42,23 @@ jobs:
         with:
           node-version: 24
 
+      # The versions are those of tests/fixtures/scip/indexers/package.json,
+      # bumped by hand together with the README next to it.
+      - name: Resolve the indexers' lockfile (only until it is committed)
+        if: hashFiles('tests/fixtures/scip/indexers/package-lock.json') == ''
+        working-directory: tests/fixtures/scip/indexers
+        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+
       - name: Install the pinned indexers
+        working-directory: tests/fixtures/scip/indexers
         run: |
-          npm install --prefix "$RUNNER_TEMP/indexers" --ignore-scripts --no-audit --no-fund \
-            "@sourcegraph/scip-typescript@${SCIP_TYPESCRIPT_VERSION}" \
-            "@sourcegraph/scip-python@${SCIP_PYTHON_VERSION}"
-          echo "$RUNNER_TEMP/indexers/node_modules/.bin" >> "$GITHUB_PATH"
+          npm ci --ignore-scripts --no-audit --no-fund
+          echo "$PWD/node_modules/.bin" >> "$GITHUB_PATH"
 
       - name: Generate the indexes
-        run: bash tests/fixtures/scip/generate.sh target/release/modfence "$RUNNER_TEMP/scip-out"
+        run: |
+          bash tests/fixtures/scip/generate.sh target/release/modfence "$RUNNER_TEMP/scip-out"
+          cp tests/fixtures/scip/indexers/package-lock.json "$RUNNER_TEMP/scip-out/"
 
       - name: Upload the indexes and the evidence
         if: always()

@@ -429,7 +429,8 @@ exit "${MODFENCE_EXIT:-0}"
         let calls = setup.calls();
         let output_arg = format!("{}/.modfence/scip/python.scip", project.display());
         assert_eq!(calls[0].1[2], "--project-name=we_ird_touch_pwned__q");
-        assert_eq!(calls[0].1[4], output_arg);
+        assert_eq!(calls[0].1[3], "--project-version=0.0.0");
+        assert_eq!(calls[0].1[5], output_arg);
         assert!(!project.join("pwned").exists());
         let quoted = format!("'{}'", output_arg.replace('\'', "'\\''"));
         assert!(err(&output).contains(&quoted), "{}", err(&output));

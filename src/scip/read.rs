@@ -52,11 +52,7 @@ pub fn load(path: &Path, root: &str) -> Result<(Index, ReadStats), Error> {
 /// # Errors
 ///
 /// As [`load`], with [`Error::TooLarge`] above `limit`.
-pub fn load_with_limit(
-    path: &Path,
-    root: &str,
-    limit: u64,
-) -> Result<(Index, ReadStats), Error> {
+pub fn load_with_limit(path: &Path, root: &str, limit: u64) -> Result<(Index, ReadStats), Error> {
     let io = |error: std::io::Error| Error::Io(error.to_string());
     // Stat before opening: opening a pipe without a writer would block.
     if !std::fs::metadata(path).map_err(io)?.is_file() {

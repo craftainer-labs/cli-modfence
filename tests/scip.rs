@@ -406,7 +406,11 @@ fn load_reads_a_file_and_refuses_what_it_cannot() {
             limit: size - 1
         }
     );
-    assert!(refused.to_string().ends_with(&format!("limit of {}", size - 1)));
+    assert!(
+        refused
+            .to_string()
+            .ends_with(&format!("limit of {}", size - 1))
+    );
     // A directory (like a pipe or device) is not an index file.
     let refused = load(&directory, ROOT).expect_err("not a regular file");
     assert!(matches!(refused, ScipError::Io(_)), "{refused:?}");
