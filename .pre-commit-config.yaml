@@ -30,6 +30,9 @@ repos:
       - id: check-added-large-files
         stages: [pre-commit, manual]
       - id: check-merge-conflict
+        # Without this the hook only runs during an in-progress git merge, so
+        # conflict markers committed by a template-sync PR were never caught.
+        args: [--assume-in-merge]
         stages: [pre-commit, manual]
       - id: mixed-line-ending
         stages: [pre-commit, manual]
@@ -39,7 +42,7 @@ repos:
         stages: [pre-commit, manual]
 
   - repo: https://github.com/compilerla/conventional-pre-commit
-    rev: v4.4.0
+    rev: v4.5.0
     hooks:
       # No "manual" stage here, unlike every other hook in this file: this
       # one needs the actual commit-message file git passes at the
@@ -47,6 +50,25 @@ repos:
       # has no equivalent for.
       - id: conventional-pre-commit
         stages: [commit-msg]
+
+  # Guard for the upstream-owned scripts in .github/scripts/: base ships
+  # them to every instance, whose own ruff-format hook then checks them
+  # against .github/scripts/ruff.toml (the closest config wins), so an
+  # unformatted script here fails every Python instance after a sync. Base
+  # has no ruff dependency of its own, hence this pinned hook, scoped to
+  # that directory only. Keep the rev equal to the ruff the Python
+  # templates pin in pyproject.toml.
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.8
+    hooks:
+      - id: ruff-check
+        name: ruff check (.github/scripts)
+        files: ^\.github/scripts/.*\.py$
+        stages: [pre-commit, manual]
+      - id: ruff-format
+        name: ruff format (.github/scripts)
+        files: ^\.github/scripts/.*\.py$
+        stages: [pre-commit, manual]
 
   - repo: local
     hooks:
@@ -201,6 +223,42 @@ repos:
         language: system
         pass_filenames: false
         files: ^(scripts/(binaries/|test_release_binaries\.py)|dist-workspace\.toml|pyproject\.toml|packaging\.toml|\.pre-commit-hooks\.yaml|Cargo\.toml|\.github/workflows/(build|release)-binaries\.yml)
+        stages: [pre-commit, manual]
+
+  # The graph document (ADR 0003, I3): the committed graph JSON validates
+  # against schema/modfence-graph.schema.json. ajv runs in Node, not as a Rust
+  # crate; its versions are exact so the check cannot drift. The files go in as
+  # one glob because ajv-cli takes a single --data argument. --strict=false
+  # only silences ajv's strictTypes notes about the schema's if/then branches.
+  - repo: local
+    hooks:
+      - id: graph-json-schema
+        name: graph JSON validates against schema/modfence-graph.schema.json (ajv)
+        entry: ajv validate --spec=draft2020 --strict=false -s schema/modfence-graph.schema.json -d "{schema/examples/graph.example.json,tests/golden/*.graph.json}"
+        language: node
+        additional_dependencies: ["ajv-cli@5.0.0", "ajv@8.17.1"]
+        pass_filenames: false
+        files: ^(schema/modfence-graph\.schema\.json|schema/examples/graph\.example\.json|tests/golden/[^/]+\.graph\.json)$
+        stages: [pre-commit, manual]
+
+      # The SARIF report (ADR 0004, "Reports"): the golden SARIF validates
+      # against the official 2.1.0 schema, vendored in schema/vendor/ (see its
+      # README for provenance and licence). The schema is draft-04, which
+      # ajv-cli 5.0.0 cannot select (--spec has no draft4), so tests/validate_sarif.cjs
+      # uses ajv-draft-04; all versions are exact so the check cannot drift.
+      - id: sarif-json-schema
+        name: SARIF goldens validate against the SARIF 2.1.0 schema (ajv)
+        entry: node tests/validate_sarif.cjs
+        language: node
+        additional_dependencies: ["ajv@8.17.1", "ajv-draft-04@1.0.0", "ajv-formats@3.0.1"]
+        files: ^(schema/vendor/sarif-schema-2\.1\.0\.json|tests/validate_sarif\.cjs|tests/golden/[^/]+\.sarif\.json)$
+        stages: [pre-commit, manual]
+
+      - id: graphml-wellformed
+        name: GraphML goldens are well-formed XML (xml.dom.minidom)
+        entry: python3 -I -c "import sys, xml.dom.minidom as m; [m.parse(f) for f in sys.argv[1:]]"
+        language: python
+        files: ^tests/golden/.*\.graphml$
         stages: [pre-commit, manual]
 
   # Supply-chain/secret scanners (OWASP A01/A03/A04/A08 -- see

@@ -54,6 +54,11 @@ of scope.
 
 - `--scip <file>` (repeatable) ingests prebuilt `.scip` files and implies
   `--precise`.
+- Bare `--precise` reads the `*.scip` files in `.modfence/scip/` below the
+  analysis root, where `--run-indexers` writes them, so indexing and checking
+  can be two steps. With none there it warns and runs as without `--precise`.
+  An index file that cannot be read exits 74 and one that is not an index
+  exits 2, whether it came from `--scip` or from the directory.
 - `--run-indexers` implies `--precise`, runs the indexers listed below, and
   ingests their output. It runs **only executables already on `PATH`**: it
   never downloads, installs or fetches an indexer or a dependency, and never
@@ -76,15 +81,40 @@ the resulting `index.scip` there, and refuses to run if it would overwrite an
 unreadable index is a warning naming the language and leaves that language on
 the tree-sitter backend; the run still succeeds.
 
-**How SCIP feeds the graph.** For each SCIP document, definition
-occurrences (role `Definition`) are matched to our symbol nodes by file and
-range overlap. A reference occurrence at the same span as a tree-sitter call
-site's callee resolves that call: the edge's target becomes the matched
-definition's node, its `confidence` becomes `resolved` and its `origin`
-`scip`. SCIP does not say whether a reference is a call, so a reference with
-no tree-sitter call site adds nothing in v1 (an Open issue). SCIP positions
-are converted using each document's declared encoding. SCIP does not cover
-the Python-to-Rust boundary, so `binds` edges stay heuristic.
+**How SCIP feeds the graph.** `graph::precise::apply` runs after the graph is
+built, with the ingested indexes and the text of the analysed files:
+
+- Definitions. A definition occurrence (role `Definition`) maps its symbol
+  string to a symbol node when its range lies inside the node's span and the
+  text there is the node's short name; the innermost such node wins. Occurrences
+  that fit no node (parameters, local variables) define nothing. A symbol
+  defined at several nodes resolves to the one with the smallest id and is
+  counted. A `local` symbol belongs to its document alone.
+- References. A reference occurrence (neither `Definition` nor `Import`) at
+  exactly the span of a tree-sitter call site's callee resolves that site when
+  its symbol maps to a node. The site then leaves every heuristic edge it was on
+  and joins the `resolved` edge from the same caller to the definition's node,
+  whose origin is `scip`. When several occurrences share a span, the one with the
+  smallest symbol string wins. A site that nothing resolves stays heuristic.
+- Only existing tree-sitter call sites can be upgraded. That includes the sites
+  that matched no symbol by name and so sit on no edge (an aliased import, a
+  method called through a receiver): the graph keeps them, unwritten, and a
+  resolving reference gives each one a new `resolved` edge. A reference with no
+  tree-sitter call site adds nothing (an Open issue). `imports` edges are not
+  touched (they are already `resolved` when the target is placed, invariant 6)
+  and `binds` edges stay heuristic: SCIP does not cover the Python-to-Rust
+  boundary.
+- Positions are converted from each document's declared encoding to code points
+  (invariant 20); a position that does not exist in the source (a missing line,
+  an offset past the end of its line or inside a character) is counted as stale
+  evidence and skipped. Documents with the same path (the first wins) or a path
+  that matches no analysed file are counted. Counts are reported on standard
+  error as warnings; the run still succeeds (invariant 18).
+- `graph.metadata.backend` is `tree-sitter+scip` when at least one index was
+  ingested, and an edge's `origin` is `scip` exactly for resolved `calls` edges.
+  A staleness check beyond positions is not possible from the index alone: a
+  stale index whose offsets still fall on the same spans resolves wrongly, which
+  is why `--run-indexers` or a fresh index is the recommended source.
 
 **Node kinds.** `package` (a directory with Python modules, a TypeScript
 package directory, or a Rust crate), `module` (one per source file; a Rust
@@ -167,6 +197,11 @@ points, ends exclusive. SARIF output sets `columnKind` to
 6. Import edges to files inside the analysis root are `resolved`; an import
    the core cannot place becomes an edge to an `external` node, never a
    dropped edge.
+   Clarification (NC4a): an import edge has `confidence = "resolved"` when its
+   target lies inside the analysis or is a named external package, and
+   `heuristic` only when the import cannot be placed at all. The `external`
+   node of an unplaced import is named after the raw specifier and is not a
+   package: a `package` selector (ADR 0004) never matches it.
 7. A tree-sitter call edge is never `resolved`; only a SCIP match makes one.
 8. A SCIP reference upgrades a call edge only when it lies at the span of a
    tree-sitter call site and its definition maps to one of our symbol
@@ -202,6 +237,12 @@ points, ends exclusive. SARIF output sets `columnKind` to
     in byte order; a node with no tags has no `tags` key.
 20. SCIP positions are converted from each document's declared position
     encoding to code points before a reference is matched to a call site.
+21. `apply` never adds a call site and never changes an `imports`, `binds` or
+    `contains` edge: the call sites on `calls` edges plus the sites that matched
+    no symbol are the same in number before and after. It can add a `calls`
+    edge, for a site that existed.
+22. Strings that come from an index (the tool name, a parse error, the project
+    root) are escaped and truncated before they can be printed.
 
 ## Decisions (G-api)
 
@@ -288,6 +329,86 @@ qualified name never repeats the module: `sym:py:pkg/core.py#Engine.run`.
   `..a.b`, `import a.b as c` is `a.b`. The core resolves a dotted specifier
   against the importing file's package: one dot is the package of the file
   (the file's own directory), each further dot goes one directory up.
+
+### TypeScript qualified names
+
+Added by NC3b (`src/extract/typescript/`). Applies to language `ts`, which
+includes JavaScript.
+
+**Grammar choice.** `.ts`, `.mts` and `.cts` use the TypeScript grammar;
+`.tsx`, `.jsx`, `.js`, `.mjs` and `.cjs` use the TSX grammar, which also reads
+plain JavaScript. A `<T>x` type assertion is therefore a syntax error in a
+`.js` or `.tsx` file, as it is for the TypeScript compiler.
+
+**Encoding.** A qualified name is segments joined by a separator. A segment is
+a name run through the id escapes (whitespace, control characters, U+FEFF, `#`
+and `%` as upper-case `%XX` bytes) and, in addition, `.` as `%2E` and `~` as
+`%7E`, so an unescaped `.` or `~` is always a separator. Decoding a segment and
+re-joining the pieces gives the same text (`split` and `render` in
+`src/extract/typescript/qualname.rs`; tests in `tests/extract_typescript.rs`).
+
+| Separator | Joins | Example |
+| --- | --- | --- |
+| none | a top-level symbol | `load` |
+| `.` | a namespace member, a static member | `Outer.Inner.deep`, `Repo.create` |
+| `~` | an instance member | `Repo~run` |
+
+**What is a symbol.** Declarations at module level and directly inside a
+namespace or `declare module`: functions, generators, classes, interfaces, type
+aliases, enums, and the `const`, `let` or `var` declarators whose name is a
+plain identifier (destructuring declares nothing). A declarator's kind is
+`function` when its value is an arrow function or function expression, `class`
+for a class expression, otherwise `constant` for `const` and `variable` for
+`let` and `var`. A class's methods, accessors, constructor and fields are
+symbols (`method`, or `variable` for a field; a field holding a function is a
+`method`). Not symbols: anything inside a function body, interface and enum
+members, object-literal members, and namespaces themselves (the symbol kinds
+have no namespace; the name prefixes its members and an annotation above a
+`namespace` tags the module). A call inside any of these is attributed to the
+nearest enclosing symbol.
+
+**Names.** A member name is its text as written; a string name loses its quotes
+(`"odd.name"` is `odd%2Ename`), a private name keeps its `#` (`%23secret`), and
+a computed name keeps its brackets (`[Symbol%2Eiterator]`). A nested namespace
+name `A.B` is the two segments `A` and `B`, and `module "m"` is one segment
+`m`. `export default` of a function, arrow function or class (not parenthesised) without a name is
+the symbol `default` (a reserved word, so it cannot collide with a binding);
+with a name it is that name. `export default <identifier or other expression>`
+declares nothing.
+
+**One id per name.** A node id is unique within a file. When a qualified name is
+declared again, the file has one node: its kind is the first declaration's and
+its span is widened to cover all of them. This is how function and method
+overload signatures, accessor pairs (`get` and `set`), interface merging and
+class-with-namespace merging are represented: `load(a: string)`,
+`load(a: number)` and the implementation are the single symbol `load`, spanning
+from the first signature to the end of the implementation. A static member and
+a namespace member of the same name merge (`A.m`); an instance member never
+merges with them (`A~m`).
+
+**Imports.** `import`, `export ... from`, `import x = require("m")`, and
+`import("m")` and `require("m")` calls whose argument is a string literal each
+produce one import with the specifier as written (without its quotes) and the
+statement or call as span. `names` holds the imported names, not aliases;
+a default import is `default`; a namespace import, `export *`, a side-effect
+import, `require` and `import()` leave it empty. A call with a non-literal
+argument is an ordinary call (`require`) or nothing (`import(x)`).
+
+**Calls.** `name(...)` and `receiver.name(...)` are call sites, with the
+receiver as written and the span of `name`. Bare `super(...)` calls, subscripts,
+call results and parenthesised expressions, `new` expressions and the
+`import()` form have no callee name and are not reported.
+
+**Annotations.** Comments are read from the syntax tree. A comment on its own
+line sits above a symbol when the next line, after skipping own-line comments
+(documentation and other annotations), is the first line of that symbol's
+statement, which includes `export`, `declare` and decorators. A tag comment
+after code on the same line is not an annotation; a trailing `ignore[...]`
+is kept, as ADR 0004 requires.
+
+**Limits.** A syntax tree deeper than 500 levels is skipped below that depth,
+with a `parse-error` diagnostic, so that a pathological file cannot exhaust the
+stack.
 
 ### Rust qualified names
 
