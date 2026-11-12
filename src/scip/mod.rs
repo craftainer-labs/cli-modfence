@@ -8,7 +8,7 @@ mod read;
 pub mod run;
 
 pub use position::{LineIndex, PositionEncoding, RawRange};
-pub use read::{MAX_INDEX_BYTES, check_size, load, read_index};
+pub use read::{MAX_INDEX_BYTES, check_size, load, load_with_limit, read_index};
 
 use std::fmt;
 
@@ -119,6 +119,8 @@ pub enum Error {
     TooLarge {
         /// Its size in bytes.
         bytes: u64,
+        /// The most that was accepted, in bytes.
+        limit: u64,
     },
     /// The file could not be read (the operating system's message).
     Io(String),
@@ -129,9 +131,9 @@ pub enum Error {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::TooLarge { bytes } => write!(
+            Self::TooLarge { bytes, limit } => write!(
                 f,
-                "the index is {bytes} bytes, more than the limit of {MAX_INDEX_BYTES}"
+                "the index is {bytes} bytes, more than the limit of {limit}"
             ),
             Self::Io(message) => write!(f, "cannot read the index: {message}"),
             Self::Parse(message) => write!(f, "not a SCIP index: {}", printable(message, 200)),

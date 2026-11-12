@@ -10,6 +10,11 @@
 # MODFENCE is a built modfence binary; OUT is a directory for the results.
 set -euo pipefail
 
+# The fixtures are indexed outside the repository, where rustup would fall back to
+# its default toolchain; rust-analyzer is a component of the repository's one.
+RUSTUP_TOOLCHAIN=${RUSTUP_TOOLCHAIN:-$(rustup show active-toolchain | awk '{print $1}')}
+export RUSTUP_TOOLCHAIN
+
 modfence=$(realpath "$1")
 mkdir -p "$2"
 out=$(realpath "$2")

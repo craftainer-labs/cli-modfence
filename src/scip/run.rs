@@ -32,8 +32,8 @@ pub struct Invocation {
 /// whether `scip-typescript` can find a `tsconfig.json`; without one it is asked
 /// to infer it.
 ///
-/// The flags are those of ADR 0003's table, checked against the indexers'
-/// documentation; no real indexer is run by the tests.
+/// The flags are those of ADR 0003's table, checked against the real indexers
+/// (`tests/fixtures/scip/README.md` records the versions and the evidence).
 #[must_use]
 pub fn plan(
     languages: &BTreeSet<Lang>,
@@ -53,6 +53,9 @@ pub fn plan(
                         "index".into(),
                         ".".into(),
                         format!("--project-name={project_name}").into(),
+                        // Without a version scip-python takes the git revision,
+                        // and crashes outside a git checkout.
+                        "--project-version=0.0.0".into(),
                     ],
                 ),
                 Lang::Ts => {

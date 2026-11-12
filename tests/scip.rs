@@ -7,7 +7,7 @@ use std::time::{Duration, Instant};
 use modfence::extract::Span;
 use modfence::scip::{
     DEFINITION, Error as ScipError, IMPORT, Index as ScipIndex, LineIndex, MAX_INDEX_BYTES,
-    PositionEncoding, RawRange, ReadStats, check_size, load, read_index,
+    PositionEncoding, RawRange, ReadStats, check_size, load, load_with_limit, read_index,
 };
 use protobuf::{EnumOrUnknown, Message, MessageField};
 use scip::types::occurrence::{Typed_enclosing_range, Typed_range};
@@ -364,7 +364,8 @@ fn the_size_cap_is_a_constant() {
     assert_eq!(
         error,
         ScipError::TooLarge {
-            bytes: MAX_INDEX_BYTES + 1
+            bytes: MAX_INDEX_BYTES + 1,
+            limit: MAX_INDEX_BYTES
         }
     );
     assert!(error.to_string().contains("more than the limit"));
@@ -391,19 +392,21 @@ fn load_reads_a_file_and_refuses_what_it_cannot() {
     assert!(matches!(missing, ScipError::Io(_)));
     assert!(missing.to_string().starts_with("cannot read the index: "));
 
-    // A sparse file one byte over the cap is refused without being read.
-    let big = directory.join("big.scip");
-    let handle = std::fs::File::create(&big).expect("creates");
-    handle
-        .set_len(MAX_INDEX_BYTES + 1)
-        .expect("sets the length");
-    let refused = load(&big, ROOT).expect_err("too large");
+    // A file over the cap is refused without being read; the cap can be set
+    // low, so no huge file is needed.
+    let small = directory.join("small.scip");
+    std::fs::write(&small, &bytes).expect("writes");
+    let size = std::fs::metadata(&small).expect("stats").len();
+    assert!(load_with_limit(&small, ROOT, size).is_ok());
+    let refused = load_with_limit(&small, ROOT, size - 1).expect_err("too large");
     assert_eq!(
         refused,
         ScipError::TooLarge {
-            bytes: MAX_INDEX_BYTES + 1
+            bytes: size,
+            limit: size - 1
         }
     );
+    assert!(refused.to_string().ends_with(&format!("limit of {}", size - 1)));
     // A directory (like a pipe or device) is not an index file.
     let refused = load(&directory, ROOT).expect_err("not a regular file");
     assert!(matches!(refused, ScipError::Io(_)), "{refused:?}");

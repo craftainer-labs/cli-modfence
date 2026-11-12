@@ -21,8 +21,13 @@ pub const MAX_INDEX_BYTES: u64 = 512 * 1024 * 1024;
 ///
 /// [`Error::TooLarge`] above the limit.
 pub fn check_size(bytes: u64) -> Result<(), Error> {
-    if bytes > MAX_INDEX_BYTES {
-        Err(Error::TooLarge { bytes })
+    check_limit(bytes, MAX_INDEX_BYTES)
+}
+
+/// Fails when `bytes` is more than `limit`.
+fn check_limit(bytes: u64, limit: u64) -> Result<(), Error> {
+    if bytes > limit {
+        Err(Error::TooLarge { bytes, limit })
     } else {
         Ok(())
     }
@@ -37,6 +42,21 @@ pub fn check_size(bytes: u64) -> Result<(), Error> {
 /// [`Error::Io`] when it cannot be read, [`Error::TooLarge`], and
 /// everything [`read_index`] reports.
 pub fn load(path: &Path, root: &str) -> Result<(Index, ReadStats), Error> {
+    load_with_limit(path, root, MAX_INDEX_BYTES)
+}
+
+/// [`load`] with a size cap of `limit` bytes instead of [`MAX_INDEX_BYTES`]
+/// (a smaller one, to refuse an index early or to test the cap with a small
+/// file).
+///
+/// # Errors
+///
+/// As [`load`], with [`Error::TooLarge`] above `limit`.
+pub fn load_with_limit(
+    path: &Path,
+    root: &str,
+    limit: u64,
+) -> Result<(Index, ReadStats), Error> {
     let io = |error: std::io::Error| Error::Io(error.to_string());
     // Stat before opening: opening a pipe without a writer would block.
     if !std::fs::metadata(path).map_err(io)?.is_file() {
@@ -44,11 +64,11 @@ pub fn load(path: &Path, root: &str) -> Result<(Index, ReadStats), Error> {
     }
     let file = std::fs::File::open(path).map_err(io)?;
     let length = file.metadata().map_err(io)?.len();
-    check_size(length)?;
+    check_limit(length, limit)?;
     // Read at most one byte past the cap, so a file that grows after the
     // check above cannot exhaust memory either.
     let mut bytes = Vec::with_capacity(usize::try_from(length).unwrap_or(0));
-    file.take(MAX_INDEX_BYTES + 1)
+    file.take(limit.saturating_add(1))
         .read_to_end(&mut bytes)
         .map_err(io)?;
     read_index(&bytes, root)
