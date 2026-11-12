@@ -7,6 +7,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use super::args::Common;
+#[cfg(unix)]
 use super::commands::failed;
 use super::{Failure, IO_ERROR, USAGE};
 use crate::extract::Lang;
@@ -174,6 +175,17 @@ fn run_indexers(
     for plan in plans {
         let (program, lang) = (plan.program, plan.lang.as_str());
         let stays = format!("{lang} stays on tree-sitter");
+        // Removed before anything can go wrong, so an earlier run's index never
+        // passes for this one. One that cannot be removed is not trusted.
+        match fs::remove_file(&plan.output) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => {
+                let shown = shown(&plan.output);
+                writeln!(err, "warning: cannot remove {shown}: {error}; {stays}")?;
+                continue;
+            }
+        }
         let Some(exe) = run::resolve(program, &path) else {
             writeln!(err, "warning: {program} not found on PATH; {stays}")?;
             continue;
@@ -181,7 +193,6 @@ fn run_indexers(
         let line = run::command_line(&exe, &plan.args);
         writeln!(err, "note: running {line}")?;
         fs::create_dir_all(&out_dir).map_err(failed("create", &out_dir))?;
-        let _ = fs::remove_file(&plan.output);
         match run::spawn(&exe, &plan.args, root) {
             Ok(status) if status.success() && plan.output.is_file() => {
                 produced.push(plan.output);

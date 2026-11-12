@@ -445,6 +445,7 @@ exit "${MODFENCE_EXIT:-0}"
         assert_eq!(named("c d", None), "c_d");
         assert_eq!(named("e", Some("[project]\nname = \"bad name\\n\"\n")), "e");
         assert_eq!(named("f", Some("[project]\nname = \"-x\"\n")), "f");
+        assert_eq!(named("dots", Some("[project]\nname = \"..\"\n")), "dots");
         assert_eq!(named("g", Some("not toml [")), "g");
         assert_eq!(named("h", Some("[project]\nname = 3\n")), "h");
         assert_eq!(named("-i", None), "project");

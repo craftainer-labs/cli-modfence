@@ -4,6 +4,11 @@
 //!
 //! The sandbox is required on Linux, where CI runs; set `MODFENCE_SKIP_SANDBOX`
 //! to skip these tests on a machine that cannot create one.
+//!
+//! When unprivileged namespaces are blocked the sandbox falls back to
+//! `sudo -n unshare -n`, which runs the freshly built `modfence` as root on the
+//! fixtures (passwordless sudo only; `-n` never prompts). Where that is not
+//! wanted, set `MODFENCE_SKIP_SANDBOX`; CI and the devcontainer need neither.
 
 #[cfg(target_os = "linux")]
 mod linux {
@@ -27,6 +32,18 @@ mod linux {
                 .status()
                 .is_ok_and(|status| status.success())
         })
+    }
+
+    /// The sandbox, or `None` when none can be built and `MODFENCE_SKIP_SANDBOX`
+    /// is set; fails when none can be built and the skip is not asked for.
+    fn required() -> Option<&'static [&'static str]> {
+        let found = sandbox();
+        assert!(
+            found.is_some() || std::env::var_os("MODFENCE_SKIP_SANDBOX").is_some(),
+            "no network namespace could be created (tried unshare -rn, unshare -n and \
+             sudo -n unshare -n); set MODFENCE_SKIP_SANDBOX to skip these tests"
+        );
+        found
     }
 
     fn fixtures() -> PathBuf {
@@ -83,12 +100,7 @@ mod linux {
 
     #[test]
     fn every_command_gives_the_same_result_without_a_network() {
-        let Some(prefix) = sandbox() else {
-            assert!(
-                std::env::var_os("MODFENCE_SKIP_SANDBOX").is_some(),
-                "no network namespace could be created (tried unshare -rn, unshare -n and \
-                 sudo -n unshare -n); set MODFENCE_SKIP_SANDBOX to skip this test"
-            );
+        let Some(prefix) = required() else {
             return;
         };
         // The sandbox really has no network: only the loopback device is left.
@@ -124,7 +136,7 @@ mod linux {
 
     #[test]
     fn reading_an_index_needs_no_network_either() {
-        let Some(prefix) = sandbox() else {
+        let Some(prefix) = required() else {
             return;
         };
         let dir = std::env::temp_dir().join(format!("modfence-offline-{}", std::process::id()));

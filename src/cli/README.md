@@ -100,5 +100,6 @@ Rules:
   - There are no `modfence.toml` keys for any of this.
 - Tests are in `tests/cli.rs` (fixtures in `tests/fixtures/cli/`),
   `tests/indexers.rs` (`--run-indexers` with fake indexers on `PATH`) and
-  `tests/offline.rs` (the binary under `unshare -n`, NFR-0002); do not add
+  `tests/offline.rs` (the binary under `unshare -n`, NFR-0002; falls back to `sudo -n unshare -n`,
+  and `MODFENCE_SKIP_SANDBOX` skips it); do not add
   `#[cfg(test)]` modules here.
