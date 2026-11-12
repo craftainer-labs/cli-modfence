@@ -10,10 +10,16 @@ mod linux {
     use std::path::{Path, PathBuf};
     use std::process::{Command, Output};
 
-    /// The `unshare` command that gives a process a network namespace of its
-    /// own: with a user namespace when unprivileged, or plain as root.
+    /// The command prefix that gives a process a network namespace of its
+    /// own: `unshare` with a user namespace when unprivileged users may create
+    /// one, plain `unshare` as root, or through passwordless `sudo` (the
+    /// devcontainer's `vscode` user has it).
     fn sandbox() -> Option<&'static [&'static str]> {
-        let candidates: [&[&str]; 2] = [&["unshare", "-rn"], &["unshare", "-n"]];
+        let candidates: [&[&str]; 3] = [
+            &["unshare", "-rn"],
+            &["unshare", "-n"],
+            &["sudo", "-n", "unshare", "-n"],
+        ];
         candidates.into_iter().find(|prefix| {
             Command::new(prefix[0])
                 .args(&prefix[1..])
@@ -34,13 +40,23 @@ mod linux {
             .unwrap()
     }
 
+    /// The modfence binary under `prefix`, in a neutral working directory. The
+    /// coverage profile location is passed through `env`, because `sudo`
+    /// would drop it and the profile would land in the working directory.
+    fn sandboxed(prefix: &[&str]) -> Command {
+        let mut command = Command::new(prefix[0]);
+        command.args(&prefix[1..]).current_dir(std::env::temp_dir());
+        if let Some(profile) = std::env::var_os("LLVM_PROFILE_FILE") {
+            let mut setting = std::ffi::OsString::from("LLVM_PROFILE_FILE=");
+            setting.push(profile);
+            command.arg("env").arg(setting);
+        }
+        command.arg(env!("CARGO_BIN_EXE_modfence"));
+        command
+    }
+
     fn inside(prefix: &[&str], args: &[String]) -> Output {
-        Command::new(prefix[0])
-            .args(&prefix[1..])
-            .arg(env!("CARGO_BIN_EXE_modfence"))
-            .args(args)
-            .output()
-            .unwrap()
+        sandboxed(prefix).args(args).output().unwrap()
     }
 
     /// Every command with every output format, on one fixture.
@@ -70,8 +86,8 @@ mod linux {
         let Some(prefix) = sandbox() else {
             assert!(
                 std::env::var_os("MODFENCE_SKIP_SANDBOX").is_some(),
-                "no network namespace could be created: install util-linux's unshare \
-                 with user namespaces, or set MODFENCE_SKIP_SANDBOX"
+                "no network namespace could be created (tried unshare -rn, unshare -n and \
+                 sudo -n unshare -n); set MODFENCE_SKIP_SANDBOX to skip this test"
             );
             return;
         };
@@ -119,12 +135,8 @@ mod linux {
             .iter()
             .map(|s| (*s).to_owned())
             .collect();
-        let mut command = Command::new(prefix[0]);
-        command
-            .args(&prefix[1..])
-            .arg(env!("CARGO_BIN_EXE_modfence"))
-            .args(&args)
-            .current_dir(&dir);
+        let mut command = sandboxed(prefix);
+        command.args(&args).current_dir(&dir);
         let output = command.output().unwrap();
         let err = String::from_utf8_lossy(&output.stderr);
         assert_eq!(output.status.code(), Some(0), "{err}");
