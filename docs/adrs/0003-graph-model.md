@@ -67,9 +67,9 @@ of scope.
   only mode in which anything started by modfence may use the network, and
   only because the user's indexer decides to (NFR-0002).
 
-| Language | Indexer on `PATH` | Invocation (NC6 verifies the flags) |
+| Language | Indexer on `PATH` | Invocation (as implemented in NC6d; the flags are taken from the indexers' documentation and are checked against the real binaries by NC6e) |
 | --- | --- | --- |
-| `py` | `scip-python` | `scip-python index . --project-name <name>` |
+| `py` | `scip-python` | `scip-python index . --project-name=<name> --output <file>` |
 | `ts` (including JavaScript) | `scip-typescript` | `scip-typescript index`, plus `--infer-tsconfig` when the project has no `tsconfig.json`, and `--output` |
 | `rs` | `rust-analyzer` | `rust-analyzer scip <dir> --output <file>` |
 
