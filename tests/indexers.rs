@@ -324,6 +324,21 @@ exit "${MODFENCE_EXIT:-0}"
     }
 
     #[test]
+    fn a_project_without_python_or_typescript_runs_no_indexer() {
+        let setup = setup("empty", &["scip-python", "scip-typescript"]);
+        std::fs::remove_file(setup.project.join("lib.py")).unwrap();
+        std::fs::remove_file(setup.project.join("app.py")).unwrap();
+        let output = setup.run(&["check", "--run-indexers"]);
+        assert_eq!(code(&output), 0, "{}", err(&output));
+        assert!(
+            err(&output).contains("no indexer produced an index"),
+            "{}",
+            err(&output)
+        );
+        assert!(!setup.record.exists());
+    }
+
+    #[test]
     fn path_is_searched_by_modfence_in_absolute_entries_only() {
         let setup = setup("relative", &[]);
         // A program in the checkout, named by a relative `PATH` entry.

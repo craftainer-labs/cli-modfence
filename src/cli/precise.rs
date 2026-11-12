@@ -69,7 +69,7 @@ pub(super) fn ingest(
     root: &Path,
     sources: &Sources,
     graph: &mut Graph,
-    err: &mut impl Write,
+    err: &mut dyn Write,
 ) -> Result<bool, Failure> {
     if !sources.wanted {
         return Ok(false);
@@ -158,7 +158,7 @@ fn locate(root: &Path, discover: bool) -> std::io::Result<(String, Vec<PathBuf>)
 fn run_indexers(
     root: &Path,
     languages: &BTreeSet<Lang>,
-    err: &mut impl Write,
+    err: &mut dyn Write,
 ) -> Result<Vec<PathBuf>, Failure> {
     use crate::scip::run;
 
@@ -200,7 +200,7 @@ fn run_indexers(
 fn run_indexers(
     _root: &Path,
     _languages: &BTreeSet<Lang>,
-    err: &mut impl Write,
+    err: &mut dyn Write,
 ) -> Result<Vec<PathBuf>, Failure> {
     writeln!(err, "warning: {UNSUPPORTED}")?;
     Ok(Vec::new())
