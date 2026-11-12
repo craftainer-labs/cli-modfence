@@ -1,4 +1,4 @@
-//! `--run-indexers` (NC6d, NFR-0002): which indexers are planned, how they are
+//! `--run-indexers` (`NC6d`, NFR-0002): which indexers are planned, how they are
 //! found and started, and that nothing runs without the flag. The indexers are
 //! fake executables on `PATH` that record how they were called.
 

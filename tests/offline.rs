@@ -76,12 +76,12 @@ mod linux {
             return;
         };
         // The sandbox really has no network: only the loopback device is left.
-        let inside = Command::new(prefix[0])
+        let listed = Command::new(prefix[0])
             .args(&prefix[1..])
             .args(["cat", "/proc/net/dev"])
             .output()
             .unwrap();
-        let listing = String::from_utf8_lossy(&inside.stdout);
+        let listing = String::from_utf8_lossy(&listed.stdout);
         let interfaces: Vec<&str> = listing
             .lines()
             .skip(2)
