@@ -16,5 +16,5 @@ use helper::run as go;
 
 pub fn entry() -> u32 {
     let svc = Svc;
-    svc.run_it() + go()
+    svc.run_it() + if "é𝄞".len() > 0 { go() } else { 0 }
 }
