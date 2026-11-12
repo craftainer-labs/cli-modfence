@@ -134,6 +134,11 @@ exit "${MODFENCE_EXIT:-0}"
                 .env("PATH", path)
                 .env("MODFENCE_RECORD", &self.record)
                 .env("MODFENCE_INDEXES", &self.indexes);
+            // Under `cargo llvm-cov` the binary writes its profile where this
+            // says; without it the profile lands in the project directory.
+            if let Some(profile) = std::env::var_os("LLVM_PROFILE_FILE") {
+                command.env("LLVM_PROFILE_FILE", profile);
+            }
             for (key, value) in env {
                 command.env(key, value);
             }
