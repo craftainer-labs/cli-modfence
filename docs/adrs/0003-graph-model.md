@@ -54,6 +54,11 @@ of scope.
 
 - `--scip <file>` (repeatable) ingests prebuilt `.scip` files and implies
   `--precise`.
+- Bare `--precise` reads the `*.scip` files in `.modfence/scip/` below the
+  analysis root, where `--run-indexers` writes them, so indexing and checking
+  can be two steps. With none there it warns and runs as without `--precise`.
+  An index file that cannot be read exits 74 and one that is not an index
+  exits 2, whether it came from `--scip` or from the directory.
 - `--run-indexers` implies `--precise`, runs the indexers listed below, and
   ingests their output. It runs **only executables already on `PATH`**: it
   never downloads, installs or fetches an indexer or a dependency, and never

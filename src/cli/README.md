@@ -10,6 +10,7 @@ output streams; `src/main.rs` only forwards the process's.
   no network-capable crates).
 - `commands.rs`: the three subcommands, configuration discovery and the
   analysis (`analyse`: config, walk, extract, build the graph).
+- `precise.rs`: `wanted` and `ingest`, the SCIP flags (below).
 - `walker.rs`: the file walker over the analysis root.
 - `text.rs`: the human-readable output of `check` and `graph`, and the
   file-problem lines.
@@ -64,7 +65,27 @@ Rules:
   could not be placed, as in a rule. `trace` selects nodes, not edges: a node
   is unplaced only when no resolved import targets it, the node-level reading
   of the rules' per-edge exemption.
-- There is no `--precise` flag until NC6, so call edges are not checked and
-  `check` prints that notice.
+- `--precise` and `--scip <file>` (repeatable, relative to the working
+  directory; `--scip` implies `--precise`) are flags of all three commands
+  (`Common` in `args.rs`); `precise.rs` handles them. Without either, call
+  edges are not checked and `check` prints that notice.
+  - With `--scip`, exactly those files are read, in command-line order. A file
+    that cannot be read (missing, not a regular file, a read error) exits 74;
+    one that is not a SCIP index, or is over the size cap, exits 2.
+  - Bare `--precise` reads the `*.scip` files in `.modfence/scip/` below the
+    analysis root, in file-name order. None there is a warning, and the run
+    goes on as without `--precise`. A broken file there exits like a broken
+    `--scip` file: 74 when it cannot be read, 2 when it is not an index or is
+    over the size cap. Files without the `.scip` extension are ignored.
+  - Call edges count as checked (`rules::check`'s `precise`, SARIF's
+    `callEdgesChecked`) only when at least one document of an index was used.
+    An index with none (its root is outside the analysis root, say) is a
+    warning and leaves the run on tree-sitter.
+  - Everything the reader or `graph::precise::apply` skipped is a `warning:`
+    line, and each index with a tool name gets one `note:` line. Text from an
+    index is escaped before it is printed (`scip::printable`).
+  - Of two documents with one path, the first read wins (so command-line order
+    decides); the repeat is counted in a warning.
+  - There are no `modfence.toml` keys for any of this.
 - Tests are in `tests/cli.rs` (fixtures in `tests/fixtures/cli/`); do not add
   `#[cfg(test)]` modules here.

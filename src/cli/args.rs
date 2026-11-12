@@ -38,6 +38,14 @@ pub(super) struct Common {
     /// Write the output to this file instead of standard output.
     #[arg(long, value_name = "FILE")]
     pub(super) output: Option<PathBuf>,
+    /// Resolve call edges with SCIP indexes. Without `--scip` it reads the
+    /// `*.scip` files in `.modfence/scip/` below the analysis root.
+    #[arg(long)]
+    pub(super) precise: bool,
+    /// A prebuilt SCIP index to read; repeatable, relative to the current
+    /// directory. Implies `--precise`.
+    #[arg(long, value_name = "FILE")]
+    pub(super) scip: Vec<PathBuf>,
 }
 
 /// The output formats of `check`.

@@ -6,7 +6,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use super::args::{CheckArgs, CheckFormat, Cli, Command, Common, TraceArgs, ViewArgs};
-use super::{Failure, OK, text, trace, walker};
+use super::{Failure, OK, precise, text, trace, walker};
 use crate::config::{self, Config};
 use crate::extract::python::PythonExtractor;
 use crate::extract::typescript::TsExtractor;
@@ -32,8 +32,8 @@ pub(super) fn execute(
 }
 
 fn run_check(args: &CheckArgs, out: &mut impl Write, err: &mut impl Write) -> Result<u8, Failure> {
-    let (config, graph) = analyse(&args.common, err)?;
-    let outcome = rules::check(&graph, &config, false);
+    let (config, graph, checked) = analyse(&args.common, err)?;
+    let outcome = rules::check(&graph, &config, checked);
     for notice in &outcome.notices {
         writeln!(err, "{}: {}", text::label(notice.level), notice.message)?;
     }
@@ -48,7 +48,7 @@ fn run_check(args: &CheckArgs, out: &mut impl Write, err: &mut impl Write) -> Re
 
 fn run_graph(args: &ViewArgs, out: &mut impl Write, err: &mut impl Write) -> Result<u8, Failure> {
     let chosen = args.renderer();
-    let (_, graph) = analyse(&args.common, err)?;
+    let (_, graph, _) = analyse(&args.common, err)?;
     let rendered = match chosen {
         Some(draw) => draw.render(&graph, &args.view(&graph)),
         None => text::summary(&graph),
@@ -60,7 +60,7 @@ fn run_graph(args: &ViewArgs, out: &mut impl Write, err: &mut impl Write) -> Res
 fn run_trace(args: &TraceArgs, out: &mut impl Write, err: &mut impl Write) -> Result<u8, Failure> {
     let chosen = args.view.renderer();
     let selector = trace::parse(&args.selectors)?;
-    let (_, graph) = analyse(&args.view.common, err)?;
+    let (_, graph, _) = analyse(&args.view.common, err)?;
     let selected = trace::select(&graph, &selector);
     let part = output::incident(&graph, &selected);
     let rendered = match chosen {
@@ -109,8 +109,10 @@ fn root_of(config: &Path) -> PathBuf {
 }
 
 /// Loads the configuration, walks the analysis root, extracts every Python and
-/// TypeScript file and builds the graph. File problems go to `err`.
-fn analyse(common: &Common, err: &mut impl Write) -> Result<(Config, Graph), Failure> {
+/// TypeScript file and builds the graph, upgraded by SCIP indexes when
+/// `--precise` or `--scip` asks. File problems go to `err`. The last value says
+/// whether call edges were checked, which is when an index was read.
+fn analyse(common: &Common, err: &mut impl Write) -> Result<(Config, Graph, bool), Failure> {
     let cwd = std::env::current_dir().unwrap_or_default();
     let (config, root) = match common.config.clone().or_else(|| discover(&cwd)) {
         Some(path) => (load(&path)?, root_of(&path)),
@@ -119,11 +121,13 @@ fn analyse(common: &Common, err: &mut impl Write) -> Result<(Config, Graph), Fai
     let extractors: [&dyn Extractor; 2] = [&PythonExtractor, &TsExtractor];
     let wanted = |path: &str| extractors.iter().any(|extractor| extractor.handles(path));
     let files = walker::walk(&root, &config, wanted)?;
+    let mut sources = precise::Sources::new(common);
     let mut builder = Builder::new(&config);
     for path in &files {
         let full = root.join(path);
         let bytes = fs::read(&full).map_err(failed("read", &full))?;
         let decoded = String::from_utf8_lossy(&bytes);
+        sources.add(path, &decoded);
         let file = SourceFile {
             path,
             text: &decoded,
@@ -135,9 +139,10 @@ fn analyse(common: &Common, err: &mut impl Write) -> Result<(Config, Graph), Fai
             builder.add(&file, extractor.extract(&file, &ExtractCtx::default()));
         }
     }
-    let graph = builder.build();
+    let mut graph = builder.build();
     for diagnostic in &graph.diagnostics {
         writeln!(err, "{}", text::diagnostic(diagnostic))?;
     }
-    Ok((config, graph))
+    let checked = precise::ingest(common, &root, &sources, &mut graph, err)?;
+    Ok((config, graph, checked))
 }

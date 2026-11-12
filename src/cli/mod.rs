@@ -6,6 +6,7 @@
 
 mod args;
 mod commands;
+mod precise;
 mod text;
 mod trace;
 mod walker;

@@ -6,6 +6,9 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
+use protobuf::{EnumOrUnknown, Message, MessageField};
+use scip::types::{Document, Index, Metadata, Occurrence, PositionEncoding, ToolInfo};
+
 /// A stream that refuses every write.
 struct Broken;
 
@@ -643,4 +646,261 @@ mod unreadable {
         unlock(&hidden);
         std::fs::remove_dir_all(&root).unwrap();
     }
+}
+
+// `--precise` and `--scip` (NC6c): the indexes are written in code and the
+// project is a scratch directory.
+
+const LIB: &str = "def run():\n    pass\n\n\ndef other():\n    pass\n";
+const APP: &str =
+    "from lib import run, other\n\n\ndef main():\n    run()\n    other()\n    run()\n";
+const RUN: &str = "scip-python python lib 0.1 `lib`/run().";
+const CONFIG: &str = "version = 1\n\n[[rule]]\nid = \"no-calls\"\nfrom = { path = \"app.py\" }\nto = { path = \"lib.py\" }\neffect = \"forbid\"\nkinds = [\"calls\"]\n";
+
+fn wire_occurrence(range: &[i32], symbol: &str, roles: i32) -> Occurrence {
+    let mut occurrence = Occurrence::new();
+    occurrence.range = range.to_vec();
+    symbol.clone_into(&mut occurrence.symbol);
+    occurrence.symbol_roles = roles;
+    occurrence
+}
+
+fn wire_document(path: &str, occurrences: Vec<Occurrence>) -> Document {
+    let mut document = Document::new();
+    path.clone_into(&mut document.relative_path);
+    document.position_encoding =
+        EnumOrUnknown::new(PositionEncoding::UTF8CodeUnitOffsetFromLineStart);
+    document.occurrences = occurrences;
+    document
+}
+
+fn wire_index(root: &str, tool: Option<&str>, documents: Vec<Document>) -> Vec<u8> {
+    let mut metadata = Metadata::new();
+    root.clone_into(&mut metadata.project_root);
+    if let Some(name) = tool {
+        let mut info = ToolInfo::new();
+        name.clone_into(&mut info.name);
+        metadata.tool_info = MessageField::some(info);
+    }
+    let mut index = Index::new();
+    index.metadata = MessageField::some(metadata);
+    index.documents = documents;
+    index.write_to_bytes().unwrap()
+}
+
+/// The documents that resolve `run()` in `app.py`, and one for a file that
+/// does not exist.
+fn resolving() -> Vec<Document> {
+    vec![
+        wire_document("lib.py", vec![wire_occurrence(&[0, 4, 7], RUN, 1)]),
+        wire_document(
+            "app.py",
+            vec![
+                wire_occurrence(&[4, 4, 7], RUN, 0),
+                wire_occurrence(&[6, 4, 7], RUN, 0),
+            ],
+        ),
+        wire_document("nope.py", vec![]),
+    ]
+}
+
+/// A scratch project with `lib.py`, `app.py` and a rule against calls.
+fn project(name: &str) -> PathBuf {
+    let dir = scratch(name);
+    std::fs::write(dir.join("modfence.toml"), CONFIG).unwrap();
+    std::fs::write(dir.join("lib.py"), LIB).unwrap();
+    std::fs::write(dir.join("app.py"), APP).unwrap();
+    dir
+}
+
+/// `modfence <args> --config <dir>/modfence.toml`.
+fn in_project(dir: &Path, args: &[&str]) -> Run {
+    let config = dir.join("modfence.toml");
+    let mut all: Vec<&str> = args.to_vec();
+    all.push("--config");
+    all.push(config.to_str().unwrap());
+    exec(&all)
+}
+
+fn write_index(dir: &Path, file: &str, bytes: &[u8]) -> String {
+    let path = dir.join(file);
+    std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+    std::fs::write(&path, bytes).unwrap();
+    path.to_str().unwrap().to_owned()
+}
+
+fn root_uri(dir: &Path) -> String {
+    format!("file://{}", dir.canonicalize().unwrap().display())
+}
+
+#[test]
+fn scip_resolves_calls_so_check_finds_them() {
+    let dir = project("precise-check");
+    let plain = in_project(&dir, &["check"]);
+    assert_eq!(plain.code, 0, "{}", plain.err);
+    assert!(plain.err.contains("call edges were not checked"));
+
+    let bytes = wire_index(&root_uri(&dir), Some("scip-python 0.6"), resolving());
+    let index = write_index(&dir, "index.scip", &bytes);
+    let run = in_project(&dir, &["check", "--scip", &index]);
+    assert_eq!(run.code, 1, "{}", run.err);
+    assert!(run.out.contains("no-calls"), "{}", run.out);
+    assert!(!run.err.contains("were not checked"), "{}", run.err);
+    assert!(run.err.contains("note: read SCIP index"), "{}", run.err);
+    assert!(run.err.contains("from scip-python 0.6"), "{}", run.err);
+    assert!(run.err.contains("1 documents match no analysed file"));
+
+    let sarif = in_project(&dir, &["check", "--format", "sarif", "--scip", &index]);
+    let value: serde_json::Value = serde_json::from_str(&sarif.out).unwrap();
+    let properties = &value["runs"][0]["properties"]["modfence"];
+    assert_eq!(properties["callEdgesChecked"], true);
+    assert_eq!(properties["precise"], true);
+}
+
+#[test]
+fn graph_and_trace_take_the_flags() {
+    let dir = project("precise-graph");
+    let bytes = wire_index("", None, resolving());
+    let index = write_index(&dir, "index.scip", &bytes);
+    let graph = in_project(&dir, &["graph", "--format", "json", "--scip", &index]);
+    assert_eq!(graph.code, 0, "{}", graph.err);
+    let value: serde_json::Value = serde_json::from_str(&graph.out).unwrap();
+    assert_eq!(value["graph"]["metadata"]["backend"], "tree-sitter+scip");
+    let args = [
+        "trace",
+        "--format",
+        "json",
+        "--precise",
+        "--scip",
+        &index,
+        "path=lib.py",
+    ];
+    let trace = in_project(&dir, &args);
+    assert_eq!(trace.code, 0, "{}", trace.err);
+    let value: serde_json::Value = serde_json::from_str(&trace.out).unwrap();
+    assert_eq!(value["graph"]["metadata"]["backend"], "tree-sitter+scip");
+}
+
+#[test]
+fn a_scip_file_that_cannot_be_read_exits_74() {
+    let dir = project("precise-missing");
+    let missing = dir.join("none.scip");
+    let run = in_project(&dir, &["check", "--scip", missing.to_str().unwrap()]);
+    assert_eq!(run.code, 74, "{}", run.err);
+    assert!(run.err.contains("none.scip"), "{}", run.err);
+    assert!(run.err.contains("cannot read the index"), "{}", run.err);
+    let folder = dir.to_str().unwrap();
+    let run = in_project(&dir, &["check", "--scip", folder]);
+    assert_eq!(run.code, 74, "{}", run.err);
+    assert!(run.err.contains("not a regular file"), "{}", run.err);
+}
+
+#[test]
+fn a_scip_file_that_is_not_an_index_exits_2() {
+    let dir = project("precise-invalid");
+    let garbage = write_index(&dir, "garbage.scip", &[0xff; 8]);
+    let run = in_project(&dir, &["check", "--scip", &garbage]);
+    assert_eq!(run.code, 2, "{}", run.err);
+    assert!(run.err.contains("not a SCIP index"), "{}", run.err);
+    // One byte over the size cap: refused without being read.
+    let big = dir.join("big.scip");
+    let handle = std::fs::File::create(&big).unwrap();
+    handle.set_len(512 * 1024 * 1024 + 1).unwrap();
+    let run = in_project(&dir, &["check", "--scip", big.to_str().unwrap()]);
+    assert_eq!(run.code, 2, "{}", run.err);
+    assert!(run.err.contains("more than the limit"), "{}", run.err);
+}
+
+#[test]
+fn bare_precise_reads_the_index_directory() {
+    let dir = project("precise-directory");
+    // No directory, then an empty one: a warning, and the run goes on.
+    for create in [false, true] {
+        if create {
+            std::fs::create_dir_all(dir.join(".modfence/scip")).unwrap();
+        }
+        let run = in_project(&dir, &["check", "--precise"]);
+        assert_eq!(run.code, 0, "{}", run.err);
+        assert!(run.err.contains("no SCIP indexes in .modfence/scip"));
+        assert!(run.err.contains("call edges were not checked"));
+    }
+    // A good index and a file that is not an index (ignored: no `.scip`).
+    let bytes = wire_index("", None, resolving());
+    write_index(&dir, ".modfence/scip/a.scip", &bytes);
+    write_index(&dir, ".modfence/scip/notes.txt", b"not an index");
+    let run = in_project(&dir, &["check", "--precise"]);
+    assert_eq!(run.code, 1, "{}", run.err);
+    assert!(!run.err.contains("notes.txt"), "{}", run.err);
+    assert!(!run.err.contains("no SCIP indexes"), "{}", run.err);
+    // A broken `.scip` file exits 2, like a broken `--scip` file.
+    write_index(&dir, ".modfence/scip/z.scip", &[0xff; 8]);
+    let run = in_project(&dir, &["check", "--precise"]);
+    assert_eq!(run.code, 2, "{}", run.err);
+    assert!(run.err.contains("z.scip: not a SCIP index"), "{}", run.err);
+    // One that cannot be read exits 74.
+    std::fs::remove_file(dir.join(".modfence/scip/z.scip")).unwrap();
+    std::fs::create_dir_all(dir.join(".modfence/scip/x.scip")).unwrap();
+    let run = in_project(&dir, &["check", "--precise"]);
+    assert_eq!(run.code, 74, "{}", run.err);
+    assert!(run.err.contains("x.scip: "), "{}", run.err);
+}
+
+#[test]
+fn an_index_with_nothing_usable_leaves_the_run_on_tree_sitter() {
+    let dir = project("precise-unusable");
+    // Its root is somewhere else, so all its documents are ignored.
+    let bytes = wire_index("file:///elsewhere", None, resolving());
+    let index = write_index(&dir, "index.scip", &bytes);
+    let run = in_project(&dir, &["check", "--scip", &index]);
+    assert_eq!(run.code, 0, "{}", run.err);
+    assert!(run.err.contains("outside the analysis root"), "{}", run.err);
+    assert!(run.err.contains("no usable SCIP documents"), "{}", run.err);
+    assert!(
+        run.err.contains("call edges were not checked"),
+        "{}",
+        run.err
+    );
+
+    // Right root, but the only document is for a file the run never analysed.
+    let stale = project("precise-stale");
+    let bytes = wire_index(
+        &root_uri(&stale),
+        None,
+        vec![wire_document("nope.py", vec![])],
+    );
+    let index = write_index(&stale, "index.scip", &bytes);
+    let run = in_project(&stale, &["check", "--scip", &index]);
+    assert_eq!(run.code, 0, "{}", run.err);
+    assert!(run.err.contains("no usable SCIP documents"), "{}", run.err);
+    assert!(
+        run.err.contains("call edges were not checked"),
+        "{}",
+        run.err
+    );
+}
+
+#[test]
+fn an_unreadable_index_directory_exits_74() {
+    let dir = project("precise-dir-is-file");
+    // `.modfence/scip` is a file, so listing it fails with something other
+    // than "not found".
+    write_index(&dir, ".modfence/scip", b"x");
+    let run = in_project(&dir, &["check", "--precise"]);
+    assert_eq!(run.code, 74, "{}", run.err);
+    assert!(!run.err.contains("no SCIP indexes"), "{}", run.err);
+}
+
+#[test]
+fn text_from_an_index_is_escaped_where_it_is_printed() {
+    let dir = project("precise-escape");
+    let bytes = wire_index("", Some("scip\u{1b}[31m\nfake: error"), resolving());
+    let index = write_index(&dir, "index.scip", &bytes);
+    let run = in_project(&dir, &["check", "--scip", &index]);
+    assert!(
+        run.err.contains("scip\\u{1b}[31m\\nfake: error"),
+        "{:?}",
+        run.err
+    );
+    assert!(!run.err.contains('\u{1b}'), "{:?}", run.err);
+    assert!(!run.err.contains("\nfake: error"), "{:?}", run.err);
 }
