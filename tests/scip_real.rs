@@ -1,4 +1,4 @@
-//! The real SCIP indexes committed in `tests/fixtures/scip/indexes/` (NC6e),
+//! The real SCIP indexes committed in `tests/fixtures/scip/indexes/` (`NC6e`),
 //! made by `scip-python`, `scip-typescript` and `rust-analyzer` from the
 //! fixture projects next to them. Read offline: nothing here starts an indexer.
 //!
@@ -82,7 +82,9 @@ fn resolved_calls(document: &Value) -> Vec<(String, String, String)> {
 }
 
 fn has(found: &[(String, String, String)], callee: &str, written: &str) -> bool {
-    found.iter().any(|(_, target, text)| target == callee && text == written)
+    found
+        .iter()
+        .any(|(_, target, text)| target == callee && text == written)
 }
 
 #[test]
@@ -94,11 +96,17 @@ fn scip_python_resolves_an_aliased_call_and_a_method_call() {
     // `go()` is `run` imported under another name, and sits after non-ASCII
     // text on its line; `svc.run_it()` goes through an instance.
     assert!(has(&found, "sym:py:lib.py#run", "go"), "{found:?}");
-    assert!(has(&found, "sym:py:lib.py#Svc.run_it", "run_it"), "{found:?}");
+    assert!(
+        has(&found, "sym:py:lib.py#Svc.run_it", "run_it"),
+        "{found:?}"
+    );
     assert!(has(&found, "sym:py:lib.py#Svc", "Svc"), "{found:?}");
     // scip-python states no position encoding: that is counted, and the call
     // after the non-ASCII text still resolves because it is read as UTF-16.
-    assert!(err.contains("state no position encoding; read as UTF-16"), "{err}");
+    assert!(
+        err.contains("state no position encoding; read as UTF-16"),
+        "{err}"
+    );
     assert!(!err.contains("may be stale"), "{err}");
 }
 

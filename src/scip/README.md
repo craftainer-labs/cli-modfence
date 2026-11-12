@@ -50,5 +50,7 @@ Rules:
 - Output order is the index's order; the reader sorts nothing and uses no hash
   iteration.
 - A file over `MAX_INDEX_BYTES` (512 MiB) is an error, not a reason to read it.
-- Tests are in `tests/scip.rs`, built from indexes written in code; do not add
-  `#[cfg(test)]` modules here. Real indexer output arrives with NC6e.
+- Tests are in `tests/scip.rs`, built from indexes written in code, and in
+  `tests/scip_real.rs`, which reads the real indexes of `tests/fixtures/scip/`
+  (made by the real indexers, with their versions, commands and SHA-256 in that
+  directory's `README.md`); do not add `#[cfg(test)]` modules here.

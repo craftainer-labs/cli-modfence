@@ -247,4 +247,3 @@ rust-analyzer scip
 
     --num-threads <num_threads>
       The number of worker threads for cache priming. Defaults to the number of physical cores.
-
