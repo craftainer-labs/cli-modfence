@@ -206,8 +206,16 @@ exit "${MODFENCE_EXIT:-0}"
     #[test]
     fn only_the_fakes_for_the_languages_analysed_run() {
         let setup = setup("run", &["scip-python", "scip-typescript", "rust-analyzer"]);
-        write(&setup.project.join("util.ts"), b"export function f() {}\n", 0o644);
-        write(&setup.indexes.join("scip-typescript.scip"), &Index::new().write_to_bytes().unwrap(), 0o644);
+        write(
+            &setup.project.join("util.ts"),
+            b"export function f() {}\n",
+            0o644,
+        );
+        write(
+            &setup.indexes.join("scip-typescript.scip"),
+            &Index::new().write_to_bytes().unwrap(),
+            0o644,
+        );
         let before = setup.files();
         let output = setup.run(&["check", "--run-indexers"]);
         let stderr = err(&output);
@@ -232,11 +240,20 @@ exit "${MODFENCE_EXIT:-0}"
             .collect();
         assert_eq!(ran, [python.clone(), typescript.clone()]);
         // What was printed is what ran.
-        assert!(stderr.contains(&format!("note: running {python}\n")), "{stderr}");
-        assert!(stderr.contains(&format!("note: running {typescript}\n")), "{stderr}");
+        assert!(
+            stderr.contains(&format!("note: running {python}\n")),
+            "{stderr}"
+        );
+        assert!(
+            stderr.contains(&format!("note: running {typescript}\n")),
+            "{stderr}"
+        );
         // modfence wrote only below `.modfence/`.
         let added: Vec<String> = setup.files().difference(&before).cloned().collect();
-        let expected = [".modfence/scip/python.scip", ".modfence/scip/typescript.scip"];
+        let expected = [
+            ".modfence/scip/python.scip",
+            ".modfence/scip/typescript.scip",
+        ];
         assert_eq!(added, expected);
     }
 
@@ -277,7 +294,11 @@ exit "${MODFENCE_EXIT:-0}"
         write(&setup.indexes.join("scip-python.scip"), &[0xff; 8], 0o644);
         let output = setup.run(&["check", "--run-indexers"]);
         assert_eq!(code(&output), 0, "{}", err(&output));
-        assert!(err(&output).contains("python.scip: not a SCIP index"), "{}", err(&output));
+        assert!(
+            err(&output).contains("python.scip: not a SCIP index"),
+            "{}",
+            err(&output)
+        );
         assert!(err(&output).contains("skipped"));
         // An index from an earlier run is removed before the indexer runs.
         let old = setup.project.join(".modfence/scip/python.scip");
@@ -289,7 +310,11 @@ exit "${MODFENCE_EXIT:-0}"
             &["check", "--run-indexers"],
         );
         assert_eq!(code(&output), 0, "{}", err(&output));
-        assert!(!err(&output).contains("not a SCIP index"), "{}", err(&output));
+        assert!(
+            !err(&output).contains("not a SCIP index"),
+            "{}",
+            err(&output)
+        );
         assert!(!old.exists());
     }
 
@@ -297,16 +322,32 @@ exit "${MODFENCE_EXIT:-0}"
     fn path_is_searched_by_modfence_in_absolute_entries_only() {
         let setup = setup("relative", &[]);
         // A program in the checkout, named by a relative `PATH` entry.
-        write(&setup.project.join("bin/scip-python"), FAKE.as_bytes(), 0o755);
+        write(
+            &setup.project.join("bin/scip-python"),
+            FAKE.as_bytes(),
+            0o755,
+        );
         let output = setup.run_with("bin:/usr/bin:/bin", &[], &["check", "--run-indexers"]);
         assert_eq!(code(&output), 0, "{}", err(&output));
-        assert!(err(&output).contains("scip-python not found on PATH"), "{}", err(&output));
+        assert!(
+            err(&output).contains("scip-python not found on PATH"),
+            "{}",
+            err(&output)
+        );
         assert_eq!(setup.calls(), Vec::<(String, Vec<String>)>::new());
         // One that cannot be started is a warning too.
-        write(&setup.bin.join("scip-python"), b"#!/nonexistent/interpreter\n", 0o755);
+        write(
+            &setup.bin.join("scip-python"),
+            b"#!/nonexistent/interpreter\n",
+            0o755,
+        );
         let output = setup.run(&["check", "--run-indexers"]);
         assert_eq!(code(&output), 0, "{}", err(&output));
-        assert!(err(&output).contains("scip-python cannot start:"), "{}", err(&output));
+        assert!(
+            err(&output).contains("scip-python cannot start:"),
+            "{}",
+            err(&output)
+        );
     }
 
     #[test]
@@ -345,7 +386,10 @@ exit "${MODFENCE_EXIT:-0}"
         let plans = plan(&all, root, out, "n", false);
         assert_eq!(plans[0].program, "scip-python");
         let python = ["index", ".", "--project-name=n", "--output"];
-        assert_eq!(plans[0].args, os(&[&python[..], &["/r/.modfence/scip/python.scip"]].concat()));
+        assert_eq!(
+            plans[0].args,
+            os(&[&python[..], &["/r/.modfence/scip/python.scip"]].concat())
+        );
         assert_eq!(plans[1].program, "scip-typescript");
         let typescript = ["index", "--infer-tsconfig", "--output"];
         let output = ["/r/.modfence/scip/typescript.scip"];
@@ -355,7 +399,10 @@ exit "${MODFENCE_EXIT:-0}"
         assert_eq!(plans[2].args, os(&rust));
         let only_ts: BTreeSet<Lang> = [Lang::Ts].into();
         let with_config = plan(&only_ts, root, out, "n", true);
-        assert_eq!(with_config[0].args, os(&["index", "--output", "/r/.modfence/scip/typescript.scip"]));
+        assert_eq!(
+            with_config[0].args,
+            os(&["index", "--output", "/r/.modfence/scip/typescript.scip"])
+        );
         assert_eq!(plan(&BTreeSet::new(), root, out, "n", true).len(), 0);
     }
 
@@ -370,7 +417,10 @@ exit "${MODFENCE_EXIT:-0}"
             }
             project_name(&root)
         };
-        assert_eq!(named("a", Some("[project]\nname = \"my-pkg_1.0\"\n")), "my-pkg_1.0");
+        assert_eq!(
+            named("a", Some("[project]\nname = \"my-pkg_1.0\"\n")),
+            "my-pkg_1.0"
+        );
         assert_eq!(named("b", None), "b");
         assert_eq!(named("c d", None), "c_d");
         assert_eq!(named("e", Some("[project]\nname = \"bad name\\n\"\n")), "e");
@@ -392,8 +442,14 @@ exit "${MODFENCE_EXIT:-0}"
             let entries = dirs.iter().map(|d| base.join(d));
             std::env::join_paths(entries).unwrap()
         };
-        assert_eq!(resolve("prog", &join(&["a", "b", "c"])), Some(base.join("b/prog")));
-        assert_eq!(resolve("prog", &join(&["d", "c"])), Some(base.join("c/prog")));
+        assert_eq!(
+            resolve("prog", &join(&["a", "b", "c"])),
+            Some(base.join("b/prog"))
+        );
+        assert_eq!(
+            resolve("prog", &join(&["d", "c"])),
+            Some(base.join("c/prog"))
+        );
         assert_eq!(resolve("prog", &join(&["a", "d", "nowhere"])), None);
         let relative = std::env::join_paths(["", "relative/dir", "."]).unwrap();
         assert_eq!(resolve("prog", &relative), None);

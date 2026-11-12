@@ -90,7 +90,13 @@ pub fn project_name(root: &Path) -> String {
     let declared = std::fs::read_to_string(root.join("pyproject.toml"))
         .ok()
         .and_then(|text| text.parse::<toml::Table>().ok())
-        .and_then(|table| table.get("project")?.get("name")?.as_str().map(str::to_owned));
+        .and_then(|table| {
+            table
+                .get("project")?
+                .get("name")?
+                .as_str()
+                .map(str::to_owned)
+        });
     let allowed = |c: char| c.is_ascii_alphanumeric() || "._-".contains(c);
     let usable =
         |name: &str| !name.is_empty() && !name.starts_with('-') && name.chars().all(allowed);

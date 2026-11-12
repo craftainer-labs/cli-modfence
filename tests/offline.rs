@@ -88,14 +88,20 @@ mod linux {
             .filter_map(|line| line.split(':').next())
             .map(str::trim)
             .collect();
-        assert!(interfaces.iter().all(|name| *name == "lo"), "{interfaces:?}");
+        assert!(
+            interfaces.iter().all(|name| *name == "lo"),
+            "{interfaces:?}"
+        );
         for fixture in ["app", "clean"] {
             for args in commands(fixture) {
                 let normal = outside(&args);
                 let sandboxed = inside(prefix, &args);
                 assert_eq!(sandboxed.status.code(), normal.status.code(), "{args:?}");
                 assert_eq!(sandboxed.stdout, normal.stdout, "{args:?}");
-                assert!(normal.status.code().is_some_and(|code| code <= 1), "{args:?}");
+                assert!(
+                    normal.status.code().is_some_and(|code| code <= 1),
+                    "{args:?}"
+                );
             }
         }
     }

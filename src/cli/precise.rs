@@ -160,6 +160,8 @@ fn run_indexers(
     languages: &BTreeSet<Lang>,
     err: &mut impl Write,
 ) -> Result<Vec<PathBuf>, Failure> {
+    use crate::scip::run;
+
     let out_dir = root.join(INDEX_DIR);
     let has_tsconfig = root.join("tsconfig.json").is_file();
     let name = run::project_name(root);
