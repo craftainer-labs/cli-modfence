@@ -1,0 +1,22 @@
+Usage: scip-typescript index [options] [projects...]
+
+Options:
+  --cwd <path>                  the working directory (default:
+                                "/home/runner/work/cli-modfence/cli-modfence")
+  --pnpm-workspaces             whether to index all pnpm workspaces (default:
+                                false)
+  --yarn-workspaces             whether to index all yarn workspaces (default:
+                                false)
+  --yarn-berry-workspaces       (deprecated) use --yarn-workspaces instead
+                                (default: false)
+  --infer-tsconfig              whether to infer the tsconfig.json file, if it's
+                                missing (default: false)
+  --output <path>               path to the output file (default: "index.scip")
+  --progress-bar                whether to enable a rich progress bar
+  --no-progress-bar             whether to disable the rich progress bar
+  --no-global-caches            whether to disable global caches between
+                                TypeScript projects
+  --max-file-byte-size <value>  skip files that have a larger byte size than the
+                                provided value. Supported formats: 1kb, 1mb,
+                                1gb. (default: "1mb")
+  -h, --help                    display help for command

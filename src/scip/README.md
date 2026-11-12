@@ -38,7 +38,9 @@ Rules:
   range, or an empty symbol, is dropped and counted. Enclosing ranges follow
   the same rule and are `None` when invalid.
 - A document with no position encoding, or one this version does not know, is
-  read as UTF-8 and counted (`unspecified_encoding`).
+  read as UTF-16 and counted (`unspecified_encoding`): scip-python states none
+  and counts UTF-16 code units, which the real index in `tests/fixtures/scip/`
+  shows on a line with non-ASCII text.
 - `LineIndex::span` returns `None` for a line that does not exist, an offset
   past the end of its line, and an offset inside a character. The caller counts
   these as a sign that the index does not match the source (stale).

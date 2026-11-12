@@ -116,8 +116,11 @@ pub fn read_index(bytes: &[u8], root: &str) -> Result<(Index, ReadStats), Error>
             Ok(Wire::UTF16CodeUnitOffsetFromLineStart) => PositionEncoding::Utf16,
             Ok(Wire::UTF32CodeUnitOffsetFromLineStart) => PositionEncoding::Utf32,
             _ => {
+                // scip-python states none and counts UTF-16 code units, as
+                // JavaScript (and so pyright) does; the real index in
+                // tests/fixtures/scip/ shows it on a line with non-ASCII text.
                 stats.unspecified_encoding += 1;
-                PositionEncoding::Utf8
+                PositionEncoding::Utf16
             }
         };
         let mut occurrences = Vec::with_capacity(document.occurrences.len());

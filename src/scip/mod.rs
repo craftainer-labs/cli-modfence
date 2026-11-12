@@ -74,7 +74,7 @@ pub struct ReadStats {
     /// Occurrences dropped for an invalid range or an empty symbol.
     pub malformed_occurrences: usize,
     /// Documents that state no (or an unknown) position encoding, read as
-    /// UTF-8.
+    /// UTF-16.
     pub unspecified_encoding: usize,
 }
 
@@ -103,7 +103,7 @@ impl ReadStats {
         }
         if self.unspecified_encoding > 0 {
             lines.push(format!(
-                "{name}: {} documents state no position encoding; read as UTF-8",
+                "{name}: {} documents state no position encoding; read as UTF-16",
                 self.unspecified_encoding
             ));
         }

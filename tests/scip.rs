@@ -175,8 +175,8 @@ fn encodings_are_read_and_unspecified_ones_warn() {
             PositionEncoding::Utf8,
             PositionEncoding::Utf16,
             PositionEncoding::Utf32,
-            PositionEncoding::Utf8,
-            PositionEncoding::Utf8,
+            PositionEncoding::Utf16,
+            PositionEncoding::Utf16,
         ]
     );
     assert_eq!(stats.unspecified_encoding, 2);

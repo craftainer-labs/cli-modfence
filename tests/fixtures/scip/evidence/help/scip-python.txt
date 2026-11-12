@@ -1,0 +1,29 @@
+Usage: scip-python index [options]
+
+Options:
+  --project-name <name>               The name of the current project, pypi
+                                      name if applicable. The default empty
+                                      project name only supports
+                                      repository-local code navigation in
+                                      Sourcegraph. (default: "")
+  --project-version <version>         The version of the current project. If
+                                      not provided, defaults to the current git
+                                      revision (if found).
+  --project-namespace <namespace>     A prefix to prepend to all module
+                                      definitions in the current index
+  --cwd <path>                        working directory for executing
+                                      scip-python (default:
+                                      "/home/runner/work/cli-modfence/cli-modfence")
+  --target-only <path>                limit analysis to the following path
+  --output <path>                     Path to the output file. If this path is
+                                      relative, it is interpreted relative to
+                                      the value for --cwd. (default:
+                                      "index.scip")
+  --quiet                             run without logging and status
+                                      information (default: false)
+  --show-progress-rate-limit <limit>  minimum number of seconds between
+                                      progress messages in the output.
+  --environment <json-file>           the environment json file (experimental)
+  --dev                               run in developer mode (experimental)
+                                      (default: false)
+  -h, --help                          display help for command
