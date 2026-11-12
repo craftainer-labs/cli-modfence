@@ -382,11 +382,7 @@ impl<'a> Walker<'a> {
     /// A definition that is not an `impl` or a `mod`. The body of a function,
     /// a trait or a constant is the scope of what is inside.
     fn item(&mut self, node: TsNode<'_>, scope: &Scope, kind: SymbolKind) -> Option<Inner> {
-        let name_node = node.child_by_field_name("name")?;
-        let name = self.text_of(name_node);
-        if name_node.is_missing() || name.is_empty() {
-            return None;
-        }
+        let name = self.text_of(node.child_by_field_name("name")?);
         let (id, components) = self.declare(node, scope, name.to_owned(), kind)?;
         let (_, attributes) = leading(node);
         self.bindings(&attributes, &id, name);
@@ -429,11 +425,7 @@ impl<'a> Walker<'a> {
     /// A `mod`. An inline one adds a component to the names inside it; one
     /// without a body (`mod name;`) is an import of the file module.
     fn module(&mut self, node: TsNode<'_>, scope: &Scope) -> Option<Inner> {
-        let name_node = node.child_by_field_name("name")?;
-        let name = self.text_of(name_node);
-        if name_node.is_missing() || name.is_empty() {
-            return None;
-        }
+        let name = self.text_of(node.child_by_field_name("name")?);
         let Some(body) = node.child_by_field_name("body") else {
             let specifier = anchored(&format!("self::{name}"), &scope.modules);
             let span = self.span(node);
@@ -595,7 +587,14 @@ mod tests {
     fn a_rename_is_read_only_from_top_level_arguments() {
         let signature = r#"(signature = (a, name="other"))"#;
         assert_eq!(renamed(signature, "name"), None);
-        assert_eq!(renamed(r#"(name = "a, b")"#, "name").as_deref(), Some("a, b"));
+        assert_eq!(
+            renamed(r#"(name = "a, b")"#, "name").as_deref(),
+            Some("a, b")
+        );
+        assert_eq!(
+            renamed(r#"(name = "a\"b, c")"#, "name").as_deref(),
+            Some(r#"a\"b, c"#)
+        );
         let both = r#"(signature = (x, name="no"), name = "yes")"#;
         assert_eq!(renamed(both, "name").as_deref(), Some("yes"));
     }
