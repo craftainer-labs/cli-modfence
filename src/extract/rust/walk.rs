@@ -157,14 +157,48 @@ fn rename_key(framework: BindingFramework) -> &'static str {
     }
 }
 
-/// The value of `key = ".."` (or `key = name`) in an attribute's arguments.
+/// The comma-separated pieces of `text` that are not inside brackets or a
+/// string literal.
+fn top_level_pieces(text: &str) -> Vec<&str> {
+    let mut pieces = Vec::new();
+    let (mut depth, mut start) = (0_usize, 0_usize);
+    let (mut quoted, mut escaped) = (false, false);
+    for (index, ch) in text.char_indices() {
+        if quoted {
+            if escaped {
+                escaped = false;
+            } else if ch == '\\' {
+                escaped = true;
+            } else if ch == '"' {
+                quoted = false;
+            }
+            continue;
+        }
+        match ch {
+            '"' => quoted = true,
+            '(' | '[' | '{' => depth += 1,
+            ')' | ']' | '}' => depth = depth.saturating_sub(1),
+            ',' if depth == 0 => {
+                pieces.push(text.get(start..index).unwrap_or_default());
+                start = index + 1;
+            }
+            _ => {}
+        }
+    }
+    pieces.push(text.get(start..).unwrap_or_default());
+    pieces
+}
+
+/// The value of `key = ".."` (or `key = name`) among an attribute's own
+/// top-level arguments, so a default inside `signature = (..)` is not read.
 fn renamed(arguments: &str, key: &str) -> Option<String> {
-    let flat = compact(arguments);
-    let inner = flat.trim_start_matches('(').trim_end_matches(')');
-    inner
-        .split(',')
-        .filter_map(|part| part.strip_prefix(key)?.strip_prefix('='))
-        .map(|value| value.trim_matches('"'))
+    let inner = arguments.trim().strip_prefix('(')?.strip_suffix(')')?;
+    top_level_pieces(inner)
+        .into_iter()
+        .filter_map(|piece| {
+            let (name, value) = piece.split_once('=')?;
+            (name.trim() == key).then(|| value.trim().trim_matches('"'))
+        })
         .find(|value| !value.is_empty())
         .map(str::to_owned)
 }
@@ -340,7 +374,7 @@ impl<'a> Walker<'a> {
         self.facts.nodes.push(symbol);
         let (first, _) = leading(node);
         for row in first..=node.start_position().row {
-            self.symbol_rows.insert(row, id.clone());
+            self.symbol_rows.entry(row).or_insert_with(|| id.clone());
         }
         Some((id, components))
     }
@@ -348,7 +382,11 @@ impl<'a> Walker<'a> {
     /// A definition that is not an `impl` or a `mod`. The body of a function,
     /// a trait or a constant is the scope of what is inside.
     fn item(&mut self, node: TsNode<'_>, scope: &Scope, kind: SymbolKind) -> Option<Inner> {
-        let name = self.text_of(node.child_by_field_name("name")?);
+        let name_node = node.child_by_field_name("name")?;
+        let name = self.text_of(name_node);
+        if name_node.is_missing() || name.is_empty() {
+            return None;
+        }
         let (id, components) = self.declare(node, scope, name.to_owned(), kind)?;
         let (_, attributes) = leading(node);
         self.bindings(&attributes, &id, name);
@@ -391,7 +429,11 @@ impl<'a> Walker<'a> {
     /// A `mod`. An inline one adds a component to the names inside it; one
     /// without a body (`mod name;`) is an import of the file module.
     fn module(&mut self, node: TsNode<'_>, scope: &Scope) -> Option<Inner> {
-        let name = self.text_of(node.child_by_field_name("name")?);
+        let name_node = node.child_by_field_name("name")?;
+        let name = self.text_of(name_node);
+        if name_node.is_missing() || name.is_empty() {
+            return None;
+        }
         let Some(body) = node.child_by_field_name("body") else {
             let specifier = anchored(&format!("self::{name}"), &scope.modules);
             let span = self.span(node);
@@ -457,7 +499,7 @@ impl<'a> Walker<'a> {
         if let Some((name, receiver)) = function.and_then(callee_parts) {
             let site = CallSite {
                 callee: self.text_of(name).to_owned(),
-                receiver: receiver.map(|node| self.text_of(node).to_owned()),
+                receiver: receiver.map(|node| compact(self.text_of(node))),
                 caller: scope.caller.clone(),
                 span: self.span(name),
             };
@@ -548,6 +590,15 @@ impl<'a> Walker<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_rename_is_read_only_from_top_level_arguments() {
+        let signature = r#"(signature = (a, name="other"))"#;
+        assert_eq!(renamed(signature, "name"), None);
+        assert_eq!(renamed(r#"(name = "a, b")"#, "name").as_deref(), Some("a, b"));
+        let both = r#"(signature = (x, name="no"), name = "yes")"#;
+        assert_eq!(renamed(both, "name").as_deref(), Some("yes"));
+    }
 
     #[test]
     fn a_missing_tree_is_a_parse_error() {
