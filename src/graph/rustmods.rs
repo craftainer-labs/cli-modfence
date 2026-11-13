@@ -20,6 +20,10 @@ pub(crate) struct RustFile {
     pub declared: Vec<(Vec<String>, String)>,
     /// The inline modules that hold items at the top of the file.
     pub inline: BTreeSet<String>,
+    /// The names the file's top level can answer to: its items, the inline
+    /// modules, and what it imports (a re-export). `*` stands for a glob
+    /// import, after which any name might be there.
+    pub known: BTreeSet<String>,
 }
 
 /// The crates of the analysis, as a tree of modules that each have a file.
@@ -31,6 +35,8 @@ pub(crate) struct RustTree {
     files: BTreeMap<(String, Vec<String>), String>,
     /// The inline modules of each file, which a bare path may start with.
     inline: BTreeMap<String, BTreeSet<String>>,
+    /// The known top-level names of each file.
+    known: BTreeMap<String, BTreeSet<String>>,
 }
 
 /// Whether Cargo's default layout makes `path` the root of a crate.
@@ -98,10 +104,10 @@ impl RustTree {
                 }
             }
         }
-        tree.inline = info
-            .into_iter()
-            .map(|(path, file)| (path, file.inline))
-            .collect();
+        for (path, file) in info {
+            tree.inline.insert(path.clone(), file.inline);
+            tree.known.insert(path, file.known);
+        }
         tree
     }
 
@@ -121,15 +127,57 @@ impl RustTree {
     /// with a module of the file's module; any other bare path is a crate.
     /// What an import reaches is the file of its longest prefix that is a
     /// module (so an item, or an inline module, is its module's file). An
-    /// import of the file itself yields no file.
+    /// import of the file itself yields no file. [`RustTree::missing`] says
+    /// when that fallback skipped a segment that is nothing known.
     pub(crate) fn resolve(&self, from: &str, specifier: &str, names: &[String]) -> Resolved {
+        match self.local_path(from, specifier) {
+            Ok((root, path)) => Resolved::Files(self.targets(from, root, &path, names)),
+            Err(resolved) => resolved,
+        }
+    }
+
+    /// The segment at which an import falls back to a parent file without
+    /// the segment being a module or a known item there, if it does: the
+    /// `typo` of `crate::typo::X`, or of a `mod typo;` whose file is not among
+    /// the analysed ones. The import still resolves to the parent file; this
+    /// only says the path was not followed to its end.
+    pub(crate) fn missing(&self, from: &str, specifier: &str, names: &[String]) -> Option<String> {
+        let (root, path) = self.local_path(from, specifier).ok()?;
+        let module_at = |segments: &[String]| self.files.get(&(root.to_owned(), segments.to_vec()));
+        let all_modules = !names.is_empty()
+            && names.iter().all(|name| {
+                let mut deeper = path.clone();
+                deeper.push(name.clone());
+                module_at(&deeper).is_some()
+            });
+        if all_modules {
+            return None;
+        }
+        // The crate root is always a module, so the search ends at 0 at worst.
+        let keep = (0..=path.len())
+            .rev()
+            .find(|keep| module_at(&path[..*keep]).is_some())
+            .unwrap_or_default();
+        let first = path.get(keep)?;
+        let known = module_at(&path[..keep]).and_then(|file| self.known.get(file));
+        let unknown = known.is_some_and(|known| !known.contains(first) && !known.contains("*"));
+        unknown.then(|| first.clone())
+    }
+
+    /// The module path an import names in the crate of `from`, with that
+    /// crate's root, or what it resolves to when it is not in a crate's tree.
+    fn local_path<'t>(
+        &'t self,
+        from: &str,
+        specifier: &str,
+    ) -> Result<(&'t str, Vec<String>), Resolved> {
         let parts: Vec<&str> = specifier.split("::").collect();
         let head = parts[0];
         let Some((root, module)) = self.modules.get(from) else {
-            return match head {
+            return Err(match head {
                 "crate" | "self" | "super" => Resolved::Unplaced,
                 _ => extern_crate(specifier),
-            };
+            });
         };
         let supers = parts.iter().take_while(|part| **part == "super").count();
         let (mut path, rest) = match head {
@@ -137,13 +185,13 @@ impl RustTree {
             "self" => (module.clone(), &parts[1..]),
             "super" => match module.len().checked_sub(supers) {
                 Some(kept) => (module[..kept].to_vec(), &parts[supers..]),
-                None => return Resolved::Unplaced,
+                None => return Err(Resolved::Unplaced),
             },
             _ if self.is_local(from, root, module, head) => (module.clone(), &parts[..]),
-            _ => return extern_crate(specifier),
+            _ => return Err(extern_crate(specifier)),
         };
         path.extend(rest.iter().map(|part| (*part).to_owned()));
-        Resolved::Files(self.targets(from, root, &path, names))
+        Ok((root, path))
     }
 
     /// Whether `name` is a module declared in the module at `module`: a file of

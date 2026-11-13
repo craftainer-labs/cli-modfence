@@ -493,7 +493,36 @@ fn f() {
             ("self::r", vec!["s"]),
         ]
     );
+    // Only `mod q;` is a declaration; no `use` is.
+    assert_eq!(facts.mod_declarations, [["m", "q"]]);
     assert_eq!(facts.diagnostics.len(), 0);
+}
+
+// `use self::a::{self, B}` has the same import as `mod a;` (an empty name list
+// and the specifier `self::a`), but only the `mod` is a declaration.
+#[test]
+fn a_use_is_not_a_module_declaration() {
+    let facts = extract("m.rs", "use self::a::{self, B};\nmod c;\n");
+    assert_eq!(
+        import_pairs(&facts),
+        [
+            ("self::a", vec![]),
+            ("self::a", vec!["B"]),
+            ("self::c", vec![])
+        ]
+    );
+    assert_eq!(facts.mod_declarations, [["c"]]);
+}
+
+// What a file answers to besides its symbols and imported names: the local name
+// of an `as` (bare, in a list, in a nested list) and every inline module.
+#[test]
+fn local_names_are_aliases_and_inline_modules() {
+    let facts = extract(
+        "m.rs",
+        "pub use a::X as Y;\nuse b::{C as D, e::{F as G, H}};\nmod m { mod n {} }\nmod q;\n",
+    );
+    assert_eq!(facts.local_names, ["Y", "D", "G", "m", "n"]);
 }
 
 #[test]
@@ -716,6 +745,13 @@ fn g() {
             ("self::a", vec!["w"]),
             ("self::a::<locals>::m::decl", vec![]),
             ("self::<locals>::local", vec![]),
+        ]
+    );
+    assert_eq!(
+        facts.mod_declarations,
+        [
+            vec!["a", "<locals>", "m", "decl"],
+            vec!["<locals>", "local"]
         ]
     );
     assert_eq!(facts.diagnostics.len(), 0);

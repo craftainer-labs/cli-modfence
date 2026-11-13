@@ -487,6 +487,9 @@ impl<'a> Walker<'a> {
         let Some(body) = node.child_by_field_name("body") else {
             let specifier = anchored(&format!("self::{component}"), &scope.modules);
             let span = self.span(node);
+            // `self::` is always first: `anchored` keeps the file's module.
+            let path = specifier.split("::").skip(1).map(str::to_owned).collect();
+            self.facts.mod_declarations.push(path);
             self.facts.imports.push(ImportEdge {
                 specifier,
                 names: Vec::new(),
@@ -494,6 +497,7 @@ impl<'a> Walker<'a> {
             });
             return None;
         };
+        self.facts.local_names.push(name.to_owned());
         let mut components = scope.components.clone();
         if scope.kind == ScopeKind::Function {
             components.push(LOCALS.to_owned());
@@ -510,9 +514,27 @@ impl<'a> Walker<'a> {
         Some((body.id(), Rc::new(inner)))
     }
 
+    /// Records the local name of every `use .. as name` below `node`.
+    fn aliases(&mut self, node: TsNode<'_>) {
+        let mut stack = vec![node];
+        while let Some(node) = stack.pop() {
+            if node.kind() == "use_as_clause"
+                && let Some(alias) = node.child_by_field_name("alias")
+            {
+                self.facts.local_names.push(self.text_of(alias).to_owned());
+            }
+            let mut cursor = node.walk();
+            let children: Vec<_> = node.named_children(&mut cursor).collect();
+            stack.extend(children.into_iter().rev());
+        }
+    }
+
     fn use_declaration(&mut self, node: TsNode<'_>, scope: &Scope) {
         let span = self.span(node);
         let argument = node.child_by_field_name("argument");
+        if let Some(argument) = argument {
+            self.aliases(argument);
+        }
         let leaves = argument.map(|argument| uses::leaves(self.text, argument));
         let mut edges: Vec<ImportEdge> = Vec::new();
         for leaf in leaves.unwrap_or_default() {

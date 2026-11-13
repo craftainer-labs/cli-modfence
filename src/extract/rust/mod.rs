@@ -51,7 +51,7 @@ use super::{Diagnostic, DiagnosticCode, ExtractCtx, Extractor, FileFacts, Lang, 
 
 /// Identifies the extraction logic and the grammar for the per-file cache.
 /// Change it whenever the output could change.
-const VERSION: &str = "rs-2/tree-sitter-rust-0.24.2";
+const VERSION: &str = "rs-4/tree-sitter-rust-0.24.2";
 
 /// The Rust extractor.
 #[derive(Debug, Clone, Copy, Default)]

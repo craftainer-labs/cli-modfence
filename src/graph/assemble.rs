@@ -168,6 +168,7 @@ impl<'c> Builder<'c> {
                     resolver.resolve(file.lang, &file.path, &import.specifier, &import.names);
                 let (targets, confidence) = match placed {
                     Resolved::Files(found) => {
+                        diagnostics.extend(rust_fallback(&rust, file, import));
                         imported
                             .entry(file.path.clone())
                             .or_default()
@@ -239,8 +240,31 @@ impl<'c> Builder<'c> {
     }
 }
 
-/// The module tree of the Rust files: their `mod name;` declarations (imports
-/// of `self::name` with no names) and the inline modules that hold items.
+/// The diagnostic for a Rust import that fell back to a parent module past a
+/// segment that is neither a module nor an item there, if it did.
+fn rust_fallback(
+    rust: &RustTree,
+    file: &FileEntry,
+    import: &extract::ImportEdge,
+) -> Option<FileDiagnostic> {
+    if file.lang != Lang::Rs {
+        return None;
+    }
+    let segment = rust.missing(&file.path, &import.specifier, &import.names)?;
+    Some(FileDiagnostic {
+        path: file.path.clone(),
+        span: Some(import.span),
+        code: DiagnosticCode::UnresolvedImport,
+        message: format!(
+            "`{segment}` in the import of `{}` is neither a module nor an item; \
+             resolved to the parent module",
+            import.specifier
+        ),
+    })
+}
+
+/// The module tree of the Rust files: their `mod name;` declarations and the
+/// inline modules that hold items.
 fn rust_tree(files: &[FileEntry]) -> RustTree {
     let info = files
         .iter()
@@ -248,21 +272,45 @@ fn rust_tree(files: &[FileEntry]) -> RustTree {
         .map(|file| {
             let declared = file
                 .facts
-                .imports
+                .mod_declarations
                 .iter()
-                .filter(|import| import.names.is_empty())
-                .filter_map(|import| import.specifier.strip_prefix("self::"))
-                .map(|rest| {
-                    let mut inline: Vec<String> = rest.split("::").map(str::to_owned).collect();
+                .map(|path| {
+                    let mut inline = path.clone();
                     let name = inline.pop().unwrap_or_default();
                     (inline, name)
                 })
                 .collect();
             let inline = inline_modules(&file.facts.nodes);
-            (file.path.clone(), RustFile { declared, inline })
+            let known = known_names(&file.facts);
+            (
+                file.path.clone(),
+                RustFile {
+                    declared,
+                    inline,
+                    known,
+                },
+            )
         })
         .collect();
     RustTree::new(info)
+}
+
+/// The names a Rust file's top level can answer to: the first component of
+/// each symbol's qualified name, every imported name (a re-export; `*` for a
+/// glob), and the file's local names (aliases, inline modules).
+fn known_names(facts: &extract::FileFacts) -> BTreeSet<String> {
+    let symbols = facts
+        .nodes
+        .iter()
+        .filter(|node| node.kind == NodeKind::Symbol)
+        .filter_map(|node| decode_qualname(node.id.qualname()?))
+        .filter_map(|(components, _)| components.into_iter().next());
+    let imports = facts
+        .imports
+        .iter()
+        .flat_map(|import| import.names.iter().cloned());
+    let locals = facts.local_names.iter().cloned();
+    symbols.chain(imports).chain(locals).collect()
 }
 
 /// The inline modules at the top of a Rust file that hold symbols: the first
