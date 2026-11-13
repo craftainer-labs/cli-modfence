@@ -989,3 +989,88 @@ fn rust_crates_are_walked_and_resolved() {
     let found = (start.to_owned(), double.to_owned(), "heuristic".to_owned());
     assert!(calls.contains(&found), "{calls:?}");
 }
+
+// Source files that are not valid UTF-8 (NC6f) are skipped with an
+// `unsupported-encoding` diagnostic, never decoded lossily (ADR 0003,
+// invariant 23), so a SCIP range computed on the original bytes cannot drift.
+
+/// The diagnostics of `modfence graph --format json` run on `dir`.
+fn graph_diagnostics(dir: &Path, extra: &[&str]) -> (Run, Vec<serde_json::Value>) {
+    let mut args = vec!["graph", "--format", "json"];
+    args.extend_from_slice(extra);
+    let run = in_project(dir, &args);
+    assert_eq!(run.code, 0, "{}", run.err);
+    let value: serde_json::Value = serde_json::from_str(&run.out).unwrap();
+    let list = value["graph"]["metadata"]["diagnostics"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
+    (run, list)
+}
+
+#[test]
+fn a_latin_1_byte_before_a_call_skips_the_file_and_the_index_cannot_drift() {
+    let dir = project("non-utf8-latin1");
+    // `run()` follows a Latin-1 e-acute on its line: one byte, which is not
+    // UTF-8 (lossy decoding would have made it a three-byte U+FFFD).
+    let app = b"from lib import run\n\n\ndef main():\n    s = '\xe9'; run()\n";
+    std::fs::write(dir.join("app.py"), app).unwrap();
+    // The range of `run` in the original bytes: line 4, bytes 13 to 16.
+    let documents = vec![wire_document(
+        "app.py",
+        vec![wire_occurrence(&[4, 13, 16], RUN, 0)],
+    )];
+    let index = write_index(&dir, "index.scip", &wire_index("", None, documents));
+    let (run, diagnostics) = graph_diagnostics(&dir, &["--scip", &index]);
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0]["path"], "app.py");
+    assert_eq!(diagnostics[0]["code"], "unsupported-encoding");
+    let message = diagnostics[0]["message"].as_str().unwrap();
+    assert!(message.contains("first invalid byte at offset 43"), "{message}");
+    assert!(run.err.contains("not valid UTF-8"), "{}", run.err);
+    assert!(!run.out.contains("\"calls\""), "{}", run.out);
+    assert!(run.err.contains("1 documents match no analysed file"), "{}", run.err);
+}
+
+#[test]
+fn an_invalid_byte_inside_a_string_literal_skips_a_rust_file_only() {
+    let dir = project("non-utf8-literal");
+    let bad = b"fn f() {\n    let s = \"\xff\";\n    g();\n}\n";
+    std::fs::write(dir.join("bad.rs"), bad).unwrap();
+    std::fs::write(dir.join("good.rs"), "fn g() {}\n").unwrap();
+    let (_, diagnostics) = graph_diagnostics(&dir, &[]);
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0]["path"], "bad.rs");
+    assert_eq!(diagnostics[0]["code"], "unsupported-encoding");
+    let message = diagnostics[0]["message"].as_str().unwrap();
+    assert!(message.contains("first invalid byte at offset 22"), "{message}");
+}
+
+#[test]
+fn a_file_that_is_entirely_invalid_keeps_its_module_node() {
+    let dir = project("non-utf8-all");
+    std::fs::write(dir.join("junk.py"), [0xff_u8, 0xfe, 0xfd]).unwrap();
+    let (run, diagnostics) = graph_diagnostics(&dir, &[]);
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0]["path"], "junk.py");
+    let message = diagnostics[0]["message"].as_str().unwrap();
+    assert!(message.contains("offset 0"), "{message}");
+    assert!(run.out.contains("junk.py"), "{}", run.out);
+}
+
+#[test]
+fn precise_still_aligns_the_valid_files_beside_an_invalid_one() {
+    let dir = project("non-utf8-precise");
+    std::fs::write(dir.join("bad.py"), b"x = '\xe9'; run()\n").unwrap();
+    let mut documents = resolving();
+    documents.push(wire_document(
+        "bad.py",
+        vec![wire_occurrence(&[0, 11, 14], RUN, 0)],
+    ));
+    let index = write_index(&dir, "index.scip", &wire_index("", None, documents));
+    let run = in_project(&dir, &["check", "--scip", &index]);
+    assert_eq!(run.code, 1, "{}", run.err);
+    assert!(run.out.contains("no-calls"), "{}", run.out);
+    assert!(run.err.contains("not valid UTF-8"), "{}", run.err);
+    assert!(run.err.contains("2 documents match no analysed file"), "{}", run.err);
+}

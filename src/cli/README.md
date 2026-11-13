@@ -50,7 +50,9 @@ Rules:
   directory that is not excluded and cannot be listed exits 74 and names the
   path. It does not read `.gitignore` files: list `node_modules/`, virtual
   environments and build output (a Rust crate's `target/`) in `exclude`. A file
-  that is not valid UTF-8 is decoded lossily.
+  that is not valid UTF-8 is not decoded lossily: it is skipped with an
+  `unsupported-encoding` warning, keeps its module node and gives SCIP no text,
+  so positions from an index cannot drift (ADR 0003, invariant 23).
 - No per-file extraction cache yet: `FileFacts` has no serialised form, so
   `--cache-dir` and `--no-cache` do not exist. The cache (ADR 0003, keyed by
   content hash and `Extractor::version`) comes with that form.

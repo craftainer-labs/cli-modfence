@@ -10,10 +10,14 @@
 //! - [`annotations`]: [`parse_comment`] and [`comment_body`], the grammar of
 //!   ADR 0004's inline annotations.
 //!
+//! - [`decode`]: [`decode::undecodable`], the facts of a file that is not valid
+//!   UTF-8 (such a file is skipped, never decoded lossily).
+//!
 //! The per-language extractors live in the `python`, `typescript` and `rust`
 //! submodules, added by their own items.
 
 pub mod annotations;
+pub mod decode;
 pub mod ident;
 pub mod model;
 pub mod python;
