@@ -133,6 +133,8 @@ fn a_read_only_checkout_gives_the_same_result_and_is_not_written() {
             );
             assert_eq!(actual.stdout, expected.stdout, "{fixture} {args:?}");
             assert_eq!(actual.stderr, expected.stderr, "{fixture} {args:?}");
+            // Not vacuous: there is a result to compare.
+            assert!(!expected.stdout.is_empty(), "{fixture} {args:?}");
         }
         // Nothing was created, changed or removed, `.modfence/` included.
         let mut after = Vec::new();

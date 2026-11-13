@@ -354,7 +354,7 @@ struct References {
 }
 
 /// Attributes whose value is a URL (or a list of them).
-const URL_ATTRIBUTES: [&str; 14] = [
+const URL_ATTRIBUTES: [&str; 20] = [
     "src",
     "href",
     "xlink:href",
@@ -369,6 +369,12 @@ const URL_ATTRIBUTES: [&str; 14] = [
     "manifest",
     "codebase",
     "longdesc",
+    "imagesrcset",
+    "usemap",
+    "archive",
+    "classid",
+    "profile",
+    "icon",
 ];
 
 /// Tags that load something or change how URLs resolve.
@@ -378,14 +384,16 @@ const FETCHING_TAGS: [&str; 13] = [
 ];
 
 /// Names a script must not contain.
-const NETWORK_APIS: [&str; 9] = [
+const NETWORK_APIS: [&str; 11] = [
     "fetch(",
+    "serviceWorker",
+    "window.open(",
     "XMLHttpRequest",
     "WebSocket",
     "EventSource",
     "sendBeacon",
     "importScripts",
-    "new Image",
+    "newImage",
     "import(",
     "Worker(",
 ];
@@ -396,6 +404,19 @@ fn is_local(value: &str) -> bool {
         || value
             .get(..5)
             .is_some_and(|scheme| scheme.eq_ignore_ascii_case("data:"))
+}
+
+/// Whether every URL in a list-valued attribute (`srcset`, `ping`) is local:
+/// each whitespace-separated token must be local or an image descriptor
+/// (`2x`, `100w`), so a second URL after a comma is found.
+fn list_is_local(value: &str) -> bool {
+    value.split_whitespace().all(|token| {
+        let token = token.trim_end_matches(',');
+        let descriptor = token.strip_suffix(['x', 'w']).is_some_and(|number| {
+            !number.is_empty() && number.chars().all(|c| c.is_ascii_digit() || c == '.')
+        });
+        token.is_empty() || descriptor || is_local(token)
+    })
 }
 
 fn check_css(css: &str, context: &str, found: &mut References) {
@@ -485,7 +506,15 @@ fn references(page: &str) -> References {
         at += offset;
         let rest = &page[at..];
         if rest.starts_with("<!--") {
-            at += rest.find("-->").map_or(rest.len(), |end| end + 3);
+            // `<!-->` and `<!--->` are complete comments in HTML.
+            let skip = if rest.starts_with("<!-->") {
+                5
+            } else if rest.starts_with("<!--->") {
+                6
+            } else {
+                rest[4..].find("-->").map_or(rest.len(), |end| end + 7)
+            };
+            at += skip;
             continue;
         }
         if !rest[1..].starts_with(|c: char| c.is_ascii_alphabetic()) {
@@ -498,18 +527,25 @@ fn references(page: &str) -> References {
         if FETCHING_TAGS.contains(&tag.as_str()) {
             found.problems.push(format!("<{tag}> is not allowed"));
         }
-        let mut kind = "";
+        let mut kind = String::new();
         let mut refresh = false;
         for (name, value) in &attributes {
             if URL_ATTRIBUTES.contains(&name.as_str()) {
                 found.checked += 1;
-                if !is_local(value) {
+                let local = if matches!(name.as_str(), "srcset" | "imagesrcset" | "ping") {
+                    list_is_local(value)
+                } else {
+                    is_local(value)
+                };
+                if !local {
                     found.problems.push(format!("<{tag} {name}=\"{value}\">"));
                 }
             } else if name == "style" {
                 check_css(value, &format!("<{tag}> style"), &mut found);
+            } else if name == "srcdoc" {
+                found.problems.push(format!("<{tag} srcdoc>"));
             } else if name == "type" {
-                kind = value;
+                kind = value.trim().to_ascii_lowercase();
             } else if name == "http-equiv" && value.eq_ignore_ascii_case("refresh") {
                 refresh = true;
             }
@@ -528,8 +564,9 @@ fn references(page: &str) -> References {
             if tag == "style" {
                 check_css(body, "<style>", &mut found);
             } else if kind != "application/json" {
+                let compact: String = body.split_whitespace().collect();
                 for api in NETWORK_APIS {
-                    if body.contains(api) {
+                    if compact.contains(api) {
                         found.problems.push(format!("<script> names {api}"));
                     }
                 }
@@ -550,6 +587,29 @@ fn the_reference_check_accepts_fragments_and_data_uris() {
     assert_eq!(found.problems, Vec::<String>::new());
     assert_eq!(found.checked, 4);
     assert_eq!(found.tags, 6);
+}
+
+#[test]
+fn the_reference_check_catches_the_awkward_spellings() {
+    for (bad, expected) in [
+        ("<A HREF=http://x>a</A>", "<a href=\"http://x\">"),
+        ("<a href=&#x68;ttp://x>a</a>", "href"),
+        ("<a href='javascript:alert(1)'>a</a>", "javascript:"),
+        ("<svg><use href=\"http://x/s.svg#a\"/></svg>", "<use href"),
+        ("<svg><image href=//x/y.png /></svg>", "<image href"),
+        (
+            "<svg><image srcset=\"#a 1x, https://x/b.png 2x\"/></svg>",
+            "srcset",
+        ),
+        ("<svg><image srcset=\"data:a,b 1x,//x/y 2x\"/></svg>", "srcset"),
+        ("<!--> <a href=http://x>a</a>", "<a href"),
+        ("<script>fe\ntch (\"x\")</script>", "names fetch("),
+        ("<script type=\"Text/JavaScript\">new  Image</script>", "newImage"),
+        ("<p srcdoc=\"<b>\"></p>", "srcdoc"),
+    ] {
+        let problems = references(bad).problems.join("\n");
+        assert!(problems.contains(expected), "{expected} in {bad}\n{problems}");
+    }
 }
 
 #[test]
