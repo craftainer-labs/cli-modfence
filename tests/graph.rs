@@ -553,8 +553,14 @@ use ::tokio::spawn;
     let sub = "use crate::a::*;\nuse super::super::sub as nobody;\n";
     let files = [
         ("crates/app/src/lib.rs", lib),
-        ("crates/app/src/a.rs", "use super::inline::deep;\nuse self::gone::f;\n"),
-        ("crates/app/src/b/mod.rs", "pub mod sub;\nuse super::a::helper;\n"),
+        (
+            "crates/app/src/a.rs",
+            "use super::inline::deep;\nuse self::gone::f;\n",
+        ),
+        (
+            "crates/app/src/b/mod.rs",
+            "pub mod sub;\nuse super::a::helper;\n",
+        ),
         ("crates/app/src/b/sub.rs", sub),
         ("crates/app/src/inline/nested.rs", "use super::deep;\n"),
     ];
@@ -608,7 +614,10 @@ fn rust_paths_that_leave_the_tree_are_unplaced() {
     let files = [
         ("src/lib.rs", "mod a;\n"),
         ("src/a.rs", "use super::super::up;\nuse std::fmt;\n"),
-        ("src/orphan.rs", "use crate::a::f;\nuse self::a;\nuse super::a;\n"),
+        (
+            "src/orphan.rs",
+            "use crate::a::f;\nuse self::a;\nuse super::a;\nuse rand::Rng;\n",
+        ),
     ];
     let graph = build(&files);
     assert_well_formed(&graph);
@@ -623,11 +632,20 @@ fn rust_paths_that_leave_the_tree_are_unplaced() {
         rust_imports(&graph, "src/orphan.rs"),
         [
             row("ext:rs:crate::a", Confidence::Heuristic, 1),
+            row("ext:rs:rand", Confidence::Resolved, 1),
             row("ext:rs:self", Confidence::Heuristic, 1),
             row("ext:rs:super", Confidence::Heuristic, 1),
         ]
     );
-    assert_eq!(unresolved(&graph), ["src/a.rs", "src/orphan.rs", "src/orphan.rs", "src/orphan.rs"]);
+    assert_eq!(
+        unresolved(&graph),
+        [
+            "src/a.rs",
+            "src/orphan.rs",
+            "src/orphan.rs",
+            "src/orphan.rs"
+        ]
+    );
 }
 
 // Crates are found from Cargo's layout. Each file below imports `crate::x::y`,
@@ -653,7 +671,11 @@ fn rust_crate_roots_follow_the_cargo_layout() {
         "src/tests/x.rs",
     ];
     let text = "use crate::x::y;\n";
-    let all: Vec<(&str, &str)> = roots.iter().chain(&others).map(|path| (*path, text)).collect();
+    let all: Vec<(&str, &str)> = roots
+        .iter()
+        .chain(&others)
+        .map(|path| (*path, text))
+        .collect();
     let graph = build(&all);
     assert_eq!(unresolved(&graph), others);
 }
@@ -703,7 +725,11 @@ fn rust_module_files_are_found_below_the_declaring_module() {
     let main = symbol(Lang::Rs, "src/bin/two/main.rs", "main");
     assert_eq!(
         outgoing(&graph, Relation::Calls, &main),
-        [row("sym:rs:src/bin/two/util.rs#u", Confidence::Heuristic, 1)]
+        [row(
+            "sym:rs:src/bin/two/util.rs#u",
+            Confidence::Heuristic,
+            1
+        )]
     );
 }
 
@@ -733,7 +759,11 @@ pub fn run() { Config::new(); m::util(); }
     let new = symbol(Lang::Rs, "src/lib.rs", "<Config>::new");
     assert_eq!(
         outgoing(&graph, Relation::Calls, &new),
-        [row("sym:rs:src/lib.rs#<Config>::make", Confidence::Heuristic, 1)]
+        [row(
+            "sym:rs:src/lib.rs#<Config>::make",
+            Confidence::Heuristic,
+            1
+        )]
     );
 }
 

@@ -134,11 +134,17 @@ fn rust_analyzer_resolves_an_aliased_call_and_a_method_call() {
     let (root, index) = project("rust", &["src/lib.rs"]);
     let (document, err) = graph(&root, &index);
     assert_eq!(document["graph"]["metadata"]["backend"], "tree-sitter+scip");
-    assert_eq!(document["graph"]["metadata"]["languages"], serde_json::json!(["rs"]));
+    assert_eq!(
+        document["graph"]["metadata"]["languages"],
+        serde_json::json!(["rs"])
+    );
     let found = resolved_calls(&document);
     // `go()` is `helper::run` imported under another name, and sits after
     // non-ASCII text on its line; `svc.run_it()` goes through an instance.
-    assert!(has(&found, "sym:rs:src/lib.rs#helper::run", "go"), "{found:?}");
+    assert!(
+        has(&found, "sym:rs:src/lib.rs#helper::run", "go"),
+        "{found:?}"
+    );
     assert!(
         has(&found, "sym:rs:src/lib.rs#<Svc>::run_it", "run_it"),
         "{found:?}"

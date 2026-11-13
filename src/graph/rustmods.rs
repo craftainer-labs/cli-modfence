@@ -75,7 +75,9 @@ impl RustTree {
             let (root, module) = tree.modules[&file].clone();
             let dir = module_dir(&file, roots.contains(&file));
             for (inline, name) in &info[&file].declared {
-                let base = inline.iter().fold(dir.clone(), |base, part| join(&base, part));
+                let base = inline
+                    .iter()
+                    .fold(dir.clone(), |base, part| join(&base, part));
                 let plain = join(&base, name);
                 let candidates = [format!("{plain}.rs"), join(&plain, "mod.rs")];
                 let found = candidates

@@ -120,10 +120,18 @@ fn the_walker_honours_exclude_and_skips_modfence() {
     assert!(run.out.contains("1 error(s)"), "{}", run.out);
     // Python, TypeScript and the Rust file of `core/`.
     let graph = on("app", &["graph"]);
-    assert!(graph.out.contains("languages: py, ts, rs\n"), "{}", graph.out);
+    assert!(
+        graph.out.contains("languages: py, ts, rs\n"),
+        "{}",
+        graph.out
+    );
     let json = on("app", &["graph", "--format", "json"]);
     assert!(json.out.contains("\"mod:rs:core/lib.rs\""), "{}", json.out);
-    assert!(json.out.contains("\"sym:rs:core/lib.rs#f\""), "{}", json.out);
+    assert!(
+        json.out.contains("\"sym:rs:core/lib.rs#f\""),
+        "{}",
+        json.out
+    );
 }
 
 #[test]
@@ -199,7 +207,10 @@ fn output_goes_to_a_file_when_asked() {
 fn graph_prints_a_text_summary() {
     let run = on("app", &["graph"]);
     assert_eq!(run.code, 0);
-    assert!(run.out.starts_with("modfence graph\nlanguages: py, ts, rs\n"));
+    assert!(
+        run.out
+            .starts_with("modfence graph\nlanguages: py, ts, rs\n")
+    );
     assert!(run.out.contains("nodes: "));
     assert!(run.out.contains("edges: "));
     assert!(run.out.contains("diagnostics: "), "{}", run.out);
@@ -945,7 +956,9 @@ fn rust_crates_are_walked_and_resolved() {
     let imports = rust_fixture_edges("imports");
     let from = |source: &str| -> Vec<(String, String)> {
         let found = imports.iter().filter(|(from, _, _)| from == source);
-        found.map(|(_, to, how)| (to.clone(), how.clone())).collect()
+        found
+            .map(|(_, to, how)| (to.clone(), how.clone()))
+            .collect()
     };
     let resolved = |target: &str| (target.to_owned(), "resolved".to_owned());
     assert_eq!(
