@@ -1,0 +1,22 @@
+# Lint bans for NFR-0002 (docs/nfrs/NFR-0002-offline-operation.md): the tool
+# makes no network connection in any mode, so our own code must not touch
+# `std::net` sockets or name resolution. `deny.toml` bans the HTTP and socket
+# client crates; this file bans the standard library's. The binary no-network
+# test (tests/offline.rs) is the authoritative gate; these bans catch
+# regressions at lint time. Clippy applies this file to the whole workspace,
+# tests included (`--all-targets`).
+
+disallowed-types = [
+    { path = "std::net::TcpStream", reason = "NFR-0002: modfence opens no network connection" },
+    { path = "std::net::TcpListener", reason = "NFR-0002: modfence opens no network connection" },
+    { path = "std::net::UdpSocket", reason = "NFR-0002: modfence opens no network connection" },
+    { path = "std::net::ToSocketAddrs", reason = "NFR-0002: modfence resolves no network name" },
+]
+
+disallowed-methods = [
+    { path = "std::net::TcpStream::connect", reason = "NFR-0002: modfence opens no network connection" },
+    { path = "std::net::TcpStream::connect_timeout", reason = "NFR-0002: modfence opens no network connection" },
+    { path = "std::net::TcpListener::bind", reason = "NFR-0002: modfence opens no network connection" },
+    { path = "std::net::UdpSocket::bind", reason = "NFR-0002: modfence opens no network connection" },
+    { path = "std::net::ToSocketAddrs::to_socket_addrs", reason = "NFR-0002: modfence resolves no network name" },
+]

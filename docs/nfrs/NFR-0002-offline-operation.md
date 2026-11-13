@@ -65,3 +65,16 @@ and an npm package that downloads nothing at install time.
   `href` or `url(...)` that is not a fragment or a `data:` URI.
 - **Read-only run.** A test runs the tool on a read-only copy of a fixture
   and asserts the same findings, with only a cache warning.
+
+## Verification status
+
+As of NC6g (2026-11-13) every item above has a test or a check:
+
+- Dependency ban: `deny.toml` (NC6dep) and `clippy.toml` (`disallowed-types`
+  and `disallowed-methods` for `std::net`, NC6g).
+- No-network test: `tests/offline.rs`.
+- No subprocess without the flag, and the indexer flag: `tests/indexers.rs`.
+- HTML check: `tests/html.rs` (a tokenizer over the pages of the real
+  fixtures, `the_pages_of_the_real_fixtures_reference_nothing_outside_the_file`).
+- Read-only run: `tests/readonly.rs` (Unix only, skipped as root). No cache
+  exists yet, so the result is identical with no cache warning.

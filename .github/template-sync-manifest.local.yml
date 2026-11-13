@@ -15,3 +15,7 @@ ignore:
   # The workflow that regenerates the real SCIP indexes in tests/fixtures/scip/
   # (src/scip/README.md); manual, read-only.
   - .github/workflows/scip-fixtures.yml
+
+  # modfence's NFR-0002 lint bans (std::net types and methods); the template
+  # ships no clippy.toml, so this file is instance-owned.
+  - clippy.toml
