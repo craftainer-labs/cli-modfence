@@ -129,10 +129,8 @@ fn analyse(common: &Common, err: &mut impl Write) -> Result<(Config, Graph, bool
         let full = root.join(path);
         let bytes = fs::read(&full).map_err(failed("read", &full))?;
         let decoded = std::str::from_utf8(&bytes);
-        let file = SourceFile {
-            path,
-            text: decoded.unwrap_or_default(),
-        };
+        let text = String::from_utf8_lossy(&bytes);
+        let file = SourceFile { path, text: &text };
         sources.add_if(decoded.is_ok(), path, file.text);
         for extractor in extractors
             .iter()

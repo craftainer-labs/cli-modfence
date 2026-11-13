@@ -990,9 +990,10 @@ fn rust_crates_are_walked_and_resolved() {
     assert!(calls.contains(&found), "{calls:?}");
 }
 
-// Source files that are not valid UTF-8 (NC6f) are skipped with an
-// `unsupported-encoding` diagnostic, never decoded lossily (ADR 0003,
-// invariant 23), so a SCIP range computed on the original bytes cannot drift.
+// Source files that are not valid UTF-8 (NC6f) are still extracted, from a lossy
+// decoding, and get an `unsupported-encoding` diagnostic; SCIP gets no text for
+// them, so a range computed on the original bytes cannot drift (ADR 0003,
+// invariant 23).
 
 /// The diagnostics of `modfence graph --format json` run on `dir`.
 fn graph_diagnostics(dir: &Path, extra: &[&str]) -> (Run, Vec<serde_json::Value>) {
@@ -1009,7 +1010,7 @@ fn graph_diagnostics(dir: &Path, extra: &[&str]) -> (Run, Vec<serde_json::Value>
 }
 
 #[test]
-fn a_latin_1_byte_before_a_call_skips_the_file_and_the_index_cannot_drift() {
+fn a_latin_1_byte_before_a_call_keeps_the_call_and_the_index_cannot_drift() {
     let dir = project("non-utf8-latin1");
     // `run()` follows a Latin-1 e-acute on its line: one byte, which is not
     // UTF-8 (lossy decoding would have made it a three-byte U+FFFD).
@@ -1031,7 +1032,20 @@ fn a_latin_1_byte_before_a_call_skips_the_file_and_the_index_cannot_drift() {
         "{message}"
     );
     assert!(run.err.contains("not valid UTF-8"), "{}", run.err);
-    assert!(!run.out.contains("\"calls\""), "{}", run.out);
+    let value: serde_json::Value = serde_json::from_str(&run.out).unwrap();
+    let edges = value["graph"]["edges"].as_array().unwrap();
+    assert!(
+        edges.iter().any(|e| e["relation"] == "calls"
+            && e["metadata"]["origin"] == "tree-sitter"
+            && e["metadata"]["site"]["path"] == "app.py"),
+        "{}",
+        run.out
+    );
+    assert!(
+        edges.iter().all(|e| e["metadata"]["origin"] != "scip"),
+        "{}",
+        run.out
+    );
     assert!(
         run.err.contains("1 documents match no analysed file"),
         "{}",
@@ -1040,7 +1054,7 @@ fn a_latin_1_byte_before_a_call_skips_the_file_and_the_index_cannot_drift() {
 }
 
 #[test]
-fn an_invalid_byte_inside_a_string_literal_skips_a_rust_file_only() {
+fn an_invalid_byte_inside_a_string_literal_warns_for_that_rust_file_only() {
     let dir = project("non-utf8-literal");
     let bad = b"fn f() {\n    let s = \"\xff\";\n    g();\n}\n";
     std::fs::write(dir.join("bad.rs"), bad).unwrap();
@@ -1061,15 +1075,20 @@ fn a_file_that_is_entirely_invalid_keeps_its_module_node() {
     let dir = project("non-utf8-all");
     std::fs::write(dir.join("junk.py"), [0xff_u8, 0xfe, 0xfd]).unwrap();
     let (run, diagnostics) = graph_diagnostics(&dir, &[]);
-    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
-    assert_eq!(diagnostics[0]["path"], "junk.py");
-    let message = diagnostics[0]["message"].as_str().unwrap();
+    // Replacement characters are not Python, so a parse error may come too.
+    let encoding: Vec<_> = diagnostics
+        .iter()
+        .filter(|d| d["code"] == "unsupported-encoding")
+        .collect();
+    assert_eq!(encoding.len(), 1, "{diagnostics:?}");
+    assert_eq!(encoding[0]["path"], "junk.py");
+    let message = encoding[0]["message"].as_str().unwrap();
     assert!(message.contains("offset 0"), "{message}");
     assert!(run.out.contains("junk.py"), "{}", run.out);
 }
 
 #[test]
-fn precise_still_aligns_the_valid_files_beside_an_invalid_one() {
+fn precise_still_upgrades_the_valid_files_beside_an_invalid_one() {
     let dir = project("non-utf8-precise");
     std::fs::write(dir.join("bad.py"), b"x = '\xe9'; run()\n").unwrap();
     let mut documents = resolving();
@@ -1078,10 +1097,26 @@ fn precise_still_aligns_the_valid_files_beside_an_invalid_one() {
         vec![wire_occurrence(&[0, 11, 14], RUN, 0)],
     ));
     let index = write_index(&dir, "index.scip", &wire_index("", None, documents));
-    let run = in_project(&dir, &["check", "--scip", &index]);
-    assert_eq!(run.code, 1, "{}", run.err);
-    assert!(run.out.contains("no-calls"), "{}", run.out);
-    assert!(run.err.contains("not valid UTF-8"), "{}", run.err);
+    let (run, diagnostics) = graph_diagnostics(&dir, &["--scip", &index]);
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0]["path"], "bad.py");
+    let value: serde_json::Value = serde_json::from_str(&run.out).unwrap();
+    let edges = value["graph"]["edges"].as_array().unwrap();
+    assert!(
+        edges.iter().any(|e| e["relation"] == "calls"
+            && e["metadata"]["confidence"] == "resolved"
+            && e["metadata"]["origin"] == "scip"
+            && e["metadata"]["site"]["path"] == "app.py"),
+        "{}",
+        run.out
+    );
+    assert!(
+        edges.iter().all(|e| {
+            e["metadata"]["site"]["path"] != "bad.py" || e["metadata"]["origin"] != "scip"
+        }),
+        "{}",
+        run.out
+    );
     assert!(
         run.err.contains("2 documents match no analysed file"),
         "{}",

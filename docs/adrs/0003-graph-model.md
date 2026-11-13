@@ -248,14 +248,15 @@ points, ends exclusive. SARIF output sets `columnKind` to
     edge, for a site that existed.
 22. Strings that come from an index (the tool name, a parse error, the project
     root) are escaped and truncated before they can be printed.
-23. A source file is analysed only if its bytes are valid UTF-8; the extractors
-    and the SCIP position mapping read the same text. A file that is not valid
-    UTF-8 is never decoded lossily (U+FFFD has a different width from the byte
-    it replaces in every encoding, so a range computed on the original bytes
-    would drift): it is skipped with one `unsupported-encoding` diagnostic
-    (invariant 5) naming the offset of its first invalid byte, keeps its module
-    node, contributes no other fact, and is not offered to SCIP (a document
-    for it is counted as matching no analysed file). Output for valid UTF-8
+23. A source file whose bytes are not valid UTF-8 is still extracted, from a
+    lossy decoding, so its imports and calls stay in the graph and the rules
+    (a rules checker must not lose facts silently). U+FFFD has a different
+    width from the byte it replaces in every encoding, so a position after the
+    first invalid byte can be off, and a SCIP range computed on the original
+    bytes would drift. The file therefore gets one `unsupported-encoding`
+    diagnostic (invariant 5) naming the offset of its first invalid byte, and
+    SCIP gets no text for it: a document for it is counted as matching no
+    analysed file and none of its calls is upgraded. Output for valid UTF-8
     files is unchanged.
 
 ## Decisions (G-api)

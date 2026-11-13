@@ -42,9 +42,10 @@ Rules:
   and counts UTF-16 code units, which the real index in `tests/fixtures/scip/`
   shows on a line with non-ASCII text.
 - `LineIndex` only ever sees valid UTF-8: a source file that is not valid UTF-8
-  is skipped by the caller, never decoded lossily, because U+FFFD would shift
-  every offset after it relative to the original bytes (ADR 0003, invariant
-  23). Its index document is counted as matching no analysed file.
+  is never offered to it, because the extractors read it lossily and U+FFFD
+  would shift every offset after it relative to the original bytes (ADR 0003,
+  invariant 23). Its index document is counted as matching no analysed file, so
+  none of its calls is upgraded.
 - `LineIndex::span` returns `None` for a line that does not exist, an offset
   past the end of its line, and an offset inside a character. The caller counts
   these as a sign that the index does not match the source (stale).

@@ -1,34 +1,47 @@
 //! The decoding policy (`NC6f`, ADR 0003 invariant 23): a file that is not valid
-//! UTF-8 yields its module node and one `unsupported-encoding` diagnostic.
+//! UTF-8 is still extracted, from its lossy decoding, and gets one
+//! `unsupported-encoding` diagnostic.
 
-use modfence::extract::decode::undecodable;
-use modfence::extract::{DiagnosticCode, Lang, NodeKind};
-
-fn error(bytes: &[u8]) -> std::str::Utf8Error {
-    std::str::from_utf8(bytes).unwrap_err()
-}
+use modfence::extract::decode::extract;
+use modfence::extract::python::PythonExtractor;
+use modfence::extract::{DiagnosticCode, NodeKind, SourceFile};
 
 #[test]
-fn an_undecodable_file_keeps_its_module_and_names_the_first_bad_byte() {
-    let facts = undecodable(Lang::Py, "pkg/a.py", error(b"ab\xe9cd"));
-    assert_eq!(facts.nodes.len(), 1);
-    assert_eq!(facts.nodes[0].kind, NodeKind::Module);
-    assert_eq!(facts.diagnostics.len(), 1);
-    let diagnostic = &facts.diagnostics[0];
-    assert_eq!(diagnostic.code, DiagnosticCode::UnsupportedEncoding);
+fn an_undecodable_file_is_extracted_and_names_the_first_bad_byte() {
+    let bytes = b"import os\nx = '\xe9'\n";
+    let error = std::str::from_utf8(bytes).unwrap_err();
+    let text = String::from_utf8_lossy(bytes);
+    let file = SourceFile {
+        path: "pkg/a.py",
+        text: &text,
+    };
+    let facts = extract(&PythonExtractor, &file, Some(error));
+    assert!(facts.nodes.iter().any(|n| n.kind == NodeKind::Module));
+    assert!(!facts.imports.is_empty(), "{facts:?}");
+    let diagnostic = facts
+        .diagnostics
+        .iter()
+        .find(|d| d.code == DiagnosticCode::UnsupportedEncoding)
+        .expect("an unsupported-encoding diagnostic");
     assert!(
-        diagnostic.message.contains("offset 2"),
+        diagnostic.message.contains("offset 15"),
         "{}",
         diagnostic.message
     );
     assert_eq!(diagnostic.span, None);
-    assert!(facts.calls.is_empty() && facts.imports.is_empty());
 }
 
 #[test]
-fn an_undecodable_file_without_a_path_is_unreadable() {
-    let facts = undecodable(Lang::Rs, "", error(b"\xff"));
-    assert_eq!(facts.nodes.len(), 0);
-    assert_eq!(facts.diagnostics.len(), 1);
-    assert_eq!(facts.diagnostics[0].code, DiagnosticCode::Unreadable);
+fn a_decodable_file_gets_no_encoding_diagnostic() {
+    let file = SourceFile {
+        path: "a.py",
+        text: "import os\n",
+    };
+    let facts = extract(&PythonExtractor, &file, None);
+    assert!(
+        facts
+            .diagnostics
+            .iter()
+            .all(|d| d.code != DiagnosticCode::UnsupportedEncoding)
+    );
 }
