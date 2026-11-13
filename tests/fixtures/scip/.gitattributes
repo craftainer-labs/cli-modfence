@@ -1,0 +1,3 @@
+# Real SCIP indexes: binary, never normalised (README.md). Nested, not in the
+# root .gitattributes: that file is template-owned and replaced on every sync.
+indexes/*.scip binary
