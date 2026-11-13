@@ -53,7 +53,7 @@ modfence trace adr=0028 layer=domain,infra
   table). `--level package|module|symbol` and `--group-by <tag key>` shape
   the diagrams.
 - `trace` prints the nodes whose tags match `key=value` selectors and their
-  edges, as text or JSON.
+  edges. It takes the same `--format`, `--level` and `--group-by` as `graph`.
 - Call edges are not checked unless you pass `--precise` (read the SCIP
   indexes in `.modfence/scip/`), `--scip <file>` (read the named indexes) or
   `--run-indexers` (run the `scip-python`, `scip-typescript` and
@@ -136,7 +136,10 @@ repos:
 
 The hook is `language: rust`: the tagged source is built once with `cargo
 install` into the hook's private environment, so it needs a network (to
-fetch crates) at install time only. The checker never does.
+fetch crates) at install time only. The checker never does. The hook does not
+check call edges (see `--precise` above): add `--precise` to `args` for that.
+That build reports version `0.0.0`, since the version is stamped only into
+release artifacts.
 
 ## Use it in GitHub Actions
 
@@ -246,16 +249,16 @@ gh run watch
 
 It builds the six targets on native runners, attests everything
 ([SLSA Build L3](https://slsa.dev/spec/v1.0/levels), verify with
-`gh attestation verify <file> --repo craftainer-labs/cli-modfence`), attaches the archives,
-their checksums and the Homebrew formula to the GitHub release, and then
+`gh attestation verify <file> --repo craftainer-labs/cli-modfence`),
+attaches the archives, their checksums and the Homebrew formula to the GitHub release, and then
 publishes to whichever of these you switched on with a repository variable:
 
 | Variable | Publishes | Needs |
 | --- | --- | --- |
 | `CLI_PYPI_PUBLISH` = `pypi` or `testpypi` | wheels and sdist, with PEP 740 attestations | a PyPI trusted publisher (a pending one works for the first release) naming workflow `release-binaries.yml` and environment `release` |
-| `CLI_NPM_PUBLISH` = any value | the six `<scope>/<binary>-<os>-<cpu>` packages, then the root package | an npm trusted publisher per package naming `release-binaries.yml` and `release`; the first publish of all seven is staged with the stage-only secret `NPM_TOKEN` and approved by hand, as for the family's npm packages |
-| `HOMEBREW_TAP` = `<owner>/homebrew-<tap>` | commits `Formula/<binary>.rb` to the tap | the secret `HOMEBREW_TAP_TOKEN` (write access to the tap) |
-| `CLI_IMAGE_PUBLISH` = any value | `ghcr.io/<owner>/<repo>:<version>` (and `latest` for a stable release), multi-arch | nothing beyond `GITHUB_TOKEN` |
+| `CLI_NPM_PUBLISH` = any value | the six `@craftainer-labs/modfence-<os>-<cpu>` packages, then the root package | an npm trusted publisher per package naming `release-binaries.yml` and `release`; the first publish of all seven is staged with the stage-only secret `NPM_TOKEN` and approved by hand, as for any new npm package |
+| `HOMEBREW_TAP` = `<owner>/homebrew-<tap>` | commits `Formula/modfence.rb` to the tap | the secret `HOMEBREW_TAP_TOKEN` (write access to the tap) |
+| `CLI_IMAGE_PUBLISH` = any value | `ghcr.io/craftainer-labs/cli-modfence:<version>` (and `latest` for a stable release), multi-arch | nothing beyond `GITHUB_TOKEN` |
 
 Create the GitHub environment `release` first (the PyPI, npm and Homebrew
 jobs run in it, so you can add required reviewers there). The workflow only
