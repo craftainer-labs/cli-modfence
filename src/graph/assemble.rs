@@ -168,21 +168,7 @@ impl<'c> Builder<'c> {
                     resolver.resolve(file.lang, &file.path, &import.specifier, &import.names);
                 let (targets, confidence) = match placed {
                     Resolved::Files(found) => {
-                        if file.lang == Lang::Rs
-                            && let Some(segment) =
-                                rust.missing(&file.path, &import.specifier, &import.names)
-                        {
-                            diagnostics.push(FileDiagnostic {
-                                path: file.path.clone(),
-                                span: Some(import.span),
-                                code: DiagnosticCode::UnresolvedImport,
-                                message: format!(
-                                    "`{segment}` in the import of `{}` is neither a module \
-                                     nor an item; resolved to the parent module",
-                                    import.specifier
-                                ),
-                            });
-                        }
+                        diagnostics.extend(rust_fallback(&rust, file, import));
                         imported
                             .entry(file.path.clone())
                             .or_default()
@@ -252,6 +238,29 @@ impl<'c> Builder<'c> {
             unmatched_calls,
         }
     }
+}
+
+/// The diagnostic for a Rust import that fell back to a parent module past a
+/// segment that is neither a module nor an item there, if it did.
+fn rust_fallback(
+    rust: &RustTree,
+    file: &FileEntry,
+    import: &extract::ImportEdge,
+) -> Option<FileDiagnostic> {
+    if file.lang != Lang::Rs {
+        return None;
+    }
+    let segment = rust.missing(&file.path, &import.specifier, &import.names)?;
+    Some(FileDiagnostic {
+        path: file.path.clone(),
+        span: Some(import.span),
+        code: DiagnosticCode::UnresolvedImport,
+        message: format!(
+            "`{segment}` in the import of `{}` is neither a module nor an item; \
+             resolved to the parent module",
+            import.specifier
+        ),
+    })
 }
 
 /// The module tree of the Rust files: their `mod name;` declarations and the

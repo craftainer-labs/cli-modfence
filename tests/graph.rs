@@ -675,8 +675,9 @@ fn rust_use_does_not_declare_a_module() {
         ("src/a.rs", "use crate::z;\n"),
     ];
     let graph = build(&files);
-    assert_eq!(unresolved(&graph), ["src/a.rs", "src/lib.rs"]);
-    assert_eq!(fallbacks(&graph, "src/lib.rs"), ["a"]);
+    // `self::a` is imported twice: as the module, and for `B`.
+    assert_eq!(unresolved(&graph), ["src/a.rs", "src/lib.rs", "src/lib.rs"]);
+    assert_eq!(fallbacks(&graph, "src/lib.rs"), ["a", "a"]);
 }
 
 // A path that climbs above the crate root, and a `crate::` path in a file no

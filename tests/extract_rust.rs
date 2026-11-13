@@ -505,7 +505,11 @@ fn a_use_is_not_a_module_declaration() {
     let facts = extract("m.rs", "use self::a::{self, B};\nmod c;\n");
     assert_eq!(
         import_pairs(&facts),
-        [("self::a", vec![]), ("self::a", vec!["B"]), ("self::c", vec![])]
+        [
+            ("self::a", vec![]),
+            ("self::a", vec!["B"]),
+            ("self::c", vec![])
+        ]
     );
     assert_eq!(facts.mod_declarations, [["c"]]);
 }
@@ -734,7 +738,10 @@ fn g() {
     );
     assert_eq!(
         facts.mod_declarations,
-        [vec!["a", "<locals>", "m", "decl"], vec!["<locals>", "local"]]
+        [
+            vec!["a", "<locals>", "m", "decl"],
+            vec!["<locals>", "local"]
+        ]
     );
     assert_eq!(facts.diagnostics.len(), 0);
 }
