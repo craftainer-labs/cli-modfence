@@ -518,10 +518,10 @@ impl<'a> Walker<'a> {
     fn aliases(&mut self, node: TsNode<'_>) {
         let mut stack = vec![node];
         while let Some(node) = stack.pop() {
-            if node.kind() == "use_as_clause" {
-                if let Some(alias) = node.child_by_field_name("alias") {
-                    self.facts.local_names.push(self.text_of(alias).to_owned());
-                }
+            if node.kind() == "use_as_clause"
+                && let Some(alias) = node.child_by_field_name("alias")
+            {
+                self.facts.local_names.push(self.text_of(alias).to_owned());
             }
             let mut cursor = node.walk();
             let children: Vec<_> = node.named_children(&mut cursor).collect();
