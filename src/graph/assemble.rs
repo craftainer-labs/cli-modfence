@@ -3,11 +3,13 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::locate::{Files, Resolved, dir_of};
+use super::rustmods::{RustFile, RustTree};
 use super::{
     Backend, Binding, Confidence, Edge, FileDiagnostic, Finding, Graph, Node, Relation, Site,
     Suppression, UnmatchedCall,
 };
 use crate::config::{Config, Severity, Subject};
+use crate::extract::rust::decode_qualname;
 use crate::extract::{
     self, DiagnosticCode, FileFacts, Lang, NodeId, NodeKind, Parsed, SourceFile, Span, Tags,
     decode_component, merge_tags,
@@ -150,9 +152,11 @@ impl<'c> Builder<'c> {
             .iter()
             .map(|file| (file.path.clone(), file.lang))
             .collect();
+        let rust = rust_tree(&files);
         let resolver = Files {
             paths: &paths,
             python_roots: &python_roots,
+            rust: &rust,
         };
         let mut acc = Assembly::default();
         let mut imported: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
@@ -233,6 +237,57 @@ impl<'c> Builder<'c> {
             unmatched_calls,
         }
     }
+}
+
+/// The module tree of the Rust files: their `mod name;` declarations (imports
+/// of `self::name` with no names) and the inline modules that hold items.
+fn rust_tree(files: &[FileEntry]) -> RustTree {
+    let info = files
+        .iter()
+        .filter(|file| file.lang == Lang::Rs)
+        .map(|file| {
+            let declared = file
+                .facts
+                .imports
+                .iter()
+                .filter(|import| import.names.is_empty())
+                .filter_map(|import| import.specifier.strip_prefix("self::"))
+                .map(|rest| {
+                    let mut inline: Vec<String> = rest.split("::").map(str::to_owned).collect();
+                    let name = inline.pop().unwrap_or_default();
+                    (inline, name)
+                })
+                .collect();
+            let inline = inline_modules(&file.facts.nodes);
+            (file.path.clone(), RustFile { declared, inline })
+        })
+        .collect();
+    RustTree::new(info)
+}
+
+/// The inline modules at the top of a Rust file that hold symbols: the first
+/// component of a qualified name of two or more components, unless a symbol
+/// of that name exists (a trait or a function with items in it) or it is an
+/// `impl` (`<Type>`).
+fn inline_modules(nodes: &[extract::Node]) -> BTreeSet<String> {
+    let names: Vec<Vec<String>> = nodes
+        .iter()
+        .filter(|node| node.kind == NodeKind::Symbol)
+        .filter_map(|node| decode_qualname(node.id.qualname()?))
+        .map(|(components, _)| components)
+        .collect();
+    let defined: BTreeSet<&String> = names
+        .iter()
+        .filter(|components| components.len() == 1)
+        .map(|components| &components[0])
+        .collect();
+    names
+        .iter()
+        .filter(|components| components.len() > 1)
+        .map(|components| &components[0])
+        .filter(|first| !defined.contains(first) && !first.starts_with('<'))
+        .cloned()
+        .collect()
 }
 
 /// Links each call of `file` to the symbols of the same name in `scope`
@@ -321,6 +376,15 @@ fn short_name(node: &extract::Node) -> String {
 /// without a repeat ordinal. Empty for an id without a qualified name.
 pub(super) fn short_name_of(id: &NodeId) -> String {
     let encoded = id.qualname().unwrap_or_default();
+    if id.as_str().starts_with("sym:rs:") {
+        // A Rust name is a chain of components joined with `::` (impl names
+        // such as `<A as b::C>` hold `::` too), so it is decoded by its own
+        // rules.
+        let components = decode_qualname(encoded).map(|(components, _)| components);
+        return components
+            .and_then(|components| components.last().cloned())
+            .unwrap_or_default();
+    }
     // `NodeId::new` accepts only validly encoded names, so decoding cannot fail.
     let qualified = decode_component(encoded).unwrap_or_default();
     let last = qualified.rsplit(['.', '~']).next().unwrap_or_default();

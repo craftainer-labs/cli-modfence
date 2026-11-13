@@ -19,7 +19,9 @@
 //!   module declared there), and `extern crate name;` an edge to `name`. A
 //!   leading `self` or `super` is rewritten to be relative to the file's
 //!   module, whatever inline modules the statement sits in (`super::x` in
-//!   `mod a` is `self::x`; see ADR 0003).
+//!   `mod a` is `self::x`; see ADR 0003). A module declared in a function body
+//!   cannot be named from outside it, so its path has the `<locals>`
+//!   component (`self::f::<locals>::m::x`).
 //! - calls: calls whose callee is a name (`f()`), a path (`Type::new()`,
 //!   `a::b::f()`, `f::<T>()`) or a field (`x.run()`), with the span of the last
 //!   name. The receiver of a path call is the path before the name. Calls on
@@ -30,7 +32,9 @@
 //!   every other comment has no target.
 //! - bindings: items marked `#[pyfunction]`, `#[pymodule]`, `#[napi]` or
 //!   `#[wasm_bindgen]`, with the exported name (`name = ".."` in a `#[pyo3]`
-//!   attribute, `js_name = ".."` for the others, else the item's name).
+//!   attribute, `js_name = ".."` for the others, else the item's name). A `mod`
+//!   is not a symbol, so `#[pymodule] mod x { .. }` exports `x` on the file's
+//!   module node.
 //!
 //! Qualified names are encoded by [`encode_qualname`] and decoded by
 //! [`decode_qualname`].
@@ -47,7 +51,7 @@ use super::{Diagnostic, DiagnosticCode, ExtractCtx, Extractor, FileFacts, Lang, 
 
 /// Identifies the extraction logic and the grammar for the per-file cache.
 /// Change it whenever the output could change.
-const VERSION: &str = "rs-1/tree-sitter-rust-0.24.2";
+const VERSION: &str = "rs-2/tree-sitter-rust-0.24.2";
 
 /// The Rust extractor.
 #[derive(Debug, Clone, Copy, Default)]

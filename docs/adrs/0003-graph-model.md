@@ -467,8 +467,28 @@ core maps files to crate paths.
   is rewritten to be relative to the file's module, whatever inline modules the
   statement sits in: in `mod a { mod b { use super::x; } }` the specifier is
   `self::a` (names `x`), and a `super` that leaves the file's module stays
-  `super`. `crate::` paths and bare paths (`std::fmt`, `serde`) are as written;
-  the core decides whether a bare path is an extern crate or a local module.
+  `super`. A module declared in a function body cannot be named from outside the
+  body (Rust resolves `super` from it to the enclosing module, but `crate::f::m`
+  is not a path), so it counts as an inline module with the component
+  `<locals>::m`: `use self::x` in it is `self::<locals>::m::x`, and `super`
+  leaves it. `crate::` paths and bare paths (`std::fmt`, `serde`) are as
+  written; the core decides whether a bare path is an extern crate or a local
+  module.
+- **Resolution (NC3d).** The core finds crates from Cargo's layout without
+  reading `Cargo.toml`: a root is `src/lib.rs`, `src/main.rs`,
+  `src/bin/<name>.rs`, `src/bin/<name>/main.rs`, or a single file in `tests/`,
+  `examples/` or `benches/` that is not below a `src/`. Each `mod name;` (an
+  import of `self::name` with no names) adds `name.rs` or `name/mod.rs` below
+  the directory of the declaring module: that of a root or a `mod.rs`, else the
+  directory named after the file (`src/flat.rs` declares `src/flat/sub.rs`),
+  through the inline modules it sits in. A file no root reaches has no module
+  path. `crate::`, `self::` and `super::` paths, and bare paths that start with
+  a module of the file's module (a file module or an inline module holding
+  items), resolve against that tree to the file of the longest prefix that is a
+  module; an import of the file itself makes no edge. A `crate::` path in a file
+  with no module path, and a `super` above the root, are unplaced (invariant 6).
+  Other bare paths are `external` crates; local crates are not matched to the
+  names other crates use for them. `#[path]` is not read.
 - **Calls.** `f()` has callee `f` and no receiver; `Type::new()`,
   `a::b::f()` and `f::<T>()` are reported with the last name as callee and the
   path before it as receiver (`Type`, `a::b`); `x.run()` has callee `run` and
@@ -480,7 +500,11 @@ core maps files to crate paths.
   `#[napi_derive::napi]` counts) is a binding export of the item's name, or
   of the value of `name = ".."` (PyO3, also in a separate `#[pyo3(..)]`) or
   `js_name = ".."` (napi, wasm-bindgen) in the attribute arguments. `impl`
-  blocks (`#[pymethods]`, `#[napi] impl`) are not read.
+  blocks (`#[pymethods]`, `#[napi] impl`) are not read. A `mod` is not a
+  symbol, so `#[pymodule] mod x { .. }` is an export of `x` on the file's module
+  node (`mod:rs:<path>`): that node carries the `binding` and is the target of
+  the `binds` edges for it. The attribute arguments are read with raw strings,
+  byte strings and character literals skipped.
 - **Annotations.** The annotation comment is `// modfence: ..` (also a
   single-line `/* modfence: .. */`; doc comments never count). An own-line
   comment targets the symbol that starts on the next line that is not part of a

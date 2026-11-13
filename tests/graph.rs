@@ -4,6 +4,7 @@
 
 use modfence::config::{self, Config, Severity};
 use modfence::extract::python::PythonExtractor;
+use modfence::extract::rust::RustExtractor;
 use modfence::extract::typescript::TsExtractor;
 use modfence::extract::{
     Annotation, BindingExport, BindingFramework, DiagnosticCode, ExtractCtx, Extractor, FileFacts,
@@ -16,7 +17,8 @@ fn extract(path: &str, text: &str) -> FileFacts {
     match Lang::from_path(path) {
         Some(Lang::Py) => PythonExtractor.extract(&file, &ExtractCtx::default()),
         Some(Lang::Ts) => TsExtractor.extract(&file, &ExtractCtx::default()),
-        _ => FileFacts::default(),
+        Some(Lang::Rs) => RustExtractor.extract(&file, &ExtractCtx::default()),
+        None => FileFacts::default(),
     }
 }
 
@@ -108,10 +110,14 @@ fn assert_well_formed(graph: &Graph) {
                     (NodeKind::Symbol | NodeKind::Module, NodeKind::Symbol)
                 )
             }
+            // A `#[pymodule] mod x` exports the file's module node.
             Relation::Binds => {
                 matches!(
                     kinds,
-                    (NodeKind::Symbol | NodeKind::Module, NodeKind::Symbol)
+                    (
+                        NodeKind::Symbol | NodeKind::Module,
+                        NodeKind::Symbol | NodeKind::Module
+                    )
                 )
             }
         };
@@ -483,7 +489,7 @@ import q from "..";
 }
 
 #[test]
-fn rust_imports_are_external_unless_relative() {
+fn rust_imports_are_external_unless_in_the_crate() {
     let config = Config::default();
     let mut builder = Builder::new(&config);
     let import = |specifier: &str, line| ImportEdge {
@@ -505,15 +511,256 @@ fn rust_imports_are_external_unless_relative() {
     );
     let graph = builder.build();
     assert_well_formed(&graph);
+    // `crate::inner` is the crate root's own module here: no edge.
     let imports = outgoing(&graph, Relation::Imports, &module(Lang::Rs, "src/lib.rs"));
+    assert_eq!(imports, [row("ext:rs:std", Confidence::Resolved, 1)]);
+    assert_eq!(graph.diagnostics.len(), 0);
+}
+
+/// The imports of a Rust file as (target, confidence, site count).
+fn rust_imports(graph: &Graph, path: &str) -> Vec<(String, Option<Confidence>, usize)> {
+    outgoing(graph, Relation::Imports, &module(Lang::Rs, path))
+}
+
+/// The paths of the files with an unresolved import, one entry per diagnostic.
+fn unresolved(graph: &Graph) -> Vec<&str> {
+    let found = graph.diagnostics.iter();
+    let found = found.filter(|d| d.code == DiagnosticCode::UnresolvedImport);
+    found.map(|d| d.path.as_str()).collect()
+}
+
+// ADR 0003, "Rust qualified names": `crate::`, `self::` and `super::` paths are
+// resolved against the module tree of the crate, which `mod name;` declarations
+// build from `src/lib.rs` (`name.rs` or `name/mod.rs`, below the directory of
+// the module that declares them).
+#[test]
+fn rust_paths_resolve_through_the_module_tree() {
+    let lib = "\
+mod a;
+mod b;
+pub mod inline {
+    pub fn deep() {}
+    pub mod nested;
+}
+use crate::a::thing;
+use self::b::sub;
+use inline::deep;
+use crate::inline::deep as again;
+use crate::missing::x;
+use serde::Serialize;
+use ::tokio::spawn;
+";
+    let sub = "use crate::a::*;\nuse super::super::sub as nobody;\n";
+    let files = [
+        ("crates/app/src/lib.rs", lib),
+        ("crates/app/src/a.rs", "use super::inline::deep;\nuse self::gone::f;\n"),
+        ("crates/app/src/b/mod.rs", "pub mod sub;\nuse super::a::helper;\n"),
+        ("crates/app/src/b/sub.rs", sub),
+        ("crates/app/src/inline/nested.rs", "use super::deep;\n"),
+    ];
+    let graph = build(&files);
+    assert_well_formed(&graph);
+    let confident = |target: &str, count| row(target, Confidence::Resolved, count);
     assert_eq!(
-        imports,
+        rust_imports(&graph, "crates/app/src/lib.rs"),
         [
-            row("ext:rs:crate::inner", Confidence::Heuristic, 1),
-            row("ext:rs:std", Confidence::Resolved, 1),
+            confident("ext:rs:serde", 1),
+            confident("ext:rs:tokio", 1),
+            confident("mod:rs:crates/app/src/a.rs", 2),
+            confident("mod:rs:crates/app/src/b/mod.rs", 1),
+            confident("mod:rs:crates/app/src/b/sub.rs", 1),
+            confident("mod:rs:crates/app/src/inline/nested.rs", 1),
         ]
     );
-    assert_eq!(graph.diagnostics.len(), 1);
+    // `super` from `a` is the crate root; `self::gone` is `a` itself.
+    assert_eq!(
+        rust_imports(&graph, "crates/app/src/a.rs"),
+        [confident("mod:rs:crates/app/src/lib.rs", 1)]
+    );
+    // `super` from `b` is the root, and `super::a` is `a`.
+    assert_eq!(
+        rust_imports(&graph, "crates/app/src/b/mod.rs"),
+        [
+            confident("mod:rs:crates/app/src/a.rs", 1),
+            confident("mod:rs:crates/app/src/b/sub.rs", 1),
+        ]
+    );
+    // A glob takes the module itself; two `super` from `b::sub` reach the root.
+    assert_eq!(
+        rust_imports(&graph, "crates/app/src/b/sub.rs"),
+        [
+            confident("mod:rs:crates/app/src/a.rs", 1),
+            confident("mod:rs:crates/app/src/lib.rs", 1),
+        ]
+    );
+    // `inline/nested.rs` is `inline::nested`, declared in an inline module.
+    assert_eq!(
+        rust_imports(&graph, "crates/app/src/inline/nested.rs"),
+        [confident("mod:rs:crates/app/src/lib.rs", 1)]
+    );
+    assert_eq!(unresolved(&graph), Vec::<&str>::new());
+}
+
+// A path that climbs above the crate root, and a `crate::` path in a file no
+// crate root reaches, cannot be placed: an `external` node and a diagnostic.
+#[test]
+fn rust_paths_that_leave_the_tree_are_unplaced() {
+    let files = [
+        ("src/lib.rs", "mod a;\n"),
+        ("src/a.rs", "use super::super::up;\nuse std::fmt;\n"),
+        ("src/orphan.rs", "use crate::a::f;\nuse self::a;\nuse super::a;\n"),
+    ];
+    let graph = build(&files);
+    assert_well_formed(&graph);
+    assert_eq!(
+        rust_imports(&graph, "src/a.rs"),
+        [
+            row("ext:rs:std", Confidence::Resolved, 1),
+            row("ext:rs:super::super", Confidence::Heuristic, 1),
+        ]
+    );
+    assert_eq!(
+        rust_imports(&graph, "src/orphan.rs"),
+        [
+            row("ext:rs:crate::a", Confidence::Heuristic, 1),
+            row("ext:rs:self", Confidence::Heuristic, 1),
+            row("ext:rs:super", Confidence::Heuristic, 1),
+        ]
+    );
+    assert_eq!(unresolved(&graph), ["src/a.rs", "src/orphan.rs", "src/orphan.rs", "src/orphan.rs"]);
+}
+
+// Crates are found from Cargo's layout. Each file below imports `crate::x::y`,
+// which lands on the file's own crate root when the file belongs to a crate and
+// cannot be placed when it does not.
+#[test]
+fn rust_crate_roots_follow_the_cargo_layout() {
+    let roots = [
+        "src/lib.rs",
+        "src/main.rs",
+        "src/bin/one.rs",
+        "src/bin/two/main.rs",
+        "tests/it.rs",
+        "examples/e.rs",
+        "benches/b.rs",
+        "pkg/src/lib.rs",
+    ];
+    let others = [
+        "build.rs",
+        "lib.rs",
+        "src/bin/two/other.rs",
+        "src/model.rs",
+        "src/tests/x.rs",
+    ];
+    let text = "use crate::x::y;\n";
+    let all: Vec<(&str, &str)> = roots.iter().chain(&others).map(|path| (*path, text)).collect();
+    let graph = build(&all);
+    assert_eq!(unresolved(&graph), others);
+}
+
+// `mod name;` looks in the directory of a root or a `mod.rs`, and in the
+// directory named after any other file.
+#[test]
+fn rust_module_files_are_found_below_the_declaring_module() {
+    let files = [
+        ("tests/it.rs", "mod common;\n"),
+        ("tests/common/mod.rs", "mod inner;\n"),
+        ("tests/common/inner.rs", "pub fn f() {}\n"),
+        ("src/lib.rs", "mod flat;\nmod twice;\n"),
+        ("src/flat.rs", "mod sub;\n"),
+        ("src/flat/sub.rs", "use super::g;\n"),
+        ("src/flat/lost.rs", "use super::g;\n"),
+        ("src/bin/two/main.rs", "mod util;\nfn main() { u(); }\n"),
+        ("src/bin/two/util.rs", "pub fn u() {}\n"),
+        ("src/twice.rs", ""),
+        ("src/twice/mod.rs", ""),
+    ];
+    let graph = build(&files);
+    assert_well_formed(&graph);
+    let to = |target: &str| row(&format!("mod:rs:{target}"), Confidence::Resolved, 1);
+    assert_eq!(
+        rust_imports(&graph, "tests/it.rs"),
+        [to("tests/common/mod.rs")]
+    );
+    assert_eq!(
+        rust_imports(&graph, "tests/common/mod.rs"),
+        [to("tests/common/inner.rs")]
+    );
+    // `twice.rs` wins over `twice/mod.rs`, which nobody then declares.
+    assert_eq!(
+        rust_imports(&graph, "src/lib.rs"),
+        [to("src/flat.rs"), to("src/twice.rs")]
+    );
+    assert_eq!(rust_imports(&graph, "src/flat.rs"), [to("src/flat/sub.rs")]);
+    // `super` from `flat::sub` is `flat`; `lost.rs` is declared by nobody.
+    assert_eq!(rust_imports(&graph, "src/flat/sub.rs"), [to("src/flat.rs")]);
+    assert_eq!(unresolved(&graph), ["src/flat/lost.rs"]);
+    assert_eq!(
+        rust_imports(&graph, "src/bin/two/main.rs"),
+        [to("src/bin/two/util.rs")]
+    );
+    // The call to `u` is found through the module the file declares.
+    let main = symbol(Lang::Rs, "src/bin/two/main.rs", "main");
+    assert_eq!(
+        outgoing(&graph, Relation::Calls, &main),
+        [row("sym:rs:src/bin/two/util.rs#u", Confidence::Heuristic, 1)]
+    );
+}
+
+// Calls to Rust items are matched by the last name, which for a method is the
+// method's name, not its path.
+#[test]
+fn rust_calls_match_symbols_by_their_last_name() {
+    let lib = "\
+mod m;
+pub struct Config;
+impl Config {
+    pub fn new() -> Self { Self::make() }
+    fn make() -> Self { Config }
+}
+pub fn run() { Config::new(); m::util(); }
+";
+    let graph = build(&[("src/lib.rs", lib), ("src/m.rs", "pub fn util() {}\n")]);
+    assert_well_formed(&graph);
+    let run = symbol(Lang::Rs, "src/lib.rs", "run");
+    assert_eq!(
+        outgoing(&graph, Relation::Calls, &run),
+        [
+            row("sym:rs:src/lib.rs#<Config>::new", Confidence::Heuristic, 1),
+            row("sym:rs:src/m.rs#util", Confidence::Heuristic, 1),
+        ]
+    );
+    let new = symbol(Lang::Rs, "src/lib.rs", "<Config>::new");
+    assert_eq!(
+        outgoing(&graph, Relation::Calls, &new),
+        [row("sym:rs:src/lib.rs#<Config>::make", Confidence::Heuristic, 1)]
+    );
+}
+
+// A `mod` is not a symbol, so `#[pymodule] mod x` exports the file's module
+// node, which Python binds to by the name of the module.
+#[test]
+fn a_pymodule_mod_binds_the_rust_module_node() {
+    let native = "#[pymodule]\nmod _core {\n    #[pyfunction]\n    pub fn add() {}\n}\n";
+    let graph = build(&[
+        ("native/src/lib.rs", native),
+        ("app.py", "from native import _core\n_core.add()\n"),
+    ]);
+    assert_well_formed(&graph);
+    let rust = module(Lang::Rs, "native/src/lib.rs");
+    let app = module(Lang::Py, "app.py");
+    let bound = edge(&graph, Relation::Binds, &app, &rust);
+    assert_eq!(bound.confidence, Some(Confidence::Heuristic));
+    assert_eq!(bound.count(), 1);
+    assert_eq!(
+        graph.nodes[&rust].binding,
+        Some(Binding {
+            framework: BindingFramework::Pyo3,
+            exported_name: "_core".to_owned(),
+        })
+    );
+    let add = symbol(Lang::Rs, "native/src/lib.rs", "_core::add");
+    assert_eq!(edge(&graph, Relation::Binds, &app, &add).count(), 1);
 }
 
 // ADR 0003, "Edge relations" and invariant 7: call edges are heuristic, found

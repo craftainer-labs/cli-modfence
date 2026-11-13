@@ -4,6 +4,7 @@
 
 use std::collections::BTreeSet;
 
+use super::rustmods::RustTree;
 use crate::extract::Lang;
 
 /// The extensions a TypeScript or JavaScript import may omit, in the order
@@ -27,6 +28,8 @@ pub(crate) struct Files<'a> {
     pub paths: &'a BTreeSet<String>,
     /// Directories that Python absolute imports start from; `""` is the root.
     pub python_roots: &'a [String],
+    /// The module tree of the Rust crates among the files.
+    pub rust: &'a RustTree,
 }
 
 impl Files<'_> {
@@ -42,7 +45,7 @@ impl Files<'_> {
         match lang {
             Lang::Py => self.python(from, specifier, names),
             Lang::Ts => self.typescript(from, specifier),
-            Lang::Rs => rust(specifier),
+            Lang::Rs => self.rust.resolve(from, specifier, names),
         }
     }
 
@@ -134,16 +137,6 @@ impl Files<'_> {
     }
 }
 
-/// A Rust path: its first segment is a crate, unless it is relative.
-fn rust(specifier: &str) -> Resolved {
-    let first = specifier.split("::").next().unwrap_or_default();
-    if matches!(first, "crate" | "self" | "super") {
-        Resolved::Unplaced
-    } else {
-        Resolved::External(first.to_owned())
-    }
-}
-
 /// The package a bare TypeScript specifier names: `@scope/name` or the first
 /// segment.
 fn package_name(specifier: &str) -> String {
@@ -189,7 +182,7 @@ fn up(dir: &str, levels: usize) -> Option<&str> {
     Some(dir)
 }
 
-fn join(base: &str, rest: &str) -> String {
+pub(super) fn join(base: &str, rest: &str) -> String {
     match (base.is_empty(), rest.is_empty()) {
         (true, _) => rest.to_owned(),
         (_, true) => base.to_owned(),

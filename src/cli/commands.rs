@@ -9,6 +9,7 @@ use super::args::{CheckArgs, CheckFormat, Cli, Command, Common, TraceArgs, ViewA
 use super::{Failure, OK, precise, text, trace, walker};
 use crate::config::{self, Config};
 use crate::extract::python::PythonExtractor;
+use crate::extract::rust::RustExtractor;
 use crate::extract::typescript::TsExtractor;
 use crate::extract::{ExtractCtx, Extractor, SourceFile};
 use crate::graph::{Builder, Graph};
@@ -108,8 +109,8 @@ fn root_of(config: &Path) -> PathBuf {
     Path::new(".").join(config.parent().unwrap_or(Path::new("")))
 }
 
-/// Loads the configuration, walks the analysis root, extracts every Python and
-/// TypeScript file and builds the graph, upgraded by SCIP indexes when
+/// Loads the configuration, walks the analysis root, extracts every Python,
+/// TypeScript and Rust file and builds the graph, upgraded by SCIP indexes when
 /// `--precise` or `--scip` asks. File problems go to `err`. The last value says
 /// whether call edges were checked, which is when an index was read.
 fn analyse(common: &Common, err: &mut impl Write) -> Result<(Config, Graph, bool), Failure> {
@@ -118,7 +119,7 @@ fn analyse(common: &Common, err: &mut impl Write) -> Result<(Config, Graph, bool
         Some(path) => (load(&path)?, root_of(&path)),
         None => (Config::default(), PathBuf::from(".")),
     };
-    let extractors: [&dyn Extractor; 2] = [&PythonExtractor, &TsExtractor];
+    let extractors: [&dyn Extractor; 3] = [&PythonExtractor, &TsExtractor, &RustExtractor];
     let wanted = |path: &str| extractors.iter().any(|extractor| extractor.handles(path));
     let files = walker::walk(&root, &config, wanted)?;
     let mut sources = precise::Sources::new(common);
