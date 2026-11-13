@@ -428,6 +428,11 @@ pub struct FileFacts {
     pub nodes: Vec<Node>,
     /// Imports, in source order.
     pub imports: Vec<ImportEdge>,
+    /// Rust only: the `mod name;` declarations of the file (not inline
+    /// modules), each as the inline modules it sits in and then the declared
+    /// name. A declaration also has an entry in `imports`; this list is what
+    /// tells it apart from a `use` of the same path (`use self::a::{self}`).
+    pub mod_declarations: Vec<Vec<String>>,
     /// Call sites, in source order.
     pub calls: Vec<CallSite>,
     /// `modfence:` comments, in source order.

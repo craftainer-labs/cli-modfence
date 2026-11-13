@@ -514,7 +514,10 @@ fn rust_imports_are_external_unless_in_the_crate() {
     // `crate::inner` is the crate root's own module here: no edge.
     let imports = outgoing(&graph, Relation::Imports, &module(Lang::Rs, "src/lib.rs"));
     assert_eq!(imports, [row("ext:rs:std", Confidence::Resolved, 1)]);
-    assert_eq!(graph.diagnostics.len(), 0);
+    // But no module `inner` is declared, so the fallback says so.
+    assert_eq!(graph.diagnostics.len(), 1);
+    assert_eq!(graph.diagnostics[0].code, DiagnosticCode::UnresolvedImport);
+    assert!(graph.diagnostics[0].message.contains("`inner`"));
 }
 
 /// The imports of a Rust file as (target, confidence, site count).
@@ -604,7 +607,76 @@ use ::tokio::spawn;
         rust_imports(&graph, "crates/app/src/inline/nested.rs"),
         [confident("mod:rs:crates/app/src/lib.rs", 1)]
     );
-    assert_eq!(unresolved(&graph), Vec::<&str>::new());
+    // `crate::missing` and `self::gone` name no module and no item: they fall
+    // back to the parent file, with a diagnostic.
+    assert_eq!(
+        unresolved(&graph),
+        ["crates/app/src/a.rs", "crates/app/src/lib.rs"]
+    );
+}
+
+/// The first backticked word of each unresolved-import message of `path`: the
+/// segment a Rust import fell back past.
+fn fallbacks(graph: &Graph, path: &str) -> Vec<String> {
+    let found = graph.diagnostics.iter();
+    let found = found.filter(|d| d.code == DiagnosticCode::UnresolvedImport && d.path == path);
+    let mut segments: Vec<String> = found
+        .filter_map(|d| d.message.split('`').nth(1).map(str::to_owned))
+        .collect();
+    segments.sort();
+    segments
+}
+
+// An import that falls back to a parent file past a segment that is neither a
+// module nor an item (a typo, or a `mod` whose file is missing) is reported;
+// the import still lands on the parent. A known item, an enum variant behind
+// one, a re-export and anything behind a glob import are not reported.
+#[test]
+fn rust_fallback_past_an_unknown_segment_is_reported() {
+    let lib = "\
+mod real;
+mod ghost;
+mod glob;
+use crate::real::Thing::Variant;
+use crate::real::Nope::Variant as V;
+use crate::real::Reexp::Deeper;
+use crate::glob::anything::Y;
+";
+    let files = [
+        ("src/lib.rs", lib),
+        (
+            "src/real.rs",
+            "pub struct Thing;\npub use other::Reexp;\nuse crate::typo::X;\n",
+        ),
+        ("src/glob.rs", "pub use elsewhere::*;\n"),
+    ];
+    let graph = build(&files);
+    assert_well_formed(&graph);
+    assert_eq!(fallbacks(&graph, "src/lib.rs"), ["Nope", "ghost"]);
+    assert_eq!(fallbacks(&graph, "src/real.rs"), ["typo"]);
+    assert_eq!(fallbacks(&graph, "src/glob.rs"), Vec::<String>::new());
+    // The fallback is kept: `real` imports the crate root for `typo`.
+    let to = |target: &str| row(&format!("mod:rs:{target}"), Confidence::Resolved, 1);
+    assert_eq!(
+        rust_imports(&graph, "src/real.rs"),
+        [
+            row("ext:rs:other", Confidence::Resolved, 1),
+            to("src/lib.rs"),
+        ]
+    );
+}
+
+// Only a `mod` declares a module: `use self::a::{self, B}` does not put `a.rs`
+// in the tree, so its own `crate::` imports are unplaced.
+#[test]
+fn rust_use_does_not_declare_a_module() {
+    let files = [
+        ("src/lib.rs", "use self::a::{self, B};\n"),
+        ("src/a.rs", "use crate::z;\n"),
+    ];
+    let graph = build(&files);
+    assert_eq!(unresolved(&graph), ["src/a.rs", "src/lib.rs"]);
+    assert_eq!(fallbacks(&graph, "src/lib.rs"), ["a"]);
 }
 
 // A path that climbs above the crate root, and a `crate::` path in a file no
@@ -648,7 +720,7 @@ fn rust_paths_that_leave_the_tree_are_unplaced() {
     );
 }
 
-// Crates are found from Cargo's layout. Each file below imports `crate::x::y`,
+// Crates are found from Cargo's layout. Each file below imports `crate::y`,
 // which lands on the file's own crate root when the file belongs to a crate and
 // cannot be placed when it does not.
 #[test]
@@ -670,7 +742,7 @@ fn rust_crate_roots_follow_the_cargo_layout() {
         "src/model.rs",
         "src/tests/x.rs",
     ];
-    let text = "use crate::x::y;\n";
+    let text = "use crate::y;\n";
     let all: Vec<(&str, &str)> = roots
         .iter()
         .chain(&others)

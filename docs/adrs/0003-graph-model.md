@@ -487,16 +487,22 @@ core maps files to crate paths.
 - **Resolution (NC3d).** The core finds crates from Cargo's layout without
   reading `Cargo.toml`: a root is `src/lib.rs`, `src/main.rs`,
   `src/bin/<name>.rs`, `src/bin/<name>/main.rs`, or a single file in `tests/`,
-  `examples/` or `benches/` that is not below a `src/`. Each `mod name;` (an
-  import of `self::name` with no names) adds `name.rs` or `name/mod.rs` below
+  `examples/` or `benches/` that is not below a `src/`. Each `mod name;` (the
+  extractor lists them in `FileFacts::mod_declarations`, so `use self::name::{self}`
+  is not one) adds `name.rs` or `name/mod.rs` below
   the directory of the declaring module: that of a root or a `mod.rs`, else the
   directory named after the file (`src/flat.rs` declares `src/flat/sub.rs`),
   through the inline modules it sits in. A file no root reaches has no module
   path. `crate::`, `self::` and `super::` paths, and bare paths that start with
   a module of the file's module (a file module or an inline module holding
   items), resolve against that tree to the file of the longest prefix that is a
-  module; an import of the file itself makes no edge. A `crate::` path in a file
-  with no module path, and a `super` above the root, are unplaced (invariant 6).
+  module; an import of the file itself makes no edge. When that fallback skips
+  a segment that is neither a module nor an item of the file it falls back to
+  (its symbols, inline modules and imported names; anything, if the file has a
+  glob import), the import gets an `unresolved-import` diagnostic and keeps the
+  edge to the parent file (a typo in `crate::typo::X`, or a `mod typo;` with no
+  file). A `crate::` path in a file with no
+  module path, and a `super` above the root, are unplaced (invariant 6).
   Other bare paths are `external` crates; local crates are not matched to the
   names other crates use for them. `#[path]` is not read.
 - **Calls.** `f()` has callee `f` and no receiver; `Type::new()`,

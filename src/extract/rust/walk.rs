@@ -487,6 +487,9 @@ impl<'a> Walker<'a> {
         let Some(body) = node.child_by_field_name("body") else {
             let specifier = anchored(&format!("self::{component}"), &scope.modules);
             let span = self.span(node);
+            // `self::` is always first: `anchored` keeps the file's module.
+            let path = specifier.split("::").skip(1).map(str::to_owned).collect();
+            self.facts.mod_declarations.push(path);
             self.facts.imports.push(ImportEdge {
                 specifier,
                 names: Vec::new(),
