@@ -1,1 +1,4 @@
 * text=auto eol=lf
+
+# Real SCIP indexes: binary, never normalised (tests/fixtures/scip/README.md).
+tests/fixtures/scip/indexes/*.scip binary

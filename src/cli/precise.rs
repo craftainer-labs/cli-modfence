@@ -27,6 +27,9 @@ const NONE_PRODUCED: &str = "no indexer produced an index; call edges were not c
 #[cfg(not(unix))]
 const UNSUPPORTED: &str = "--run-indexers is not supported on this platform; no indexer was run";
 
+/// The warning for `--run-indexers` when `.modfence` is a symbolic link.
+const NOT_CONFINED: &str = "a .modfence directory is a symbolic link; no indexer was run";
+
 /// The warning for indexes that held no document of the analysis.
 const NOT_USABLE: &str = "no usable SCIP documents; call edges were not checked";
 
@@ -131,13 +134,14 @@ pub(super) fn ingest(
 fn locate(root: &Path, discover: bool) -> std::io::Result<(String, Vec<PathBuf>)> {
     let analysis_root = fs::canonicalize(root)?.to_string_lossy().replace('\\', "/");
     let mut found = Vec::new();
-    if discover {
+    if discover && confined(root) {
         match fs::read_dir(root.join(INDEX_DIR)) {
             Ok(entries) => {
                 for entry in entries {
-                    let path = entry?.path();
-                    if path.extension().is_some_and(|ext| ext == "scip") {
-                        found.push(path);
+                    let entry = entry?;
+                    let index = entry.path().extension().is_some_and(|ext| ext == "scip");
+                    if index && !entry.file_type()?.is_symlink() {
+                        found.push(entry.path());
                     }
                 }
             }
@@ -168,6 +172,10 @@ fn run_indexers(
     let name = run::project_name(root);
     let plans = run::plan(languages, root, &out_dir, &name, has_tsconfig);
     if plans.is_empty() {
+        return Ok(Vec::new());
+    }
+    if !confined(root) {
+        writeln!(err, "warning: {NOT_CONFINED}")?;
         return Ok(Vec::new());
     }
     let path = std::env::var_os("PATH").unwrap_or_default();
@@ -215,6 +223,18 @@ fn run_indexers(
 ) -> Result<Vec<PathBuf>, Failure> {
     writeln!(err, "warning: {UNSUPPORTED}")?;
     Ok(Vec::new())
+}
+
+/// Whether `.modfence` and `.modfence/scip` below `root` are real directories
+/// (or absent). modfence neither writes through a symbolic link there, since it
+/// could point out of the analysed tree, nor reads indexes through one. A path
+/// that cannot be examined is not trusted either.
+fn confined(root: &Path) -> bool {
+    let safe = |dir: PathBuf| match fs::symlink_metadata(dir) {
+        Ok(meta) => !meta.is_symlink(),
+        Err(error) => error.kind() == std::io::ErrorKind::NotFound,
+    };
+    safe(root.join(".modfence")) && safe(root.join(INDEX_DIR))
 }
 
 /// A path safe to print: control characters escaped, so a file name cannot

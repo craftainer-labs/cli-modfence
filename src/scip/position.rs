@@ -5,7 +5,7 @@ use std::cell::OnceCell;
 use crate::extract::Span;
 
 /// How a document counts the `character` of its ranges (`PositionEncoding` in
-/// `scip.proto`). An unspecified encoding is read as UTF-8 by the reader.
+/// `scip.proto`). An unspecified encoding is read as UTF-16 by the reader.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum PositionEncoding {

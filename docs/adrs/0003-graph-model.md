@@ -67,10 +67,10 @@ of scope.
   only mode in which anything started by modfence may use the network, and
   only because the user's indexer decides to (NFR-0002).
 
-| Language | Indexer on `PATH` | Invocation (as implemented in NC6d; the flags are taken from the indexers' documentation and are checked against the real binaries by NC6e) |
+| Language | Indexer on `PATH` | Invocation (checked against the real tools: scip-python 0.6.8, scip-typescript 0.6.2, rust-analyzer 1.99.1; evidence in `tests/fixtures/scip/README.md`) |
 | --- | --- | --- |
-| `py` | `scip-python` | `scip-python index . --project-name=<name> --output <file>` |
-| `ts` (including JavaScript) | `scip-typescript` | `scip-typescript index`, plus `--infer-tsconfig` when the project has no `tsconfig.json`, and `--output` |
+| `py` | `scip-python` | `scip-python index . --project-name=<name> --project-version=0.0.0 --output <file>` (a version is required outside a git checkout, where its default, the git revision, crashes the indexer) |
+| `ts` (including JavaScript) | `scip-typescript` | `scip-typescript index`, plus `--infer-tsconfig` when the project has no `tsconfig.json`, and `--output <file>` |
 | `rs` | `rust-analyzer` | `rust-analyzer scip <dir> --output <file>` |
 
 An indexer runs only for a language that has files in the analysis, from the

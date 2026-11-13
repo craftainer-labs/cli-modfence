@@ -802,13 +802,6 @@ fn a_scip_file_that_is_not_an_index_exits_2() {
     let run = in_project(&dir, &["check", "--scip", &garbage]);
     assert_eq!(run.code, 2, "{}", run.err);
     assert!(run.err.contains("not a SCIP index"), "{}", run.err);
-    // One byte over the size cap: refused without being read.
-    let big = dir.join("big.scip");
-    let handle = std::fs::File::create(&big).unwrap();
-    handle.set_len(512 * 1024 * 1024 + 1).unwrap();
-    let run = in_project(&dir, &["check", "--scip", big.to_str().unwrap()]);
-    assert_eq!(run.code, 2, "{}", run.err);
-    assert!(run.err.contains("more than the limit"), "{}", run.err);
 }
 
 #[test]

@@ -27,6 +27,16 @@
   AA, zero violations), plus keyboard, no-JavaScript and offline/CSP checks;
   see `../../tests/a11y/README.md`. Its job is `axe`, and the maintainer adds
   it as a required check.
+- `scip-fixtures.yml` — instance-owned (modfence only; see
+  `../template-sync-manifest.local.yml`), run by hand (`workflow_dispatch`),
+  with no permission but `contents: read`. Installs `scip-python`,
+  `scip-typescript` (npm, pinned) and `rust-analyzer` (a component of the
+  pinned toolchain), builds modfence and runs
+  `../../tests/fixtures/scip/generate.sh`, which writes the real SCIP indexes of
+  the fixtures there and the evidence for their README (versions, `--help`,
+  command lines, SHA-256). It uploads them as the `scip-fixtures` artifact and
+  pushes nothing, opens no PR: a person reviews and commits the files. It needs
+  the network; modfence itself never does (NFR-0002).
 - `release-binaries.yml` — manually dispatched with a `tag` input, right after
   each `Release`: `gh workflow run release-binaries.yml -f tag=vX.Y.Z`. Ships
   the CLI's binaries: attaches the dist archives, their checksums and the

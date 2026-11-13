@@ -38,7 +38,9 @@ Rules:
   range, or an empty symbol, is dropped and counted. Enclosing ranges follow
   the same rule and are `None` when invalid.
 - A document with no position encoding, or one this version does not know, is
-  read as UTF-8 and counted (`unspecified_encoding`).
+  read as UTF-16 and counted (`unspecified_encoding`): scip-python states none
+  and counts UTF-16 code units, which the real index in `tests/fixtures/scip/`
+  shows on a line with non-ASCII text.
 - `LineIndex::span` returns `None` for a line that does not exist, an offset
   past the end of its line, and an offset inside a character. The caller counts
   these as a sign that the index does not match the source (stale).
@@ -48,5 +50,7 @@ Rules:
 - Output order is the index's order; the reader sorts nothing and uses no hash
   iteration.
 - A file over `MAX_INDEX_BYTES` (512 MiB) is an error, not a reason to read it.
-- Tests are in `tests/scip.rs`, built from indexes written in code; do not add
-  `#[cfg(test)]` modules here. Real indexer output arrives with NC6e.
+- Tests are in `tests/scip.rs`, built from indexes written in code, and in
+  `tests/scip_real.rs`, which reads the real indexes of `tests/fixtures/scip/`
+  (made by the real indexers, with their versions, commands and SHA-256 in that
+  directory's `README.md`); do not add `#[cfg(test)]` modules here.

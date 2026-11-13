@@ -1,0 +1,4 @@
+date: 2026-11-12
+scip-python: 0.6.8
+scip-typescript: 0.6.2
+rust-analyzer: rust-analyzer 1.99.1 (58cf8f9 2026-10-13)

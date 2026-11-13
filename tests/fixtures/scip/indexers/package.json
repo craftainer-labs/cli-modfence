@@ -1,0 +1,10 @@
+{
+  "name": "scip-fixture-indexers",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The SCIP indexers that generate.sh uses, pinned; npm ci installs exactly what package-lock.json says.",
+  "dependencies": {
+    "@sourcegraph/scip-python": "0.6.8",
+    "@sourcegraph/scip-typescript": "0.6.2"
+  }
+}

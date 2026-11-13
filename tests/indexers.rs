@@ -231,7 +231,7 @@ exit "${MODFENCE_EXIT:-0}"
         let out = format!("{project}/.modfence/scip");
         let name = setup.project.file_name().unwrap().to_str().unwrap();
         let python = format!(
-            "{} index . --project-name={name} --output {out}/python.scip",
+            "{} index . --project-name={name} --project-version=0.0.0 --output {out}/python.scip",
             setup.bin.join("scip-python").display()
         );
         let typescript = format!(
@@ -338,6 +338,43 @@ exit "${MODFENCE_EXIT:-0}"
     }
 
     #[test]
+    fn a_symbolic_link_for_modfence_is_not_written_or_read_through() {
+        let setup = setup("symlink", &["scip-python"]);
+        let outside = setup.project.parent().unwrap().join("outside");
+        write(&outside.join("scip/kept.scip"), &resolving_index(), 0o644);
+        std::os::unix::fs::symlink(&outside, setup.project.join(".modfence")).unwrap();
+        // The indexer is not run, and nothing is written through the link.
+        let output = setup.run(&["check", "--run-indexers"]);
+        assert_eq!(code(&output), 0, "{}", err(&output));
+        assert!(err(&output).contains("is a symbolic link; no indexer was run"));
+        assert!(!setup.record.exists());
+        assert!(!outside.join("scip/python.scip").exists());
+        // Nor is an index read through it.
+        let output = setup.run(&["check", "--precise"]);
+        assert_eq!(code(&output), 0, "{}", err(&output));
+        assert!(err(&output).contains("no SCIP indexes in .modfence/scip"));
+        // A link to a file inside a real directory is skipped too.
+        std::fs::remove_file(setup.project.join(".modfence")).unwrap();
+        let scip = setup.project.join(".modfence/scip");
+        std::fs::create_dir_all(&scip).unwrap();
+        std::os::unix::fs::symlink(outside.join("scip/kept.scip"), scip.join("link.scip")).unwrap();
+        let output = setup.run(&["check", "--precise"]);
+        assert_eq!(code(&output), 0, "{}", err(&output));
+        assert!(err(&output).contains("no SCIP indexes in .modfence/scip"));
+        // A link for the index directory itself is not followed either.
+        std::fs::remove_dir_all(setup.project.join(".modfence")).unwrap();
+        std::fs::create_dir_all(setup.project.join(".modfence")).unwrap();
+        std::os::unix::fs::symlink(outside.join("scip"), setup.project.join(".modfence/scip"))
+            .unwrap();
+        let output = setup.run(&["check", "--run-indexers"]);
+        assert_eq!(code(&output), 0, "{}", err(&output));
+        assert!(err(&output).contains("is a symbolic link; no indexer was run"));
+        assert!(!outside.join("scip/python.scip").exists());
+        let output = setup.run(&["check", "--precise"]);
+        assert!(err(&output).contains("no SCIP indexes in .modfence/scip"));
+    }
+
+    #[test]
     fn a_project_without_python_or_typescript_runs_no_indexer() {
         let setup = setup("empty", &["scip-python", "scip-typescript"]);
         std::fs::remove_file(setup.project.join("lib.py")).unwrap();
@@ -403,7 +440,8 @@ exit "${MODFENCE_EXIT:-0}"
         let calls = setup.calls();
         let output_arg = format!("{}/.modfence/scip/python.scip", project.display());
         assert_eq!(calls[0].1[2], "--project-name=we_ird_touch_pwned__q");
-        assert_eq!(calls[0].1[4], output_arg);
+        assert_eq!(calls[0].1[3], "--project-version=0.0.0");
+        assert_eq!(calls[0].1[5], output_arg);
         assert!(!project.join("pwned").exists());
         let quoted = format!("'{}'", output_arg.replace('\'', "'\\''"));
         assert!(err(&output).contains(&quoted), "{}", err(&output));
@@ -419,7 +457,13 @@ exit "${MODFENCE_EXIT:-0}"
         let (root, out) = (Path::new("/r"), Path::new("/r/.modfence/scip"));
         let plans = plan(&all, root, out, "n", false);
         assert_eq!(plans[0].program, "scip-python");
-        let python = ["index", ".", "--project-name=n", "--output"];
+        let python = [
+            "index",
+            ".",
+            "--project-name=n",
+            "--project-version=0.0.0",
+            "--output",
+        ];
         assert_eq!(
             plans[0].args,
             os(&[&python[..], &["/r/.modfence/scip/python.scip"]].concat())

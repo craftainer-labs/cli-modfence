@@ -99,6 +99,23 @@ Rules:
     exits like a broken `--scip` file (74, or 2 when it is not an index). An
     index left by an earlier run is removed first.
     Unix only: elsewhere it warns and runs nothing (CVE-2024-24576).
+  - Memory: the text of every analysed file is kept for the position
+    conversion (`Sources`) and every index is held until `apply` has run,
+    because `apply` settles duplicate documents and symbols across all of them.
+    The cost is the source size plus the encoded indexes (each at most 512 MiB)
+    times a small factor for the parsed form; an index is far larger than the
+    source it describes, so the copy of the source is not the term that matters.
+    It is not reduced further because that would need `apply` to read files
+    itself, which the graph code does not do (`src/graph/README.md`).
+  - Indexes in `.modfence/scip/` that this run did not plan (a language that is
+    not analysed, or a file from an earlier run) are left alone, not deleted and,
+    with `--run-indexers`, not read: only what the indexers just wrote is. A
+    `.modfence` or `.modfence/scip` that is a symbolic link is neither written
+    through nor read through (a warning for `--run-indexers`); nor is a
+    symbolic link to an index inside the directory.
+  - `PATH` lookup treats a file as executable when any execute bit is set,
+    like the lookup of most tools; one the user cannot run then fails when it is
+    started, which is a warning like any other failure to start.
   - There are no `modfence.toml` keys for any of this.
 - Tests are in `tests/cli.rs` (fixtures in `tests/fixtures/cli/`),
   `tests/indexers.rs` (`--run-indexers` with fake indexers on `PATH`) and
