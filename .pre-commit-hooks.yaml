@@ -9,18 +9,22 @@
 # `language: rust` builds the tagged source with `cargo install` into the
 # hook's private environment (pre-commit and prek both install a Rust
 # toolchain on demand), so a hook needs no release binary and pins to a git
-# tag. A faster install without a compiler is a mirror repository that
-# installs the PyPI wheel (`language: python`, `additional_dependencies`).
+# tag. Building needs crates.io once, at install; the checker itself opens no
+# network connection (NFR-0002). A faster install without a compiler is a
+# mirror repository that installs the PyPI wheel (`language: python`,
+# `additional_dependencies`).
 #
-# The template's CLI only greets, so this hook greets "pre-commit" and always
-# passes. An instance replaces `id`, `name`, `description`, `entry` and
-# `args` with its real command line (and `files`/`types` if it takes file
-# names); README.md lists the places an instance renames.
+# The hook checks the whole repository, not the staged files: a module
+# boundary is violated by an import in one file of another, so a partial view
+# would miss findings. It finds `modfence.toml` by walking up from the
+# working directory and exits 1 when a finding is at or above `--fail-on`
+# (default `error`), 2 for a usage or configuration error. A repository
+# passes extra flags with `args`, for example `[--fail-on, warning]`. The
+# tests in tests/hook.rs keep this file valid and its `entry` a real command.
 - id: modfence
   name: modfence
-  description: Example hook that runs the template's command-line program
-  entry: modfence
-  args: [pre-commit]
+  description: Check module boundaries (modfence.toml) across Python, TypeScript and Rust
+  entry: modfence check
   language: rust
   pass_filenames: false
   always_run: true

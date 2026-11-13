@@ -16,14 +16,20 @@ readme = "README.md"
 requires-python = ">=3.9"
 license = "GPL-3.0-only"
 license-files = ["LICENSE"]
+keywords = ["architecture", "lint", "static-analysis", "sarif", "dependencies"]
 classifiers = [
     "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
     "Programming Language :: Rust",
+    "Topic :: Software Development :: Quality Assurance",
 ]
 dynamic = ["version"]
 
 [project.urls]
 Repository = "https://github.com/craftainer-labs/cli-modfence"
+Issues = "https://github.com/craftainer-labs/cli-modfence/issues"
 
 [tool.maturin]
 bindings = "bin"
