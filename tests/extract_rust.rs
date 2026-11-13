@@ -772,7 +772,7 @@ fn body() {
 // hide the commas and quotes they hold.
 #[test]
 fn literals_in_binding_arguments_are_skipped() {
-    let text = r##"
+    let text = r###"
 #[pyfunction(text = r#"a, name = "no""#, name = "raw")]
 fn f1() {}
 
@@ -793,7 +793,7 @@ fn f6() {}
 
 #[pyfunction(open = '(', name = "paren")]
 fn f7() {}
-"##;
+"###;
     let facts = extract("m.rs", text);
     let names: Vec<&str> = facts
         .bindings

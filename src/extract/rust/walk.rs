@@ -655,7 +655,7 @@ mod tests {
     #[test]
     fn unfinished_literals_end_the_scan() {
         assert_eq!(top_level_pieces(r#"a, "b, c"#), ["a", r#" "b, c"#]);
-        assert_eq!(top_level_pieces(r#"a, r#"b, c"#), ["a", r##" r#"b, c"##]);
+        assert_eq!(top_level_pieces(r#"a, r#"b, c"#), ["a", r#" r#"b, c"#]);
         assert_eq!(top_level_pieces(r"a, '\"), ["a", r" '\"]);
         assert_eq!(top_level_pieces(r#"a, "b\"#), ["a", r#" "b\"#]);
         assert_eq!(top_level_pieces("a, '"), ["a", " '"]);
