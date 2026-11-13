@@ -498,8 +498,8 @@ core maps files to crate paths.
   items), resolve against that tree to the file of the longest prefix that is a
   module; an import of the file itself makes no edge. When that fallback skips
   a segment that is neither a module nor an item of the file it falls back to
-  (its symbols, inline modules and imported names; anything, if the file has a
-  glob import), the import gets an `unresolved-import` diagnostic and keeps the
+  (its symbols, inline modules, `as` aliases and imported names; anything, if the file
+  has a glob import), the import gets an `unresolved-import` diagnostic and keeps the
   edge to the parent file (a typo in `crate::typo::X`, or a `mod typo;` with no
   file). A `crate::` path in a file with no
   module path, and a `super` above the root, are unplaced (invariant 6).

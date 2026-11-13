@@ -38,7 +38,7 @@ Rules:
   that is a module of the crate, so an item, an enum variant or an inline
   module lands on the file that holds it; an import of the file itself makes no
   edge. If the fallback skipped a segment that is neither a module nor an
-  item or imported name of the file reached (`crate::typo::X`, a `mod x;` with
+  item, imported name or alias of the file reached (`crate::typo::X`, a `mod x;` with
   no file), the import keeps its edge and gets an `unresolved-import`
   diagnostic. A file no crate root reaches has no module path: its `crate::`
   imports, and a `super` that climbs above the root, are unplaced (an external

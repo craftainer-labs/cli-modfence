@@ -514,6 +514,17 @@ fn a_use_is_not_a_module_declaration() {
     assert_eq!(facts.mod_declarations, [["c"]]);
 }
 
+// What a file answers to besides its symbols and imported names: the local name
+// of an `as` (bare, in a list, in a nested list) and every inline module.
+#[test]
+fn local_names_are_aliases_and_inline_modules() {
+    let facts = extract(
+        "m.rs",
+        "pub use a::X as Y;\nuse b::{C as D, e::{F as G, H}};\nmod m { mod n {} }\nmod q;\n",
+    );
+    assert_eq!(facts.local_names, ["Y", "D", "G", "m", "n"]);
+}
+
 #[test]
 fn deeply_nested_use_lists_do_not_overflow_the_stack() {
     let text = format!("use {}x{};\n", "{".repeat(5_000), "}".repeat(5_000));

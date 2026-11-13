@@ -296,8 +296,8 @@ fn rust_tree(files: &[FileEntry]) -> RustTree {
 }
 
 /// The names a Rust file's top level can answer to: the first component of
-/// each symbol's qualified name, and every imported name (a re-export; `*` for
-/// a glob).
+/// each symbol's qualified name, every imported name (a re-export; `*` for a
+/// glob), and the file's local names (aliases, inline modules).
 fn known_names(facts: &extract::FileFacts) -> BTreeSet<String> {
     let symbols = facts
         .nodes
@@ -309,7 +309,8 @@ fn known_names(facts: &extract::FileFacts) -> BTreeSet<String> {
         .imports
         .iter()
         .flat_map(|import| import.names.iter().cloned());
-    symbols.chain(imports).collect()
+    let locals = facts.local_names.iter().cloned();
+    symbols.chain(imports).chain(locals).collect()
 }
 
 /// The inline modules at the top of a Rust file that hold symbols: the first

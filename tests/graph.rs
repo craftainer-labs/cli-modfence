@@ -630,7 +630,8 @@ fn fallbacks(graph: &Graph, path: &str) -> Vec<String> {
 // An import that falls back to a parent file past a segment that is neither a
 // module nor an item (a typo, or a `mod` whose file is missing) is reported;
 // the import still lands on the parent. A known item, an enum variant behind
-// one, a re-export and anything behind a glob import are not reported.
+// one, a re-export (also under an `as` alias, or in an inline module) and
+// anything behind a glob import are not reported.
 #[test]
 fn rust_fallback_past_an_unknown_segment_is_reported() {
     let lib = "\
@@ -641,12 +642,14 @@ use crate::real::Thing::Variant;
 use crate::real::Nope::Variant as V;
 use crate::real::Reexp::Deeper;
 use crate::glob::anything::Y;
+use crate::real::Alias::V2;
+use crate::real::inl::T2::Deep;
 ";
     let files = [
         ("src/lib.rs", lib),
         (
             "src/real.rs",
-            "pub struct Thing;\npub use other::Reexp;\nuse crate::typo::X;\n",
+            "pub struct Thing;\npub use other::Reexp;\npub use crate::real::Thing as Alias;\npub mod inl { pub use crate::real::Thing as T2; }\nuse crate::typo::X;\n",
         ),
         ("src/glob.rs", "pub use elsewhere::*;\n"),
     ];
