@@ -73,9 +73,11 @@ impl RawRange {
     }
 }
 
-/// The lines of one source file, for converting [`RawRange`]s. Lines end at
-/// `\n` only, as SCIP defines (a lone `\r`, U+2028 and U+2029 do not end a
-/// line); a `\r` before the `\n` is stripped and is not part of the line.
+/// The lines of one source file, for converting [`RawRange`]s. The source is
+/// valid UTF-8 by construction; a file that is not is never offered here
+/// (ADR 0003, invariant 23). Lines end at `\n` only, as SCIP defines (a lone
+/// `\r`, U+2028 and U+2029 do not end a line); a `\r` before the `\n` is
+/// stripped and is not part of the line.
 ///
 /// Converting is cheap however long a line is: an ASCII line needs no table,
 /// and any other line gets one table of its character boundaries per encoding,

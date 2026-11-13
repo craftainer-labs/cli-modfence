@@ -8,10 +8,11 @@ use std::path::{Path, PathBuf};
 use super::args::{CheckArgs, CheckFormat, Cli, Command, Common, TraceArgs, ViewArgs};
 use super::{Failure, OK, precise, text, trace, walker};
 use crate::config::{self, Config};
+use crate::extract::decode;
 use crate::extract::python::PythonExtractor;
 use crate::extract::rust::RustExtractor;
 use crate::extract::typescript::TsExtractor;
-use crate::extract::{ExtractCtx, Extractor, SourceFile};
+use crate::extract::{Extractor, SourceFile};
 use crate::graph::{Builder, Graph};
 use crate::{output, report, rules};
 
@@ -127,17 +128,16 @@ fn analyse(common: &Common, err: &mut impl Write) -> Result<(Config, Graph, bool
     for path in &files {
         let full = root.join(path);
         let bytes = fs::read(&full).map_err(failed("read", &full))?;
-        let decoded = String::from_utf8_lossy(&bytes);
-        sources.add(path, &decoded);
-        let file = SourceFile {
-            path,
-            text: &decoded,
-        };
+        let decoded = std::str::from_utf8(&bytes);
+        let text = String::from_utf8_lossy(&bytes);
+        let file = SourceFile { path, text: &text };
+        sources.add_if(decoded.is_ok(), path, file.text);
         for extractor in extractors
             .iter()
             .filter(|extractor| extractor.handles(path))
         {
-            builder.add(&file, extractor.extract(&file, &ExtractCtx::default()));
+            let facts = decode::extract(*extractor, &file, decoded.err());
+            builder.add(&file, facts);
         }
     }
     let mut graph = builder.build();
