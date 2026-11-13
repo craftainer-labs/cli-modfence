@@ -102,7 +102,8 @@ built, with the ingested indexes and the text of the analysed files:
   that matched no symbol by name and so sit on no edge (an aliased import, a
   method called through a receiver): the graph keeps them, unwritten, and a
   resolving reference gives each one a new `resolved` edge. A reference with no
-  tree-sitter call site adds nothing (an Open issue). `imports` edges are not
+  tree-sitter call site adds nothing (resolved: no call edge without a
+  tree-sitter site, per Decision A; see ADR 0004). `imports` edges are not
   touched (they are already `resolved` when the target is placed, invariant 6)
   and `binds` edges stay heuristic: SCIP does not cover the Python-to-Rust
   boundary.
