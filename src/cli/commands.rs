@@ -128,26 +128,19 @@ fn analyse(common: &Common, err: &mut impl Write) -> Result<(Config, Graph, bool
     for path in &files {
         let full = root.join(path);
         let bytes = fs::read(&full).map_err(failed("read", &full))?;
-        let text = match std::str::from_utf8(&bytes) {
-            Ok(text) => text,
-            Err(error) => {
-                for extractor in extractors
-                    .iter()
-                    .filter(|extractor| extractor.handles(path))
-                {
-                    let facts = decode::undecodable(extractor.language(), path, error);
-                    builder.add(&SourceFile { path, text: "" }, facts);
-                }
-                continue;
-            }
-        };
-        sources.add(path, text);
+        let decoded = std::str::from_utf8(&bytes);
+        let text = decoded.unwrap_or_default();
+        sources.add_if(decoded.is_ok(), path, text);
         let file = SourceFile { path, text };
         for extractor in extractors
             .iter()
             .filter(|extractor| extractor.handles(path))
         {
-            builder.add(&file, extractor.extract(&file, &ExtractCtx::default()));
+            let facts = match decoded {
+                Ok(_) => extractor.extract(&file, &ExtractCtx::default()),
+                Err(error) => decode::undecodable(extractor.language(), path, error),
+            };
+            builder.add(&file, facts);
         }
     }
     let mut graph = builder.build();

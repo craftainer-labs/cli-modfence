@@ -1026,10 +1026,17 @@ fn a_latin_1_byte_before_a_call_skips_the_file_and_the_index_cannot_drift() {
     assert_eq!(diagnostics[0]["path"], "app.py");
     assert_eq!(diagnostics[0]["code"], "unsupported-encoding");
     let message = diagnostics[0]["message"].as_str().unwrap();
-    assert!(message.contains("first invalid byte at offset 43"), "{message}");
+    assert!(
+        message.contains("first invalid byte at offset 43"),
+        "{message}"
+    );
     assert!(run.err.contains("not valid UTF-8"), "{}", run.err);
     assert!(!run.out.contains("\"calls\""), "{}", run.out);
-    assert!(run.err.contains("1 documents match no analysed file"), "{}", run.err);
+    assert!(
+        run.err.contains("1 documents match no analysed file"),
+        "{}",
+        run.err
+    );
 }
 
 #[test]
@@ -1043,7 +1050,10 @@ fn an_invalid_byte_inside_a_string_literal_skips_a_rust_file_only() {
     assert_eq!(diagnostics[0]["path"], "bad.rs");
     assert_eq!(diagnostics[0]["code"], "unsupported-encoding");
     let message = diagnostics[0]["message"].as_str().unwrap();
-    assert!(message.contains("first invalid byte at offset 22"), "{message}");
+    assert!(
+        message.contains("first invalid byte at offset 22"),
+        "{message}"
+    );
 }
 
 #[test]
@@ -1072,5 +1082,9 @@ fn precise_still_aligns_the_valid_files_beside_an_invalid_one() {
     assert_eq!(run.code, 1, "{}", run.err);
     assert!(run.out.contains("no-calls"), "{}", run.out);
     assert!(run.err.contains("not valid UTF-8"), "{}", run.err);
-    assert!(run.err.contains("2 documents match no analysed file"), "{}", run.err);
+    assert!(
+        run.err.contains("2 documents match no analysed file"),
+        "{}",
+        run.err
+    );
 }

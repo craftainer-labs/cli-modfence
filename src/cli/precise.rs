@@ -49,9 +49,10 @@ impl Sources {
         }
     }
 
-    /// Remembers the text of `path`, if SCIP was asked for.
-    pub(super) fn add(&mut self, path: &str, text: &str) {
-        if self.wanted {
+    /// Remembers the text of `path`, if SCIP was asked for and the file was
+    /// decoded (`decoded`); a file that is not valid UTF-8 gives SCIP no text.
+    pub(super) fn add_if(&mut self, decoded: bool, path: &str, text: &str) {
+        if self.wanted && decoded {
             self.texts.insert(path.to_owned(), text.to_owned());
         }
     }
