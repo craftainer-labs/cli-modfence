@@ -361,6 +361,17 @@ exit "${MODFENCE_EXIT:-0}"
         let output = setup.run(&["check", "--precise"]);
         assert_eq!(code(&output), 0, "{}", err(&output));
         assert!(err(&output).contains("no SCIP indexes in .modfence/scip"));
+        // A link for the index directory itself is not followed either.
+        std::fs::remove_dir_all(setup.project.join(".modfence")).unwrap();
+        std::fs::create_dir_all(setup.project.join(".modfence")).unwrap();
+        std::os::unix::fs::symlink(outside.join("scip"), setup.project.join(".modfence/scip"))
+            .unwrap();
+        let output = setup.run(&["check", "--run-indexers"]);
+        assert_eq!(code(&output), 0, "{}", err(&output));
+        assert!(err(&output).contains("is a symbolic link; no indexer was run"));
+        assert!(!outside.join("scip/python.scip").exists());
+        let output = setup.run(&["check", "--precise"]);
+        assert!(err(&output).contains("no SCIP indexes in .modfence/scip"));
     }
 
     #[test]

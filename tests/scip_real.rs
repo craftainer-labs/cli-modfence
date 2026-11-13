@@ -57,7 +57,12 @@ fn graph(root: &Path, index: &Path) -> (Value, String) {
         config.into(),
     ];
     let (mut out, mut err) = (Vec::new(), Vec::new());
-    let _ = modfence::run(args, &mut out, &mut err);
+    let code = modfence::run(args, &mut out, &mut err);
+    assert!(
+        code == std::process::ExitCode::SUCCESS,
+        "{}",
+        String::from_utf8_lossy(&err)
+    );
     let document = serde_json::from_slice(&out).unwrap();
     (document, String::from_utf8(err).unwrap())
 }

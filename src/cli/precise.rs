@@ -227,10 +227,14 @@ fn run_indexers(
 
 /// Whether `.modfence` and `.modfence/scip` below `root` are real directories
 /// (or absent). modfence neither writes through a symbolic link there, since it
-/// could point out of the analysed tree, nor reads indexes through one.
+/// could point out of the analysed tree, nor reads indexes through one. A path
+/// that cannot be examined is not trusted either.
 fn confined(root: &Path) -> bool {
-    let link = |dir: PathBuf| fs::symlink_metadata(dir).is_ok_and(|meta| meta.is_symlink());
-    !link(root.join(".modfence")) && !link(root.join(INDEX_DIR))
+    let safe = |dir: PathBuf| match fs::symlink_metadata(dir) {
+        Ok(meta) => !meta.is_symlink(),
+        Err(error) => error.kind() == std::io::ErrorKind::NotFound,
+    };
+    safe(root.join(".modfence")) && safe(root.join(INDEX_DIR))
 }
 
 /// A path safe to print: control characters escaped, so a file name cannot
