@@ -6,10 +6,14 @@ use modfence::extract::decode::extract;
 use modfence::extract::python::PythonExtractor;
 use modfence::extract::{DiagnosticCode, NodeKind, SourceFile};
 
+fn error(bytes: &[u8]) -> std::str::Utf8Error {
+    std::str::from_utf8(bytes).unwrap_err()
+}
+
 #[test]
 fn an_undecodable_file_is_extracted_and_names_the_first_bad_byte() {
     let bytes = b"import os\nx = '\xe9'\n";
-    let error = std::str::from_utf8(bytes).unwrap_err();
+    let error = error(bytes);
     let text = String::from_utf8_lossy(bytes);
     let file = SourceFile {
         path: "pkg/a.py",
