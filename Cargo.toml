@@ -26,10 +26,14 @@ pedantic = { level = "warn", priority = -1 }
 name = "modfence"
 description = "Cross-language module-boundary checker for Python, TypeScript and Rust"
 readme = "README.md"
+# At most five keywords; the categories are slugs from
+# https://crates.io/category_slugs. The release binaries, wheels and npm
+# packages reuse the keywords (scripts/binaries/).
+keywords = ["architecture", "lint", "static-analysis", "sarif", "dependencies"]
+categories = ["development-tools", "command-line-utilities"]
 # Stays 0.0.0 in git: the release tag is the real version. `publish` is left
 # at Cargo's default (true) and gated by the release contract's
-# CARGO_PUBLISH switch, not here. crates.io also wants `keywords` (max 5) and
-# `categories` (https://crates.io/category_slugs); an instance adds them.
+# CARGO_PUBLISH switch, not here.
 # Only what a dependent needs goes into the .crate (the default would ship
 # .devcontainer/, docs/, scripts/ and more).
 include = ["/src/", "/tests/", "/README.md", "/LICENSE"]
