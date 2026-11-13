@@ -680,6 +680,26 @@ fn rust_crate_roots_follow_the_cargo_layout() {
     assert_eq!(unresolved(&graph), others);
 }
 
+// A file that two crates declare is a module of each, so the second crate's
+// `use common::f` is local and not an external crate.
+#[test]
+fn rust_file_shared_by_two_crates_resolves_in_both() {
+    let files = [
+        ("tests/a.rs", "mod common;\nuse common::f;\n"),
+        ("tests/b.rs", "mod common;\nuse common::f;\n"),
+        ("tests/common/mod.rs", "pub fn f() {}\n"),
+    ];
+    let graph = build(&files);
+    assert_well_formed(&graph);
+    for test in ["tests/a.rs", "tests/b.rs"] {
+        let targets: Vec<String> = rust_imports(&graph, test)
+            .into_iter()
+            .map(|(target, _, _)| target)
+            .collect();
+        assert_eq!(targets, ["mod:rs:tests/common/mod.rs"], "{test}");
+    }
+}
+
 // `mod name;` looks in the directory of a root or a `mod.rs`, and in the
 // directory named after any other file.
 #[test]

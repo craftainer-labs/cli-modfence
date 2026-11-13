@@ -66,13 +66,16 @@ impl RustTree {
     pub(crate) fn new(info: BTreeMap<String, RustFile>) -> Self {
         let mut tree = Self::default();
         let mut queue = VecDeque::new();
+        // A file that several crates declare (`tests/common/mod.rs`, or a
+        // file both `lib.rs` and `main.rs` declare) is placed in each of them.
+        let mut seen: BTreeSet<(String, String)> = BTreeSet::new();
         let roots: BTreeSet<&String> = info.keys().filter(|path| is_root(path)).collect();
         for root in &roots {
             tree.place(root, root, Vec::new());
-            queue.push_back((*root).clone());
+            seen.insert(((*root).clone(), (*root).clone()));
+            queue.push_back(((*root).clone(), (*root).clone(), Vec::new()));
         }
-        while let Some(file) = queue.pop_front() {
-            let (root, module) = tree.modules[&file].clone();
+        while let Some((root, file, module)) = queue.pop_front() {
             let dir = module_dir(&file, roots.contains(&file));
             for (inline, name) in &info[&file].declared {
                 let base = inline
@@ -80,15 +83,18 @@ impl RustTree {
                     .fold(dir.clone(), |base, part| join(&base, part));
                 let plain = join(&base, name);
                 let candidates = [format!("{plain}.rs"), join(&plain, "mod.rs")];
-                let found = candidates
-                    .into_iter()
-                    .find(|path| info.contains_key(path) && !tree.modules.contains_key(path));
+                let found = candidates.into_iter().find(|path| {
+                    info.contains_key(path)
+                        && !roots.contains(path)
+                        && !seen.contains(&(root.clone(), path.clone()))
+                });
                 if let Some(child) = found {
                     let mut path = module.clone();
                     path.extend(inline.iter().cloned());
                     path.push(name.clone());
-                    tree.place(&root, &child, path);
-                    queue.push_back(child);
+                    tree.place(&root, &child, path.clone());
+                    seen.insert((root.clone(), child.clone()));
+                    queue.push_back((root.clone(), child, path));
                 }
             }
         }
@@ -103,8 +109,10 @@ impl RustTree {
         self.files
             .entry((root.to_owned(), path.clone()))
             .or_insert_with(|| file.to_owned());
+        // The first crate to reach a file is the one its own imports resolve in.
         self.modules
-            .insert(file.to_owned(), (root.to_owned(), path));
+            .entry(file.to_owned())
+            .or_insert_with(|| (root.to_owned(), path));
     }
 
     /// Resolves the import `specifier` (with the imported `names`) written in

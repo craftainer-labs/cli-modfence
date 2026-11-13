@@ -157,6 +157,11 @@ fn rename_key(framework: BindingFramework) -> &'static str {
     }
 }
 
+/// Whether `after` (the bytes past a quote) starts with `hashes` `#`s.
+fn closes(after: &[u8], hashes: usize) -> bool {
+    after.iter().take_while(|byte| **byte == b'#').count() >= hashes
+}
+
 /// The index just past the string literal whose opening quote is at `open`:
 /// an ordinary one ends at the first quote no backslash escapes, a raw one
 /// (`r"`, `r#"`, `br##"`, ..) at a quote followed by as many `#` as opened it.
@@ -172,7 +177,7 @@ fn string_end(bytes: &[u8], open: usize) -> usize {
     while at < bytes.len() {
         match bytes[at] {
             b'\\' if !raw => at += 2,
-            b'"' if bytes[at + 1..].starts_with(&vec![b'#'; hashes]) => {
+            b'"' if closes(&bytes[at + 1..], hashes) => {
                 return at + 1 + hashes;
             }
             _ => at += 1,
