@@ -505,7 +505,7 @@ fn references(page: &str) -> References {
     while let Some(offset) = page[at..].find('<') {
         at += offset;
         let rest = &page[at..];
-        if rest.starts_with("<!--") {
+        if let Some(tail) = rest.strip_prefix("<!--") {
             // `<!-->` and `<!--->` are complete comments in HTML.
             let skip = if rest.starts_with("<!-->") {
                 5
@@ -513,7 +513,6 @@ fn references(page: &str) -> References {
                 6
             } else {
                 // `--!>` also ends a comment.
-                let tail = &rest[4..];
                 match (tail.find("-->"), tail.find("--!>")) {
                     (Some(a), Some(b)) => (a + 7).min(b + 8),
                     (Some(a), None) => a + 7,
@@ -608,15 +607,24 @@ fn the_reference_check_catches_the_awkward_spellings() {
             "<svg><image srcset=\"#a 1x, https://x/b.png 2x\"/></svg>",
             "srcset",
         ),
-        ("<svg><image srcset=\"data:a,b 1x,//x/y 2x\"/></svg>", "srcset"),
+        (
+            "<svg><image srcset=\"data:a,b 1x,//x/y 2x\"/></svg>",
+            "srcset",
+        ),
         ("<!--> <a href=http://x>a</a>", "<a href"),
         ("<!-- x --!> <a href=http://x>a</a>", "<a href"),
         ("<script>fe\ntch (\"x\")</script>", "names fetch("),
-        ("<script type=\"Text/JavaScript\">new  Image</script>", "newImage"),
+        (
+            "<script type=\"Text/JavaScript\">new  Image</script>",
+            "newImage",
+        ),
         ("<p srcdoc=\"<b>\"></p>", "srcdoc"),
     ] {
         let problems = references(bad).problems.join("\n");
-        assert!(problems.contains(expected), "{expected} in {bad}\n{problems}");
+        assert!(
+            problems.contains(expected),
+            "{expected} in {bad}\n{problems}"
+        );
     }
 }
 
