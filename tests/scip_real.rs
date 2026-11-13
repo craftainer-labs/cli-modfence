@@ -35,7 +35,9 @@ fn project(lang: &str, files: &[&str]) -> (PathBuf, PathBuf) {
     std::fs::create_dir_all(&root).unwrap();
     let root = root.canonicalize().unwrap();
     for file in files {
-        std::fs::copy(fixtures().join(lang).join(file), root.join(file)).unwrap();
+        let target = root.join(file);
+        std::fs::create_dir_all(target.parent().unwrap()).unwrap();
+        std::fs::copy(fixtures().join(lang).join(file), target).unwrap();
     }
     std::fs::write(root.join("modfence.toml"), "version = 1\n").unwrap();
     let index = root.join("index.scip");
@@ -123,6 +125,31 @@ fn scip_typescript_resolves_an_aliased_call_and_a_method_call() {
     let found = resolved_calls(&document);
     assert!(has(&found, "sym:ts:lib.ts#run", "go"), "{found:?}");
     assert!(has(&found, "sym:ts:lib.ts#Svc~runIt", "runIt"), "{found:?}");
+    assert!(!err.contains("may be stale"), "{err}");
+    assert!(!err.contains("no position encoding"), "{err}");
+}
+
+#[test]
+fn rust_analyzer_resolves_an_aliased_call_and_a_method_call() {
+    let (root, index) = project("rust", &["src/lib.rs"]);
+    let (document, err) = graph(&root, &index);
+    assert_eq!(document["graph"]["metadata"]["backend"], "tree-sitter+scip");
+    assert_eq!(
+        document["graph"]["metadata"]["languages"],
+        serde_json::json!(["rs"])
+    );
+    let found = resolved_calls(&document);
+    // `go()` is `helper::run` imported under another name, and sits after
+    // non-ASCII text on its line; `svc.run_it()` goes through an instance.
+    assert!(
+        has(&found, "sym:rs:src/lib.rs#helper::run", "go"),
+        "{found:?}"
+    );
+    assert!(
+        has(&found, "sym:rs:src/lib.rs#<Svc>::run_it", "run_it"),
+        "{found:?}"
+    );
+    // rust-analyzer states UTF-8 offsets, so nothing is stale or unstated.
     assert!(!err.contains("may be stale"), "{err}");
     assert!(!err.contains("no position encoding"), "{err}");
 }

@@ -686,6 +686,107 @@ fn none() {}
     );
 }
 
+// ADR 0003: a module declared in a function body cannot be named from outside
+// the body, so `self::` in it, and the modules around it, say so.
+#[test]
+fn modules_in_function_bodies_are_not_nameable() {
+    let text = "\
+mod a {
+    fn f() {
+        mod m {
+            use self::x::y;
+            use super::z;
+            mod n {
+                use super::super::w;
+            }
+            mod decl;
+        }
+    }
+}
+fn g() {
+    mod local;
+}
+";
+    let facts = extract("m.rs", text);
+    assert_eq!(
+        import_pairs(&facts),
+        [
+            ("self::a::<locals>::m::x", vec!["y"]),
+            ("self::a", vec!["z"]),
+            ("self::a", vec!["w"]),
+            ("self::a::<locals>::m::decl", vec![]),
+            ("self::<locals>::local", vec![]),
+        ]
+    );
+    assert_eq!(facts.diagnostics.len(), 0);
+}
+
+// A `mod` is not a symbol: its export belongs to the file's module node.
+#[test]
+fn a_pymodule_mod_exports_the_file_module() {
+    let text = "\
+#[pymodule]
+mod native {
+    #[pyfunction]
+    fn inner() {}
+}
+
+#[pymodule]
+#[pyo3(name = \"renamed\")]
+mod second;
+
+#[cfg(test)]
+mod tests {}
+
+fn body() {
+    #[pymodule]
+    mod local {}
+}
+";
+    let facts = extract("m.rs", text);
+    let found: Vec<_> = facts
+        .bindings
+        .iter()
+        .map(|binding| (binding.symbol.as_str(), binding.exported_name.as_str()))
+        .collect();
+    assert_eq!(
+        found,
+        [
+            ("mod:rs:m.rs", "native"),
+            ("sym:rs:m.rs#native::inner", "inner"),
+            ("mod:rs:m.rs", "renamed"),
+            ("mod:rs:m.rs", "local"),
+        ]
+    );
+    assert!(
+        facts
+            .bindings
+            .iter()
+            .all(|binding| binding.framework == BindingFramework::Pyo3)
+    );
+    // The module is reported as a node of the file, not as a symbol.
+    assert_eq!(symbol_names(&facts), ["native::inner", "body"]);
+}
+
+// Raw strings, byte strings and character literals in an attribute's arguments
+// hide the commas and quotes they hold.
+#[test]
+fn literals_in_binding_arguments_are_skipped() {
+    let facts = extract_fixture("src/literals.rs");
+    let names: Vec<&str> = facts
+        .bindings
+        .iter()
+        .map(|binding| binding.exported_name.as_str())
+        .collect();
+    assert_eq!(
+        names,
+        [
+            "raw", "bytes", "quote", "chars", "escaped", "hashes", "paren"
+        ]
+    );
+    assert_eq!(facts.diagnostics.len(), 0);
+}
+
 #[test]
 fn columns_count_code_points() {
     let facts = extract("m.rs", "fn f() { let s = \"é\"; g(); }\n");

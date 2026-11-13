@@ -43,15 +43,14 @@ Rules:
   there is none.
 - A failed write to standard output says "cannot write output"; every failure
   that involves a path names it ("cannot walk <dir>", "cannot read <file>").
-- The walker reads Python and TypeScript/JavaScript files (Rust arrives with
-  its extractor). It always skips `.git/` and `.modfence/`, does not follow
-  symbolic links, and leaves out what the configuration's `exclude` matches. An
-  excluded directory is not read at all (so an unreadable one in `vendor/` is
-  harmless); a directory that is not excluded and cannot be listed exits 74
-  and names the path.
-  It does not read `.gitignore` files: list `node_modules/`, virtual
-  environments and build output in `exclude`. A file that is not valid UTF-8
-  is decoded lossily.
+- The walker reads Python, TypeScript/JavaScript and Rust (`.rs`) files. It
+  always skips `.git/` and `.modfence/`, does not follow symbolic links, and
+  leaves out what the configuration's `exclude` matches. An excluded directory
+  is not read at all (so an unreadable one in `vendor/` is harmless); a
+  directory that is not excluded and cannot be listed exits 74 and names the
+  path. It does not read `.gitignore` files: list `node_modules/`, virtual
+  environments and build output (a Rust crate's `target/`) in `exclude`. A file
+  that is not valid UTF-8 is decoded lossily.
 - No per-file extraction cache yet: `FileFacts` has no serialised form, so
   `--cache-dir` and `--no-cache` do not exist. The cache (ADR 0003, keyed by
   content hash and `Extractor::version`) comes with that form.

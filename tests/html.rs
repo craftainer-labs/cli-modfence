@@ -667,8 +667,7 @@ fn fixture_page(fixture: &str, level: &str) -> String {
 
 #[test]
 fn the_pages_of_the_real_fixtures_reference_nothing_outside_the_file() {
-    // The walker does not read Rust files yet (src/cli/README.md).
-    for fixture in ["cli/app", "python", "typescript"] {
+    for fixture in ["cli/app", "python", "rust", "typescript"] {
         for level in ["module", "symbol"] {
             let page = fixture_page(fixture, level);
             let nodes = data(&page)["nodes"].as_array().unwrap().len();

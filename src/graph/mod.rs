@@ -25,6 +25,7 @@
 mod assemble;
 mod locate;
 pub mod precise;
+mod rustmods;
 
 use std::collections::{BTreeMap, BTreeSet};
 

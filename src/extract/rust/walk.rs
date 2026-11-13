@@ -157,32 +157,75 @@ fn rename_key(framework: BindingFramework) -> &'static str {
     }
 }
 
-/// The comma-separated pieces of `text` that are not inside brackets or a
-/// string literal.
-fn top_level_pieces(text: &str) -> Vec<&str> {
-    let mut pieces = Vec::new();
-    let (mut depth, mut start) = (0_usize, 0_usize);
-    let (mut quoted, mut escaped) = (false, false);
-    for (index, ch) in text.char_indices() {
-        if quoted {
-            if escaped {
-                escaped = false;
-            } else if ch == '\\' {
-                escaped = true;
-            } else if ch == '"' {
-                quoted = false;
+/// Whether `after` (the bytes past a quote) starts with `hashes` `#`s.
+fn closes(after: &[u8], hashes: usize) -> bool {
+    after.iter().take_while(|byte| **byte == b'#').count() >= hashes
+}
+
+/// The index just past the string literal whose opening quote is at `open`:
+/// an ordinary one ends at the first quote no backslash escapes, a raw one
+/// (`r"`, `r#"`, `br##"`, ..) at a quote followed by as many `#` as opened it.
+fn string_end(bytes: &[u8], open: usize) -> usize {
+    let hashes = bytes[..open]
+        .iter()
+        .rev()
+        .take_while(|byte| **byte == b'#')
+        .count();
+    let raw = (open - hashes).checked_sub(1).map(|at| bytes[at]) == Some(b'r');
+    let hashes = if raw { hashes } else { 0 };
+    let mut at = open + 1;
+    while at < bytes.len() {
+        match bytes[at] {
+            b'\\' if !raw => at += 2,
+            b'"' if closes(&bytes[at + 1..], hashes) => {
+                return at + 1 + hashes;
             }
-            continue;
+            _ => at += 1,
         }
-        match ch {
-            '"' => quoted = true,
-            '(' | '[' | '{' => depth += 1,
-            ')' | ']' | '}' => depth = depth.saturating_sub(1),
-            ',' if depth == 0 => {
-                pieces.push(text.get(start..index).unwrap_or_default());
-                start = index + 1;
+    }
+    bytes.len()
+}
+
+/// The index just past the character literal whose quote is at `quote`
+/// (`'x'`, `'\''`, `'\u{2c}'`), or just past the quote when it starts a
+/// lifetime (`'a`).
+fn char_end(text: &str, quote: usize) -> usize {
+    let rest = text.get(quote + 1..).unwrap_or_default();
+    let mut chars = rest.chars();
+    match chars.next() {
+        Some('\\') => rest
+            .get(2..)
+            .and_then(|after| after.find('\''))
+            .map_or(quote + 1, |end| quote + 4 + end),
+        Some(ch) if chars.next() == Some('\'') => quote + 2 + ch.len_utf8(),
+        _ => quote + 1,
+    }
+}
+
+/// The comma-separated pieces of `text` that are not inside brackets, a
+/// string (ordinary, raw or byte) or a character literal.
+fn top_level_pieces(text: &str) -> Vec<&str> {
+    let bytes = text.as_bytes();
+    let mut pieces = Vec::new();
+    let (mut depth, mut start, mut at) = (0_usize, 0_usize, 0_usize);
+    while at < bytes.len() {
+        match bytes[at] {
+            b'"' => at = string_end(bytes, at),
+            b'\'' => at = char_end(text, at),
+            b'(' | b'[' | b'{' => {
+                depth += 1;
+                at += 1;
             }
-            _ => {}
+            b')' | b']' | b'}' => {
+                depth = depth.saturating_sub(1);
+                at += 1;
+            }
+            b',' if depth == 0 => {
+                pieces.push(text.get(start..at).unwrap_or_default());
+                at += 1;
+                start = at;
+            }
+            _ => at += 1,
         }
     }
     pieces.push(text.get(start..).unwrap_or_default());
@@ -426,8 +469,23 @@ impl<'a> Walker<'a> {
     /// without a body (`mod name;`) is an import of the file module.
     fn module(&mut self, node: TsNode<'_>, scope: &Scope) -> Option<Inner> {
         let name = self.text_of(node.child_by_field_name("name")?);
+        // A module declared in a function body cannot be named from outside
+        // the body (`crate::f::m` is not a path), so its path says so, as the
+        // qualified names of what it holds do.
+        let component = if scope.kind == ScopeKind::Function {
+            format!("{LOCALS}::{name}")
+        } else {
+            name.to_owned()
+        };
+        // A `mod` is not a symbol, so a binding export on it belongs to the
+        // file's module (ADR 0003).
+        let (_, attributes) = leading(node);
+        let file_module = self.facts.nodes.first().map(|module| module.id.clone());
+        if let Some(id) = file_module {
+            self.bindings(&attributes, &id, name);
+        }
         let Some(body) = node.child_by_field_name("body") else {
-            let specifier = anchored(&format!("self::{name}"), &scope.modules);
+            let specifier = anchored(&format!("self::{component}"), &scope.modules);
             let span = self.span(node);
             self.facts.imports.push(ImportEdge {
                 specifier,
@@ -442,7 +500,7 @@ impl<'a> Walker<'a> {
         }
         components.push(name.to_owned());
         let mut modules = scope.modules.clone();
-        modules.push(name.to_owned());
+        modules.push(component);
         let inner = Scope {
             kind: ScopeKind::Module,
             components,
@@ -597,6 +655,15 @@ mod tests {
         );
         let both = r#"(signature = (x, name="no"), name = "yes")"#;
         assert_eq!(renamed(both, "name").as_deref(), Some("yes"));
+    }
+
+    #[test]
+    fn unfinished_literals_end_the_scan() {
+        assert_eq!(top_level_pieces(r#"a, "b, c"#), ["a", r#" "b, c"#]);
+        assert_eq!(top_level_pieces(r#"a, r#"b, c"#), ["a", r#" r#"b, c"#]);
+        assert_eq!(top_level_pieces(r"a, '\"), ["a", r" '\"]);
+        assert_eq!(top_level_pieces(r#"a, "b\"#), ["a", r#" "b\"#]);
+        assert_eq!(top_level_pieces("a, '"), ["a", " '"]);
     }
 
     #[test]

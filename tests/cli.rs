@@ -118,10 +118,20 @@ fn the_walker_honours_exclude_and_skips_modfence() {
     let run = on("app", &["check"]);
     // ui/vendor and ui/.modfence would each add a violation if they were read.
     assert!(run.out.contains("1 error(s)"), "{}", run.out);
-    // Python, TypeScript and nothing else: the Rust file is not read.
+    // Python, TypeScript and the Rust file of `core/`.
     let graph = on("app", &["graph"]);
-    assert!(graph.out.contains("languages: py, ts\n"), "{}", graph.out);
-    assert!(!graph.out.contains("core/lib.rs"));
+    assert!(
+        graph.out.contains("languages: py, ts, rs\n"),
+        "{}",
+        graph.out
+    );
+    let json = on("app", &["graph", "--format", "json"]);
+    assert!(json.out.contains("\"mod:rs:core/lib.rs\""), "{}", json.out);
+    assert!(
+        json.out.contains("\"sym:rs:core/lib.rs#f\""),
+        "{}",
+        json.out
+    );
 }
 
 #[test]
@@ -197,7 +207,10 @@ fn output_goes_to_a_file_when_asked() {
 fn graph_prints_a_text_summary() {
     let run = on("app", &["graph"]);
     assert_eq!(run.code, 0);
-    assert!(run.out.starts_with("modfence graph\nlanguages: py, ts\n"));
+    assert!(
+        run.out
+            .starts_with("modfence graph\nlanguages: py, ts, rs\n")
+    );
     assert!(run.out.contains("nodes: "));
     assert!(run.out.contains("edges: "));
     assert!(run.out.contains("diagnostics: "), "{}", run.out);
@@ -910,4 +923,69 @@ fn text_from_an_index_is_escaped_where_it_is_printed() {
     );
     assert!(!run.err.contains('\u{1b}'), "{:?}", run.err);
     assert!(!run.err.contains("\nfake: error"), "{:?}", run.err);
+}
+
+/// The `relation` edges of `graph --format json` run in the Rust fixture crate,
+/// as (source, target, confidence) with the ids as written.
+fn rust_fixture_edges(relation: &str) -> Vec<(String, String, String)> {
+    let directory = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/rust");
+    let output = binary(&["graph", "--format", "json"], &directory);
+    assert!(output.status.success(), "{output:?}");
+    let document: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    let edges = document["graph"]["edges"].as_array().unwrap();
+    let text = |value: &serde_json::Value| value.as_str().unwrap().to_owned();
+    edges
+        .iter()
+        .filter(|edge| edge["relation"] == relation)
+        .map(|edge| {
+            let confidence = &edge["metadata"]["confidence"];
+            (
+                text(&edge["source"]),
+                text(&edge["target"]),
+                confidence.as_str().unwrap_or_default().to_owned(),
+            )
+        })
+        .collect()
+}
+
+// ADR 0003: the walker reads `.rs` files and the graph resolves their `crate::`,
+// `self::` and `super::` paths against the crate's module tree, which starts at
+// `src/lib.rs` and follows `mod name;` to `name.rs` or `name/mod.rs`.
+#[test]
+fn rust_crates_are_walked_and_resolved() {
+    let imports = rust_fixture_edges("imports");
+    let from = |source: &str| -> Vec<(String, String)> {
+        let found = imports.iter().filter(|(from, _, _)| from == source);
+        found
+            .map(|(_, to, how)| (to.clone(), how.clone()))
+            .collect()
+    };
+    let resolved = |target: &str| (target.to_owned(), "resolved".to_owned());
+    assert_eq!(
+        from("mod:rs:src/lib.rs"),
+        [
+            resolved("ext:rs:alloc"),
+            resolved("ext:rs:serde"),
+            resolved("ext:rs:std"),
+            // `super::super::outside` in `nested` leaves the crate.
+            ("ext:rs:super".to_owned(), "heuristic".to_owned()),
+            resolved("mod:rs:src/model/deep.rs"),
+            resolved("mod:rs:src/model/mod.rs"),
+            resolved("mod:rs:src/nested/leaf.rs"),
+            resolved("mod:rs:src/util.rs"),
+        ]
+    );
+    assert_eq!(
+        from("mod:rs:src/model/mod.rs"),
+        [
+            resolved("mod:rs:src/lib.rs"),
+            resolved("mod:rs:src/model/deep.rs"),
+            resolved("mod:rs:src/util.rs"),
+        ]
+    );
+    let calls = rust_fixture_edges("calls");
+    let start = "sym:rs:src/model/mod.rs#<Engine>::start";
+    let double = "sym:rs:src/util.rs#double";
+    let found = (start.to_owned(), double.to_owned(), "heuristic".to_owned());
+    assert!(calls.contains(&found), "{calls:?}");
 }
