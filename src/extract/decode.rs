@@ -9,7 +9,9 @@
 
 use std::str::Utf8Error;
 
-use super::model::{Diagnostic, DiagnosticCode, FileFacts, Lang, Node};
+use super::model::{
+    Diagnostic, DiagnosticCode, ExtractCtx, Extractor, FileFacts, Lang, Node, SourceFile,
+};
 
 /// The facts of a file whose bytes are not valid UTF-8: its module node and an
 /// [`DiagnosticCode::UnsupportedEncoding`] diagnostic naming the offset of the
@@ -37,4 +39,18 @@ pub fn undecodable(lang: Lang, path: &str, error: Utf8Error) -> FileFacts {
         }),
     }
     facts
+}
+
+/// The facts of `file` from `extractor`, or, when `error` says its bytes were
+/// not valid UTF-8, those of [`undecodable`]. `file.text` is empty then.
+#[must_use]
+pub fn extract(
+    extractor: &dyn Extractor,
+    file: &SourceFile<'_>,
+    error: Option<Utf8Error>,
+) -> FileFacts {
+    match error {
+        None => extractor.extract(file, &ExtractCtx::default()),
+        Some(error) => undecodable(extractor.language(), file.path, error),
+    }
 }

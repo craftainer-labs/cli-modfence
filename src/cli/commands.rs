@@ -12,7 +12,7 @@ use crate::extract::decode;
 use crate::extract::python::PythonExtractor;
 use crate::extract::rust::RustExtractor;
 use crate::extract::typescript::TsExtractor;
-use crate::extract::{ExtractCtx, Extractor, SourceFile};
+use crate::extract::{Extractor, SourceFile};
 use crate::graph::{Builder, Graph};
 use crate::{output, report, rules};
 
@@ -129,17 +129,16 @@ fn analyse(common: &Common, err: &mut impl Write) -> Result<(Config, Graph, bool
         let full = root.join(path);
         let bytes = fs::read(&full).map_err(failed("read", &full))?;
         let decoded = std::str::from_utf8(&bytes);
-        let text = decoded.unwrap_or_default();
-        sources.add_if(decoded.is_ok(), path, text);
-        let file = SourceFile { path, text };
+        let file = SourceFile {
+            path,
+            text: decoded.unwrap_or_default(),
+        };
+        sources.add_if(decoded.is_ok(), path, file.text);
         for extractor in extractors
             .iter()
             .filter(|extractor| extractor.handles(path))
         {
-            let facts = match decoded {
-                Ok(_) => extractor.extract(&file, &ExtractCtx::default()),
-                Err(error) => decode::undecodable(extractor.language(), path, error),
-            };
+            let facts = decode::extract(*extractor, &file, decoded.err());
             builder.add(&file, facts);
         }
     }
