@@ -324,12 +324,19 @@ E. **Deny severity.** `default-deny` is always `error`, or settable
   repeated keys, with the expected sorted list, before any rule consumes it.
 - `modfence trace` is implemented by NC5; the SARIF properties by NC4.
 - Whether a SCIP reference with no tree-sitter call site should create a call
-  edge (ADR 0003, A).
+  edge (ADR 0003, A): resolved, no. ADR 0003 Decision A (the SCIP rules, "Only
+  existing tree-sitter call sites can be upgraded") makes SCIP upgrade
+  existing call sites only, and NC6b (cli-modfence #24) implemented it.
+
+## Deferred (not in v1)
+
 - Cycle detection (dependency-cruiser's `circular`, import-linter's
-  independence contracts) is not a rule type here; it is deferred and should
-  become a built-in `modfence/cycle` rule.
+  independence contracts) is not a rule type here. It should become a
+  built-in `modfence/cycle` rule later; v1 rules judge single edges, and a
+  cycle needs a graph algorithm and a new rule type.
 - A baseline file for adopting the tool on a repository with existing
-  violations is out of scope.
+  violations: out of scope for v1; a team can start with `default = "allow"`
+  and add `forbid` rules.
 
 ## Consequences
 

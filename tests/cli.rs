@@ -805,6 +805,20 @@ fn a_scip_file_that_is_not_an_index_exits_2() {
 }
 
 #[test]
+fn a_scip_file_over_the_size_cap_exits_2_without_being_read() {
+    let dir = project("precise-oversize");
+    // A sparse file one byte over the 512 MiB cap: no disk is used, and it is
+    // refused on its size alone.
+    let big = dir.join("big.scip");
+    let handle = std::fs::File::create(&big).unwrap();
+    handle.set_len(512 * 1024 * 1024 + 1).unwrap();
+    let run = in_project(&dir, &["check", "--scip", big.to_str().unwrap()]);
+    assert_eq!(run.code, 2, "{}", run.err);
+    assert!(run.err.contains("more than the limit"), "{}", run.err);
+    std::fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
 fn bare_precise_reads_the_index_directory() {
     let dir = project("precise-directory");
     // No directory, then an empty one: a warning, and the run goes on.

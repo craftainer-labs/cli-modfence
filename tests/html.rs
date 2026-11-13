@@ -337,3 +337,271 @@ fn an_empty_graph_is_a_valid_page() {
     assert_eq!(data["nodes"], serde_json::json!([]));
     assert_eq!(data["edges"], serde_json::json!([]));
 }
+
+// The reference check (NFR-0002, "HTML check"): a small tokenizer over the
+// generated page, not a substring search. It walks the tags (skipping comments
+// and treating `<script>` and `<style>` bodies as raw text), and fails on any
+// URL-valued attribute, CSS `url(...)` or `@import` that is not a fragment
+// (`#...`) or a `data:` URI, on tags that fetch (`img`, `link`, `iframe`, ...)
+// and on script code that names a network API.
+
+/// What the check found in one page.
+#[derive(Default)]
+struct References {
+    tags: usize,
+    checked: usize,
+    problems: Vec<String>,
+}
+
+/// Attributes whose value is a URL (or a list of them).
+const URL_ATTRIBUTES: [&str; 14] = [
+    "src",
+    "href",
+    "xlink:href",
+    "srcset",
+    "action",
+    "formaction",
+    "poster",
+    "data",
+    "cite",
+    "background",
+    "ping",
+    "manifest",
+    "codebase",
+    "longdesc",
+];
+
+/// Tags that load something or change how URLs resolve.
+const FETCHING_TAGS: [&str; 13] = [
+    "link", "img", "iframe", "frame", "object", "embed", "base", "audio", "video", "source",
+    "track", "picture", "form",
+];
+
+/// Names a script must not contain.
+const NETWORK_APIS: [&str; 9] = [
+    "fetch(",
+    "XMLHttpRequest",
+    "WebSocket",
+    "EventSource",
+    "sendBeacon",
+    "importScripts",
+    "new Image",
+    "import(",
+    "Worker(",
+];
+
+fn is_local(value: &str) -> bool {
+    let value = value.trim();
+    value.starts_with('#')
+        || value
+            .get(..5)
+            .is_some_and(|scheme| scheme.eq_ignore_ascii_case("data:"))
+}
+
+fn check_css(css: &str, context: &str, found: &mut References) {
+    let lower = css.to_ascii_lowercase();
+    for banned in ["@import", "image-set("] {
+        if lower.contains(banned) {
+            found.problems.push(format!("{context}: {banned}"));
+        }
+    }
+    let mut from = 0;
+    while let Some(at) = lower[from..].find("url(") {
+        let start = from + at + 4;
+        let tail = lower[start..].trim_start();
+        let argument = match tail.chars().next() {
+            Some(quote @ ('"' | '\'')) => tail[1..].split(quote).next().unwrap_or(""),
+            _ => tail.split(')').next().unwrap_or(""),
+        };
+        found.checked += 1;
+        if !is_local(argument) {
+            found.problems.push(format!("{context}: url({argument})"));
+        }
+        from = start;
+    }
+}
+
+/// The tag starting at `rest` (which begins with `<` and a letter): its
+/// lowercase name, its attributes (lowercase names) and its length in bytes.
+fn parse_tag(rest: &str) -> (String, Vec<(String, String)>, usize) {
+    let b = rest.as_bytes();
+    let mut p = 1;
+    while p < b.len() && !b[p].is_ascii_whitespace() && !matches!(b[p], b'/' | b'>') {
+        p += 1;
+    }
+    let tag = rest[1..p].to_ascii_lowercase();
+    let mut attributes = Vec::new();
+    loop {
+        while p < b.len() && (b[p].is_ascii_whitespace() || b[p] == b'/') {
+            p += 1;
+        }
+        if p >= b.len() {
+            break;
+        }
+        if b[p] == b'>' {
+            p += 1;
+            break;
+        }
+        let start = p;
+        while p < b.len() && !b[p].is_ascii_whitespace() && !matches!(b[p], b'=' | b'>' | b'/') {
+            p += 1;
+        }
+        let name = rest[start..p].to_ascii_lowercase();
+        while p < b.len() && b[p].is_ascii_whitespace() {
+            p += 1;
+        }
+        let mut value = String::new();
+        if p < b.len() && b[p] == b'=' {
+            p += 1;
+            while p < b.len() && b[p].is_ascii_whitespace() {
+                p += 1;
+            }
+            if p < b.len() && matches!(b[p], b'"' | b'\'') {
+                let quote = b[p];
+                p += 1;
+                let from = p;
+                while p < b.len() && b[p] != quote {
+                    p += 1;
+                }
+                value = rest[from..p].to_owned();
+                p = (p + 1).min(b.len());
+            } else {
+                let from = p;
+                while p < b.len() && !b[p].is_ascii_whitespace() && b[p] != b'>' {
+                    p += 1;
+                }
+                value = rest[from..p].to_owned();
+            }
+        }
+        attributes.push((name, value));
+    }
+    (tag, attributes, p)
+}
+
+fn references(page: &str) -> References {
+    let mut found = References::default();
+    let mut at = 0;
+    while let Some(offset) = page[at..].find('<') {
+        at += offset;
+        let rest = &page[at..];
+        if rest.starts_with("<!--") {
+            at += rest.find("-->").map_or(rest.len(), |end| end + 3);
+            continue;
+        }
+        if !rest[1..].starts_with(|c: char| c.is_ascii_alphabetic()) {
+            at += 1;
+            continue;
+        }
+        let (tag, attributes, length) = parse_tag(rest);
+        found.tags += 1;
+        at += length;
+        if FETCHING_TAGS.contains(&tag.as_str()) {
+            found.problems.push(format!("<{tag}> is not allowed"));
+        }
+        let mut kind = "";
+        let mut refresh = false;
+        for (name, value) in &attributes {
+            if URL_ATTRIBUTES.contains(&name.as_str()) {
+                found.checked += 1;
+                if !is_local(value) {
+                    found.problems.push(format!("<{tag} {name}=\"{value}\">"));
+                }
+            } else if name == "style" {
+                check_css(value, &format!("<{tag}> style"), &mut found);
+            } else if name == "type" {
+                kind = value;
+            } else if name == "http-equiv" && value.eq_ignore_ascii_case("refresh") {
+                refresh = true;
+            }
+        }
+        if tag == "meta" && refresh {
+            found.problems.push("<meta http-equiv=refresh>".to_owned());
+        }
+        if tag == "script" || tag == "style" {
+            let close = format!("</{tag}");
+            let end = page[at..]
+                .to_ascii_lowercase()
+                .find(&close)
+                .unwrap_or(page.len() - at);
+            let body = &page[at..at + end];
+            at += end;
+            if tag == "style" {
+                check_css(body, "<style>", &mut found);
+            } else if kind != "application/json" {
+                for api in NETWORK_APIS {
+                    if body.contains(api) {
+                        found.problems.push(format!("<script> names {api}"));
+                    }
+                }
+            }
+        }
+    }
+    found
+}
+
+#[test]
+fn the_reference_check_accepts_fragments_and_data_uris() {
+    let good = "<p>1 < 2</p><a href=\"#top\">t</a><use xlink:href='#sym'/>\
+        <div style=\"fill:url(#grad)\"></div>\
+        <style>.a{background:url(\"data:image/png;base64,AA\")}</style>\
+        <!-- <a href=\"http://commented\"> -->\
+        <script type=\"application/json\">{\"href\":\"http://x\",\"a\":\"fetch(\"}</script>";
+    let found = references(good);
+    assert_eq!(found.problems, Vec::<String>::new());
+    assert_eq!(found.checked, 4);
+    assert_eq!(found.tags, 6);
+}
+
+#[test]
+fn the_reference_check_catches_every_kind_of_reference() {
+    let bad = "<a href=\"https://x\">a</a><img src=//x/y.png><link rel=stylesheet href=x.css>\
+        <style>@import \"x.css\"; a{background:URL( 'http://x/f' )}</style>\
+        <div style=\"background:url(/rel)\"></div><script>fetch(\"x\")</script>\
+        <meta http-equiv=\"refresh\" content=\"0;url=http://x\">";
+    let problems = references(bad).problems.join("\n");
+    for expected in [
+        "<a href=\"https://x\">",
+        "<img> is not allowed",
+        "<img src=\"//x/y.png\">",
+        "<link> is not allowed",
+        "<link href=\"x.css\">",
+        "<style>: @import",
+        "<style>: url(http://x/f)",
+        "<div> style: url(/rel)",
+        "<script> names fetch(",
+        "<meta http-equiv=refresh>",
+    ] {
+        assert!(problems.contains(expected), "{expected} in\n{problems}");
+    }
+}
+
+/// The page of `graph --format html` for a fixture directory, at `level`.
+fn fixture_page(fixture: &str, level: &str) -> String {
+    let directory = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures")
+        .join(fixture);
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_modfence"))
+        .args(["graph", "--format", "html", "--level", level])
+        .current_dir(directory)
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{fixture}");
+    String::from_utf8(output.stdout).unwrap()
+}
+
+#[test]
+fn the_pages_of_the_real_fixtures_reference_nothing_outside_the_file() {
+    for fixture in ["cli/app", "python", "typescript", "rust"] {
+        for level in ["module", "symbol"] {
+            let page = fixture_page(fixture, level);
+            let nodes = data(&page)["nodes"].as_array().unwrap().len();
+            assert!(nodes > 3, "{fixture} {level}: {nodes} nodes");
+            let found = references(&page);
+            assert!(found.tags > 40, "{fixture} {level}: {} tags", found.tags);
+            assert_eq!(found.problems, Vec::<String>::new(), "{fixture} {level}");
+        }
+    }
+    let graph = graph();
+    let page = Html.render(&graph, &View::new(&graph, Level::Symbol, Some("layer")));
+    assert_eq!(references(&page).problems, Vec::<String>::new());
+}
