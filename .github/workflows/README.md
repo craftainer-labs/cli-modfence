@@ -14,16 +14,6 @@
   `SEMVER_RELEASE_TYPE=` with an optional `major`, `minor` or `patch`
   value, failing otherwise), so a `!`-marked PR title (or, on
   `main`, head commit subject) runs `cargo semver-checks` as `major`.
-<<<<<<< /home/runner/work/cli-modfence/cli-modfence/.github/workflows/README.md
-- `smoke.yml` — builds the `runner` stage of the root `Dockerfile` via
-  the root `compose.yml`, starts it against the real Postgres, RustFS,
-  Redis, and Keycloak backing services, and confirms `/health/live` and
-  `/health/ready` both return 200 -- on push, on pull requests, and on
-  demand. Runs as the same two-leg `amd64`/`arm64` matrix as
-  `checks.yml` — this is the check that would actually catch an
-  arch-specific runtime break (e.g. a C-extension dependency missing an
-  arm64 wheel), since `checks.yml`'s test run uses `MODE=mock`
-  in-process fakes for some paths rather than the built image.
 - `a11y.yml` — instance-owned (modfence only; see
   `../template-sync-manifest.local.yml`), on push to `main`, on pull requests
   and on demand, with `contents: read` only. Builds modfence, writes the HTML
@@ -42,8 +32,6 @@
   command lines, SHA-256). It uploads them as the `scip-fixtures` artifact and
   pushes nothing, opens no PR: a person reviews and commits the files. It needs
   the network; modfence itself never does (NFR-0002).
-=======
->>>>>>> /tmp/template-new/.github/workflows/README.md
 - `release-binaries.yml` — manually dispatched with a `tag` input, right after
   each `Release`: `gh workflow run release-binaries.yml -f tag=vX.Y.Z`. Ships
   the CLI's binaries: attaches the dist archives, their checksums and the
